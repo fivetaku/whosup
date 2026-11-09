@@ -1,0 +1,50 @@
+id = "fivetaku.whosup"
+name = "whosup"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Who's waiting on you? A quiet attention board for every herdr session: what needs input, what finished, what's running — click to jump to that pane."
+platforms = ["linux", "macos"]
+
+# Node 22.13+ only (node:sqlite). No build step.
+[[build]]
+command = ["sh", "scripts/preflight.sh"]
+
+# Brings the board up when herdr starts (and opens the browser once, unless OPEN_BROWSER=0).
+[[startup]]
+command = ["sh", "scripts/plugin.sh", "start"]
+
+[[actions]]
+id = "start"
+title = "Start whosup"
+contexts = ["workspace"]
+command = ["sh", "scripts/plugin.sh", "start"]
+
+[[actions]]
+id = "stop"
+title = "Stop whosup"
+contexts = ["workspace"]
+command = ["sh", "scripts/plugin.sh", "stop"]
+
+[[actions]]
+id = "status"
+title = "whosup status"
+contexts = ["workspace"]
+command = ["sh", "scripts/plugin.sh", "status"]
+
+[[actions]]
+id = "desks-apply"
+title = "Create desks from desks.json"
+contexts = ["workspace"]
+command = ["sh", "-c", ". scripts/node-path.sh && exec node scripts/desks.mjs apply"]
+
+[[actions]]
+id = "desks-status"
+title = "Desks status"
+contexts = ["workspace"]
+command = ["sh", "-c", ". scripts/node-path.sh && exec node scripts/desks.mjs status"]
+
+[[actions]]
+id = "open"
+title = "Open whosup in browser"
+contexts = ["workspace"]
+command = ["sh", "scripts/plugin.sh", "open"]

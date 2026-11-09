@@ -1,0 +1,11 @@
+{
+  "name": "whosup",
+  "version": "0.1.0",
+  "description": "Who's waiting on you? A quiet attention board for herdr sessions.",
+  "type": "module",
+  "bin": { "whosup": "bin/whosup.mjs" },
+  "engines": { "node": ">=22.13" },
+  "scripts": { "start": "node bin/whosup.mjs", "test": "node --test" },
+  "license": "MIT",
+  "repository": "https://github.com/fivetaku/whosup"
+}
