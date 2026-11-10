@@ -9,12 +9,12 @@
   </picture>
 </p>
 
-> **¿Quién te está esperando?** Un único tablero tranquilo para todas las sesiones de agentes de IA que tienes abiertas en la terminal.
+> **Deja de abandonar tus sesiones de agentes.** whosup reúne todas tus sesiones de herdr en un solo tablero y te muestra qué panel te necesita ahora.
 
 Trabajas con seis, diez, quince agentes de código en paneles de [herdr](https://herdr.dev). Unos están trabajando, otros terminaron hace una hora y uno está parado en un aviso de permisos que nunca viste. whosup reúne cada panel de cada sesión de herdr en ejecución en una sola página del navegador: qué necesita tu respuesta, qué acaba de terminar, qué sigue en marcha y qué se ha quedado en silencio. Haz clic en una celda y herdr salta a ese panel.
 
 <p align="center">
-  <img src="assets/hero.png" alt="whosup — nueve sesiones, una te está llamando" width="900">
+  <img src="assets/hero.png" alt="whosup — antes: sesiones de terminal dispersas y olvidadas; con whosup: un tablero y el siguiente panel marcado" width="900">
 </p>
 
 [Inicio rápido](#inicio-rápido) • [¿Por qué whosup?](#por-qué-whosup) • [Qué ves](#qué-ves) • [Cómo funciona](#cómo-funciona) • [Funcionalidades](#funcionalidades) • [Ajustes](#ajustes) • [Requisitos](#requisitos)

@@ -9,12 +9,12 @@ English | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文](READM
   </picture>
 </p>
 
-> **Who's waiting on you?** One quiet board for every terminal AI-agent session you have open.
+> **Stop abandoning your agent sessions.** whosup puts every herdr session on one board and shows which pane needs you next.
 
 You run six, ten, fifteen coding agents in [herdr](https://herdr.dev) panes. Some are working, some finished an hour ago, one is sitting on a permission prompt you never saw. whosup turns every pane of every running herdr session into one browser page: what needs your input, what just finished, what is still running, what went quiet. Click a cell and herdr jumps to that pane.
 
 <p align="center">
-  <img src="assets/hero.png" alt="whosup — nine sessions, one asking for you" width="900">
+  <img src="assets/hero.png" alt="whosup — before: terminal sessions scattered and forgotten; with whosup: one board, the next pane flagged" width="900">
 </p>
 
 [Quick Start](#quick-start) • [Why whosup?](#why-whosup) • [What you see](#what-you-see) • [How it works](#how-it-works) • [Features](#features) • [Settings](#settings) • [Requirements](#requirements)

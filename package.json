@@ -1,7 +1,7 @@
 {
   "name": "whosup",
   "version": "0.1.0",
-  "description": "Who's waiting on you? A quiet attention board for herdr sessions.",
+  "description": "Stop abandoning your agent sessions. One board for every herdr session.",
   "type": "module",
   "bin": { "whosup": "bin/whosup.mjs" },
   "engines": { "node": ">=22.13" },

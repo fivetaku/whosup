@@ -2,7 +2,7 @@ id = "fivetaku.whosup"
 name = "whosup"
 version = "0.1.0"
 min_herdr_version = "0.9.0"
-description = "Who's waiting on you? A quiet attention board for every herdr session: what needs input, what finished, what's running — click to jump to that pane."
+description = "Stop abandoning your agent sessions. One board for every herdr session: what needs input, what finished, what's running. Click to jump to that pane."
 platforms = ["linux", "macos"]
 
 # Node 22.13+ only (node:sqlite). No build step.
