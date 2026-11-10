@@ -107,7 +107,7 @@ Un solo proceso de Node, sin paso de compilación. El hook de arranque de herdr 
 | resume | La conversación del propio panel o, si no, la más reciente de su carpeta que no esté viva en otro panel → `AGENT_CMD --resume`; el tablero muestra cuál antes de hacer clic. Solo conversaciones de Claude Code; otros agentes empiezan de cero |
 | new pane | Selector de sesión y carpeta, ejecuta el comando de tu agente |
 | Desks (opcional) | Declara sesiones y paneles por monitor en `desks.json`; la acción `desks-apply` crea solo lo que falta (puedes repetirla sin efectos extra) |
-| Idiomas | English, 한국어 (panel **settings**, `?lang=`) |
+| Idiomas | English por defecto; 한국어 se elige en el panel **settings** o con `?lang=ko` |
 | Tema | auto / light / dark (botón de la cabecera, `?theme=`), paletas basadas en temas de IDE |
 | Modo solo lectura | `WHOSUP_READONLY=1` oculta los botones de acción y **+ new pane**, bloquea clics, Enter, 1–9, `n`, clics en alertas y cambios de ajustes (el panel de ajustes solo muestra la elección de idioma), y no lista carpetas. Bloquea cambios, no la vista; consulta el modelo de confianza |
 | seen = posponer | **seen** en una celda en espera la oculta 30 min; **unsee** la devuelve ya |

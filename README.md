@@ -107,7 +107,7 @@ One Node process, no build step. herdr's startup hook is a one-shot command: whe
 | Resume | The pane's own conversation, else the newest one in its folder that is not live in another pane → `AGENT_CMD --resume`; the board shows which one before you click. Claude Code conversations only; other agents start fresh |
 | New pane | Session + folder picker, runs your agent command |
 | Desks (optional) | Declare sessions and panes per monitor in `desks.json`; the `desks-apply` action creates what is missing, idempotently |
-| i18n | English, 한국어 (**settings** panel, `?lang=`) |
+| i18n | English by default, 한국어 on request (**settings** panel, `?lang=ko`) |
 | Theme | auto / light / dark (header button, `?theme=`), researched IDE palettes |
 | Read-only mode | `WHOSUP_READONLY=1` hides the action buttons and **+ new pane**, blocks clicks, Enter, 1–9, `n`, alert clicks and settings changes (the settings panel shows only the language choice), and does not list folders. It blocks changes, not viewing — see the trust model |
 | Seen = snooze | **seen** on any waiting cell hides it for 30 min; **unsee** brings it back now |

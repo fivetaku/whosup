@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
 <link rel="icon" id="fav" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2097.1%20100%27%3E%3Cstyle%3E%40media%28prefers-color-scheme%3Adark%29%7B.i%7Bfill%3A%23e6e6e6%7D%7D%3C%2Fstyle%3E%3Cpath%20fill%3D%27%23F97703%27%20d%3D%27M41.26%201.87L44.48%200.56L47.60%200.03L50.76%200.16L54.12%201.06L93.41%2022.48L95.57%2024.31L96.84%2026.83L97.03%2029.65L96.26%2032.05L95.16%2033.59L93.68%2034.78L55.84%2055.55L52.31%2056.94L48.87%2057.41L45.09%2057.02L41.54%2055.70L3.69%2034.94L1.53%2033.11L0.25%2030.58L0.06%2027.76L0.84%2025.36L2.64%2023.18Z%27%2F%3E%3Cpath%20class%3D%27i%27%20fill%3D%27%23111%27%20d%3D%27M8.71%2045.48L6.65%2044.82L4.48%2044.96L2.63%2045.78L1.08%2047.29L0.18%2049.26L0.04%2051.43L0.70%2053.49L2.05%2055.18L41.54%2076.99L44.48%2078.15L47.60%2078.68L51.38%2078.44L55.28%2077.13L94.02%2055.89L96.18%2053.87L97.08%2051.14L96.59%2048.30L94.93%2046.12L92.33%2044.89L89.60%2044.99L54.99%2063.76L51.38%2064.93L47.60%2065.17L44.48%2064.65L41.82%2063.63ZM8.71%2066.77L6.65%2066.12L4.48%2066.25L2.63%2067.07L1.08%2068.58L0.18%2070.55L0.04%2072.72L0.70%2074.78L2.05%2076.48L41.54%2098.28L44.48%2099.44L47.60%2099.97L51.38%2099.73L55.28%2098.42L94.02%2077.18L96.18%2075.16L97.08%2072.43L96.59%2069.59L94.93%2067.42L92.33%2066.19L89.60%2066.29L54.99%2085.06L51.38%2086.23L47.60%2086.46L44.48%2085.94L41.82%2084.92Z%27%2F%3E%3C%2Fsvg%3E">
 <meta charset="utf-8">
@@ -176,7 +176,8 @@ const I18N = {
 }
 // 화면 언어는 I18N에 있는 것(ko·en)만 받는다. 외부 링크의 ?lang=x 나 저장된 엉뚱한 값으로 판이 깨지지 않게 한다.
 const okLang = (v) => (v && Object.hasOwn(I18N, v) ? v : null)
-let lang = okLang(localStorage.getItem('whosup-lang')) || (navigator.language.startsWith('ko') ? 'ko' : 'en')
+// 기본은 영어. 한국어는 설정 패널(또는 ?lang=ko)에서 고르면 이 브라우저에 저장된다 — 브라우저 언어로 추측하지 않는다.
+let lang = okLang(localStorage.getItem('whosup-lang')) || 'en'
 const T = new Proxy({}, { get: (_, k) => I18N[lang][k] ?? I18N.en[k] ?? k })
 const ST = { get snooze() { return T.seenBtn }, get wait() { return T.wait }, get fail() { return T.fail }, get done() { return T.done }, get run() { return T.run }, get idle() { return T.idle }, get shell() { return T.shell } }
 function applyChrome() {
@@ -687,7 +688,7 @@ let pendingMode = 'terminal' // 설정 패널에서 고른(아직 저장 전) �
 async function showSettings() {
   peekOn = true
   pendingMode = clickMode()
-  const langRow = `<div class="setrow"><label>${T.langLabel}<small>${T.langHint}</small></label><div class="seg mini"><button data-lang="ko" class="${lang === 'ko' ? 'on' : ''}">한</button><button data-lang="en" class="${lang === 'en' ? 'on' : ''}">EN</button></div></div>`
+  const langRow = `<div class="setrow"><label>${T.langLabel}<small>${T.langHint}</small></label><div class="seg mini"><button data-lang="en" class="${lang === 'en' ? 'on' : ''}">EN</button><button data-lang="ko" class="${lang === 'ko' ? 'on' : ''}">한</button></div></div>`
   // 읽기 전용: 언어(이 브라우저에만 저장)만 바꿀 수 있고, 서버 설정 칸·저장 버튼은 내지 않는다.
   if (!can()) {
     peek.innerHTML = `<div class="ph"><span class="caps">${T.setTitle}</span><button class="x" data-close>✕</button></div>

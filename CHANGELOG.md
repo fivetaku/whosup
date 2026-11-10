@@ -22,6 +22,9 @@ All notable changes to whosup are recorded here. The format follows
 
 ### Changed
 
+- The board opens in English by default. Korean is chosen in the settings
+  panel (or with `?lang=ko`) and remembered per browser; the browser language
+  is no longer used to guess.
 - herdr and git are called without blocking the server, and conversation
   history is read again only when its file changes. Clicks are answered while
   a collect is running.

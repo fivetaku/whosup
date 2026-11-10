@@ -107,7 +107,7 @@ browser  ◄──  http://127.0.0.1:4790  ◄──  board server  ◄───
 | resume | 窗格自己的对话，否则是该文件夹下没有在其他窗格运行的最新对话 → `AGENT_CMD --resume`；点击前看板会显示是哪一段。仅支持 Claude Code 对话，其他代理会重新开始 |
 | new pane | 选择会话和文件夹，运行你的代理命令 |
 | desk（可选） | 在 `desks.json` 中按显示器声明会话和窗格；`desks-apply` 操作只补齐缺失的部分，可重复执行 |
-| 多语言 | English、한국어（**settings** 面板，`?lang=`） |
+| 多语言 | 默认 English，한국어 在 **settings** 面板或用 `?lang=ko` 选择 |
 | 主题 | auto / light / dark（顶栏按钮，`?theme=`），参考 IDE 配色调研而来 |
 | 只读模式 | `WHOSUP_READONLY=1` 会隐藏操作按钮和 **+ new pane**，阻止点击、Enter、1–9、`n`、点击提醒和修改设置（设置面板只显示语言选择），也不列出文件夹。只阻止修改，不阻止查看——见信任模型 |
 | seen = 推迟 | 等待中格子的 **seen** 只隐藏 30 分钟，**unsee** 立即恢复 |
