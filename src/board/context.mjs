@@ -1,21 +1,57 @@
 // 칸마다 화면에 쓸 문맥: 기다리는 질문 원문(herdr 칸 화면), 마지막 요청(Claude 세션 기록), git 브랜치, 데스크 라벨.
 // 전부 읽기 전용이고 짧게 캐시한다. 못 읽으면 null을 돌려주고 판은 그대로 뜬다.
-import { execFileSync } from 'node:child_process'
+import { execFile, execFileSync } from 'node:child_process'
 import { closeSync, existsSync, fstatSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { bin as herdrBin } from '../runtime/herdr.mjs'
 
 const cache = new Map()
+// 뒤에서 새로 읽는 중인 키. 그동안은 옛 값을 그대로 준다(동기 실행으로 서버를 멈추지 않게).
+const inflight = new Map()
 function memo(key, ttlMs, fn, now = Date.now()) {
   const hit = cache.get(key)
+  // 뒤에서 읽는 중이면 기다리지 않는다: 옛 값이 있으면 그것을, 없으면 아직 모름(null)을 준다.
+  if (inflight.has(key)) return hit ? hit.value : null
   if (hit && now - hit.at < ttlMs) return hit.value
   let value = null
   try { value = fn() } catch { value = null }
   cache.set(key, { at: now, value })
   return value
 }
-export const clearContextCache = () => cache.clear()
+export const clearContextCache = () => { cache.clear(); fileCache.clear() }
+// 비동기로 캐시를 채운다. 값이 신선하면 null, 아니면 읽고 있는 약속을 돌려준다(기다릴지는 부르는 쪽이 정한다).
+function refresh(key, ttlMs, fn, now) {
+  const hit = cache.get(key)
+  if (hit && now - hit.at < ttlMs) return null
+  let p = inflight.get(key)
+  if (!p) {
+    p = (async () => { let value = null; try { value = await fn() } catch { value = null } cache.set(key, { at: Math.max(now, Date.now()), value }) })().finally(() => inflight.delete(key))
+    inflight.set(key, p)
+  }
+  return p
+}
+const run = (file, args, opts) => new Promise((resolve, reject) => execFile(file, args, { encoding: 'utf8', killSignal: 'SIGKILL', timeout: 5000, ...opts }, (err, out) => (err ? reject(err) : resolve(out))))
+// 한 번에 도는 git 수를 묶는다(폴더가 많아도 프로세스를 한꺼번에 쏟지 않게).
+let gitBusy = 0; const gitWait = []
+async function gitSlot(fn) {
+  if (gitBusy >= 6) await new Promise((r) => gitWait.push(r))
+  gitBusy += 1
+  try { return await fn() } finally { gitBusy -= 1; gitWait.shift()?.() }
+}
+// 파일이 그대로면(크기·수정 시각) 다시 읽지 않는다. 쉬는 칸의 대화 기록을 15초마다 4MB씩 다시 읽던 것을 없앤다.
+const fileCache = new Map()
+function byFile(kind, path, fn) {
+  const st = statSync(path)
+  const sig = `${st.size}:${st.mtimeMs}`
+  const k = `${kind}:${path}`
+  const hit = fileCache.get(k)
+  if (hit && hit.sig === sig) return hit.value
+  const value = fn()
+  if (fileCache.size > 2000) fileCache.clear()
+  fileCache.set(k, { sig, value })
+  return value
+}
 
 
 // ── 칸 화면 글 ───────────────────────────────────────────────
@@ -117,18 +153,52 @@ export function failedFor(text, status, question) {
   return looksFailed(text)
 }
 
+function parsePane(text, status) {
+  const asked = status === 'blocked' ? questionOf(text) : null
+  const question = asked?.text ?? null
+  return {
+    question,
+    ask_kind: asked?.kind ?? null,
+    last_say: status === 'done' ? extractLastSay(text) : null,
+    failed: failedFor(text, status, question),
+  }
+}
 export function paneContext(session, pane, status, now = Date.now()) {
-  return memo(`pane:${session}/${pane}:${status}`, 10000, () => {
-    const text = readPane(session, pane)
-    const asked = status === 'blocked' ? questionOf(text) : null
-    const question = asked?.text ?? null
-    return {
-      question,
-      ask_kind: asked?.kind ?? null,
-      last_say: status === 'done' ? extractLastSay(text) : null,
-      failed: failedFor(text, status, question),
+  return memo(`pane:${session}/${pane}:${status}`, 10000, () => parsePane(readPane(session, pane), status), now)
+}
+
+// 판을 계산하기 전에 칸 화면·git 브랜치를 비동기로 미리 읽어 캐시에 넣는다. 그 뒤의 computeBoard는 캐시만 본다.
+// 칸 화면(질문 원문)은 새 값을 기다린다. 브랜치는 기다리지 않는다 — 판은 바로 내주고(첫 화면이 git을 기다리지 않는다),
+// 읽고 나서 값이 달라졌으면 onLate를 한 번 불러 화면이 다시 읽게 한다.
+export async function warmContext(rows, now = Date.now(), onLate = null) {
+  const jobs = []
+  const late = []
+  const cwds = new Set()
+  for (const s of rows) {
+    if (s.runtime !== 'herdr') continue
+    const [session, pane] = s.runtime_ref.split('/')
+    const live = !['stopped', 'gone', 'shell'].includes(s.status) && !s.unreachable
+    if (live && ['blocked', 'done'].includes(s.status)) {
+      jobs.push(refresh(`pane:${session}/${pane}:${s.status}`, 10000, async () =>
+        parsePane(await run(herdrBin(), ['--session', session, 'pane', 'read', pane, '--source', 'detection', '--lines', '60'], { timeout: 4000 }), s.status), now))
     }
-  }, now)
+    if (s.cwd && !cwds.has(s.cwd) && existsSync(s.cwd)) {
+      cwds.add(s.cwd)
+      const key = `branch:${s.cwd}`
+      const known = cache.has(key)
+      const before = cache.get(key)?.value
+      const p = refresh(key, 60000, () => gitSlot(async () => {
+        const quiet = { timeout: 5000 }
+        const b = (await run('/usr/bin/git', ['-C', s.cwd, 'branch', '--show-current'], quiet)).trim()
+        if (!b) return null
+        const dirty = (await run('/usr/bin/git', ['-C', s.cwd, 'status', '--porcelain', '--untracked-files=no'], quiet)).trim() !== ''
+        return dirty ? `${b}*` : b
+      }), now)
+      if (p) late.push(p.then(() => !known || cache.get(key)?.value !== before))
+    }
+  }
+  if (late.length && onLate) Promise.all(late).then((changed) => { if (changed.some(Boolean)) onLate() }).catch(() => {})
+  await Promise.all(jobs.filter(Boolean))
 }
 
 // ── Claude 세션 기록(jsonl)의 마지막 요청 ────────────────────
@@ -174,15 +244,17 @@ export function lastPromptIn(text) {
   return last
 }
 
+const promptOfFile = (file) => byFile('prompt', file, () => {
+  for (const bytes of [262144, 4194304]) {
+    const hit = lastPromptIn(tailText(file, bytes))
+    if (hit) return hit
+  }
+  return null
+})
 export function lastPrompt(sessionId, now = Date.now()) {
   return memo(`prompt:${sessionId}`, 15000, () => {
     const file = findSessionFile(sessionId)
-    if (!file) return null
-    for (const bytes of [262144, 4194304]) {
-      const hit = lastPromptIn(tailText(file, bytes))
-      if (hit) return hit
-    }
-    return null
+    return file ? promptOfFile(file) : null
   }, now)
 }
 
@@ -204,7 +276,7 @@ export function apiErrorIn(text) {
 export function lastApiError(sessionId, now = Date.now()) {
   return memo(`apierr:${sessionId}`, 15000, () => {
     const file = findSessionFile(sessionId)
-    return file ? apiErrorIn(tailText(file, 65536)) : null
+    return file ? byFile('apierr', file, () => apiErrorIn(tailText(file, 65536))) : null
   }, now)
 }
 
@@ -235,11 +307,10 @@ function headText(path, bytes) {
 // 대화 줄(user·assistant)이 하나라도 있는 기록인가(#20). 요약·스냅숏만 있는 파일은 --resume으로 열어도 빈 대화다.
 export function hasConversationLine(file) {
   const isConv = (text) => text.split('\n').some((l) => { if (!l.startsWith('{')) return false; try { const t = JSON.parse(l).type; return t === 'user' || t === 'assistant' } catch { return false } })
-  try { return isConv(headText(file, 65536)) || isConv(tailText(file, 65536)) } catch { return false }
+  try { return byFile('conv', file, () => isConv(headText(file, 65536)) || isConv(tailText(file, 65536))) } catch { return false }
 }
 function describe(file, sid, from) {
-  let prompt = null
-  for (const bytes of [262144, 4194304]) { prompt = lastPromptIn(tailText(file, bytes)); if (prompt) break }
+  const prompt = promptOfFile(file)
   return { sid, from, at: new Date(statSync(file).mtimeMs).toISOString(), prompt: prompt?.text ?? null }
 }
 

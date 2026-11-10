@@ -1,7 +1,9 @@
 // 이동 시 앞으로 올릴 터미널 찾기: 앱 인스턴스가 여러 개여도 그 세션을 붙든 인스턴스만 고른다.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { terminalPidsFor } from '../src/runtime/herdr.mjs'
+import { appToOpen, openerFor, terminalHostsFor, terminalPidsFor } from '../src/runtime/herdr.mjs'
+import { openDb } from '../src/db.mjs'
+import { getSettings, setSettings, settingSources } from '../src/settings.mjs'
 
 const PS = `
   100     1 /Applications/Ghostty.app/Contents/MacOS/ghostty
@@ -29,4 +31,74 @@ test('jump: 창이 없는 세션·다른 앱의 창은 고르지 않는다', () 
   assert.deepEqual(terminalPidsFor(PS, 'air', 'Ghostty'), [])
   assert.deepEqual(terminalPidsFor(PS, 'air', 'iTerm'), [500])
   assert.deepEqual(terminalPidsFor(PS, 'nope', 'Ghostty'), [])
+})
+
+// ── 터미널 앱 자동 감지·새 창 열기(UX 개편 2차 F1~F3) ──
+const PS2 = `
+  600     1 /Applications/Visual Studio Code.app/Contents/MacOS/Electron
+  610   600 /Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper (Plugin).app/Contents/MacOS/Code Helper (Plugin) --type=utility
+  611   610 /bin/zsh -il
+  612   611 /opt/homebrew/bin/herdr --session code
+  700     1 /System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal
+  701   700 login -pf me
+  702   701 -zsh
+  703   702 /opt/homebrew/bin/herdr --session term
+  800     1 sshd: me@ttys001
+  801   800 /opt/homebrew/bin/herdr --session remote
+`
+
+test('auto: 앱을 정하지 않아도 그 세션을 보여 주는 앱을 찾는다(앱 이름과 함께)', () => {
+  assert.deepEqual(terminalHostsFor(PS, 'main'), [{ pid: 100, app: 'Ghostty' }])
+  assert.deepEqual(terminalHostsFor(PS, 'air'), [{ pid: 500, app: 'iTerm' }])
+  assert.deepEqual(terminalHostsFor(PS2, 'term'), [{ pid: 700, app: 'Terminal' }])
+  assert.deepEqual(terminalHostsFor(PS2, 'remote'), [], 'SSH로 붙은 클라이언트에는 올릴 창이 없다')
+})
+
+test('auto: 앱 안의 도우미 앱은 건너뛰고 창을 가진 본체를 고른다', () => {
+  assert.deepEqual(terminalHostsFor(PS2, 'code'), [{ pid: 600, app: 'Visual Studio Code' }])
+})
+
+test('auto: 세션을 가리지 않으면 herdr를 보여 주는 앱 전부(서버 프로세스 제외), 최근 것 먼저', () => {
+  assert.deepEqual(terminalHostsFor(PS, null).map((h) => h.app), ['iTerm', 'Ghostty', 'Ghostty', 'Ghostty'])
+  assert.deepEqual(terminalHostsFor(PS, null).map((h) => h.pid), [500, 300, 200, 100])
+})
+
+test('새 창: Ghostty와 Terminal은 여는 방법이 있고, 그 밖의 앱은 없다', () => {
+  const g = openerFor('Ghostty', 'side', '/opt/homebrew/bin/herdr')
+  assert.deepEqual(g.args, ['-na', 'Ghostty', '--args', '--command=/opt/homebrew/bin/herdr --session side'])
+  const t = openerFor('terminal', 'default', "/Users/a b/it's/herdr")
+  assert.deepEqual(t.args.slice(0, 2), ['-a', 'Terminal'])
+  assert.match(t.script, /open-default\.command$/)
+  assert.equal(t.body, "#!/bin/sh\nexec '/Users/a b/it'\\''s/herdr'\n", '경로의 공백·따옴표를 셸에 안전하게 넘긴다')
+  assert.equal(openerFor('Terminal', 'side', '/x/herdr').body, "#!/bin/sh\nexec '/x/herdr' '--session' 'side'\n")
+  assert.equal(openerFor('iTerm', 'side'), null)
+})
+
+test('새 창을 열 앱: 고른 앱 > 지금 herdr를 보여 주는 앱(여는 방법을 아는 것) > 기본 터미널', () => {
+  assert.equal(appToOpen('iTerm', PS), 'iTerm', '고른 앱이 먼저')
+  assert.equal(appToOpen('', PS), 'Ghostty', '안 골랐으면 떠 있는 앱 — iTerm은 여는 방법을 몰라 건너뛴다')
+  assert.equal(appToOpen('', PS2), 'Terminal')
+  assert.equal(appToOpen('', ''), 'Terminal', '아무것도 없으면 기본 터미널')
+})
+
+test('설정 front_app: 기본은 빈 값(자동), 저장값 > FRONT_APP, 이상한 글자는 거절, 비우면 되돌아간다', () => {
+  const prev = process.env.FRONT_APP
+  delete process.env.FRONT_APP
+  try {
+    const db = openDb(':memory:')
+    assert.equal(getSettings(db).front_app, '')
+    assert.equal(settingSources(db).front_app, 'default')
+    process.env.FRONT_APP = 'Ghostty'
+    assert.equal(getSettings(db).front_app, 'Ghostty')
+    assert.equal(settingSources(db).front_app, 'env')
+    assert.equal(setSettings(db, { front_app: 'Terminal' }).ok, true)
+    assert.equal(getSettings(db).front_app, 'Terminal', '설정 패널 값이 환경변수보다 먼저')
+    assert.equal(settingSources(db).front_app, 'saved')
+    for (const bad of ['Term"inal', 'a; echo hi', 'x'.repeat(61), 'tell app\nfoo']) assert.equal(setSettings(db, { front_app: bad }).ok, false, bad)
+    assert.equal(getSettings(db).front_app, 'Terminal')
+    assert.equal(setSettings(db, { front_app: null }).ok, true)
+    assert.equal(getSettings(db).front_app, 'Ghostty', '비우면 환경변수로')
+    delete process.env.FRONT_APP
+    assert.equal(getSettings(db).front_app, '', '환경변수도 없으면 자동')
+  } finally { if (prev === undefined) delete process.env.FRONT_APP; else process.env.FRONT_APP = prev }
 })

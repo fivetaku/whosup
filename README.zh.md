@@ -89,9 +89,9 @@ browser  ◄──  http://127.0.0.1:4790  ◄──  board server  ◄───
    └─ click  ──►  pane.focus over herdr's socket  ──►  the pane
 ```
 
-只有一个 Node 进程，无需构建。herdr 的启动钩子是一次性命令：herdr 启动时，它把 whosup 作为后台服务器启动后就结束。之后服务器会自己一直运行，herdr 不会监管或停止它；要停止它，请使用 `stop` 操作。窗格状态来自 herdr 的代理检测（working / blocked / done / idle）；问题文本从窗格屏幕上读取；最后一次请求取自 Claude Code 的对话记录（`~/.claude/projects` 或 `CLAUDE_PROJECTS_DIR`）。运行其他代理的窗格不显示最后一次请求，resume 也会开始新对话。
+只有一个 Node 进程，无需构建。herdr 的启动钩子是一次性命令：herdr 启动时，它把 whosup 作为后台服务器启动后就结束。之后服务器会自己一直运行，herdr 不会监管或停止它；要停止它，请使用 `stop` 操作。窗格状态来自 herdr 的代理检测（working / blocked / done / idle）；问题文本从窗格屏幕上读取；最后一次请求取自 Claude Code 的对话记录（`~/.claude/projects` 或 `CLAUDE_PROJECTS_DIR`）。运行其他代理的窗格不显示最后一次请求，resume 也会开始新对话。收集器还会监听 herdr 的事件：窗格状态一变就立即收集，不用等下一次 3 秒收集，并马上通知已打开的看板标签页。收不到事件时，3 秒收集照常运行。
 
-**信任模型。** 服务器只监听 127.0.0.1，没有登录。来自其他网站、试图修改内容的浏览器请求会被拒绝，但同一台电脑上运行的任何程序都能调用它的 API，包括修改 `AGENT_CMD` 之类的设置——这是 whosup 在 resume 和 new pane 时输入到窗格里的命令。不要把端口暴露给其他人。对于 `Host` 头不是 `127.0.0.1`、`localhost` 或 `[::1]` 的请求，服务器一律返回 403 `local only`，所以转发公网主机名的隧道（Tailscale Serve、cloudflared、ngrok）根本打不开看板。要从你自己的另一台机器查看，请用保持 localhost 主机名的端口转发，例如 `ssh -L 4790:127.0.0.1:4790 <host>`，再打开 `http://localhost:4790`，并用 `WHOSUP_READONLY=1` 启动服务器。只读模式只阻止修改，不阻止查看：它不会列出主目录下的文件夹，但看板上的内容都看得到——格子提示中的窗格文件夹路径、最后一次请求、问题原文——而且 `GET /api/settings` 仍会返回 `agent_cmd`。
+**信任模型。** 服务器只监听 127.0.0.1，没有登录。来自其他网站、试图修改内容的浏览器请求会被拒绝（修改只接受从看板自身地址以 JSON 发送的请求），但同一台电脑上运行的任何程序都能调用它的 API，包括修改 `AGENT_CMD` 之类的设置——这是 whosup 在 resume 和 new pane 时输入到窗格里的命令。不要把端口暴露给其他人。对于 `Host` 头不是 `127.0.0.1`、`localhost` 或 `[::1]` 的请求，服务器一律返回 403 `local only`，所以转发公网主机名的隧道（Tailscale Serve、cloudflared、ngrok）根本打不开看板。要从你自己的另一台机器查看，请用保持 localhost 主机名的端口转发，例如 `ssh -L 4790:127.0.0.1:4790 <host>`，再打开 `http://localhost:4790`，并用 `WHOSUP_READONLY=1` 启动服务器。只读模式只阻止修改，不阻止查看：它不会列出主目录下的文件夹，但看板上的内容都看得到——格子提示中的窗格文件夹路径、最后一次请求、问题原文——而且 `GET /api/settings` 仍会返回 `agent_cmd`。
 
 ---
 
@@ -102,7 +102,8 @@ browser  ◄──  http://127.0.0.1:4790  ◄──  board server  ◄───
 | 自动发现 | 所有运行中的 herdr 会话和窗格，无需配置 |
 | 关注状态 | needs input · failed · finished · running · idle · empty |
 | 问题提取 | 权限框、文件夹信任确认和"A 还是 B？"类问题会原文显示 |
-| 跳转 | 点击 → `pane.focus`，可选 `FRONT_APP` 在 macOS 上把终端切到前台 |
+| 跳转 | 点击 → `pane.focus`，在 macOS 上显示该会话的终端窗口会切到前台。终端应用会自动找到；如果没有窗口显示该会话，就打开一个新窗口（Ghostty、Terminal） |
+| 点击后打开的位置 | **settings** → *Clicking a pane opens*：terminal window（默认）、web address 或 both，按浏览器分别保存。web address 会在 herdr 的网页终端里用新标签页打开该窗格，地址中的 `{session}` 和 `{pane}` 会被替换，每个 herdr 会话可以单独填写地址。从其他设备使用看板时请选它 |
 | resume | 窗格自己的对话，否则是该文件夹下没有在其他窗格运行的最新对话 → `AGENT_CMD --resume`；点击前看板会显示是哪一段。仅支持 Claude Code 对话，其他代理会重新开始 |
 | new pane | 选择会话和文件夹，运行你的代理命令 |
 | desk（可选） | 在 `desks.json` 中按显示器声明会话和窗格；`desks-apply` 操作只补齐缺失的部分，可重复执行 |
@@ -113,12 +114,12 @@ browser  ◄──  http://127.0.0.1:4790  ◄──  board server  ◄───
 | 固定 | 固定的窗格不受排序影响，放在所有 desk 上方的固定行 |
 | stash 与 recently closed | 收起空闲窗格；关闭的窗格在 **recently closed** 保留 7 天，收起的窗格保留到你恢复为止；收起的窗格重新开始工作时会自动回来 |
 | 同一顺序 | next 一行、Enter、1–9、提醒和搁置排序使用同一顺序：失败 → 需要输入 → 已完成，等待久的在前 |
-| 键盘 | `n`（韩文键盘布局下为 `ㅜ`）打开 new pane · Enter 跳到 next 窗格，面板打开时为保存或打开 · 1–9 跳到对应编号的窗格 · Esc 关闭面板。在输入框中输入时忽略 `n` 和 1–9 |
+| 键盘 | `n`（韩文键盘布局下为 `ㅜ`）打开 new pane · Tab 在窗格间移动，Enter 或 Space 打开获得焦点的窗格 · 没有窗格获得焦点时 Enter 跳到 next 窗格，面板打开时为保存或打开 · 1–9 跳到对应编号的窗格 · Esc 关闭面板。在输入框中输入时忽略 `n` 和 1–9 |
 | 重复提醒 | 未处理的窗格每 15 分钟再提醒一次，最多 4 次；处理后关闭提醒 |
 | macOS 提醒（可选） | 即使标签页关闭，服务器也可发送 macOS 通知——默认关闭 |
-| 分屏（可选，macOS） | 点击格子时把看板放在屏幕左侧、终端占据其余部分（`split_pct`）。默认关闭，需要 `FRONT_APP` 和辅助功能权限 |
+| 分屏（可选，macOS） | 点击格子时把看板放在屏幕左侧、终端占据其余部分（`split_pct`）。默认关闭，需要辅助功能权限 |
 | 如实的状态 | 顶栏显示最后采集时间，采集停止时显示 *disconnected*，herdr 无法确认的会话中的窗格会保留并标记 *unreachable* |
-| 设置面板 | 顶栏 **settings**：推迟时长、重复提醒间隔与次数、判定关闭的标准、断开警告、recently closed 保留天数、搁置标记天数、macOS 提醒、unreachable 判定时间、分屏、代理命令。只读模式下只显示语言选择 |
+| 设置面板 | 顶栏 **settings**：推迟时长、重复提醒间隔与次数、判定关闭的标准、断开警告、recently closed 保留天数、搁置标记天数、macOS 提醒、unreachable 判定时间、分屏、代理命令、点击后打开的位置（仅限当前浏览器）、终端应用。只读模式下只显示语言选择 |
 
 ### 插件操作
 
@@ -142,7 +143,7 @@ browser  ◄──  http://127.0.0.1:4790  ◄──  board server  ◄───
 | `PORT` | 4790 | 端口被占用时使用下一个空闲端口 |
 | `OPEN_BROWSER` | 1 | herdr 启动时打开一次浏览器标签页 |
 | `AGENT_CMD` | claude | resume 和 new pane 使用的命令，如果你有包装脚本，就填在这里；**settings** 面板中改的值优先 |
-| `FRONT_APP` | 未设置 | 跳转时要切到前台的 macOS 应用，例如 `Ghostty` |
+| `FRONT_APP` | 自动 | 跳转时要切到前台的 macOS 终端应用，例如 `Ghostty`。未设置时会找到正在显示 herdr 的应用；没有窗口时用 Terminal 打开新窗口。在 **settings** 面板里修改后无需重启即可生效 |
 | `STALE_DAYS`（或 `WHOSUP_STALE_DAYS`） | 3 | 窗格多少天没有动静后标记为可收起 |
 | `WHOSUP_READONLY` | 0 | 设为 1 即只读：不能修改，也不列出文件夹 |
 | `WHOSUP_SEEN_SNOOZE_MIN` · `WHOSUP_RENOTIFY_MIN` · `WHOSUP_RENOTIFY_MAX` · `WHOSUP_GONE_MISSES` · `WHOSUP_STALE_COLLECT_SEC` · `WHOSUP_CLOSED_KEEP_DAYS` · `WHOSUP_OS_NOTIFY` · `WHOSUP_UNREACHABLE_TTL_H` · `WHOSUP_SPLIT_PCT` | 30 · 15 · 4 · 3 · 30 · 7 · 0 · 24 · 0 | 初始值；顶栏 **settings** 面板中改的值在这台电脑上优先 |

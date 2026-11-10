@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
-import { branchOf, lastApiError, lastPrompt, paneContext, resumeTarget } from './context.mjs'
+import { branchOf, lastApiError, lastPrompt, paneContext, resumeTarget, warmContext } from './context.mjs'
 import { getMeta } from '../db.mjs'
 import { getSettings } from '../settings.mjs'
 
@@ -52,6 +52,13 @@ export function collectHealth(db, now, cfg) {
     unreachable,
     stopped: (getMeta(db, 'collect_stopped') || '').split(',').filter(Boolean),
   }
+}
+
+// 서버가 쓰는 판 계산: 칸 화면·git을 비동기로 먼저 읽어 두고(서버가 멈추지 않는다) 같은 규칙으로 계산한다.
+export async function computeBoardAsync(db, opts = {}) {
+  const now = opts.now || new Date()
+  await warmContext(db.prepare('SELECT runtime, runtime_ref, status, unreachable, cwd FROM session WHERE archived = 0').all(), now.getTime(), opts.onLate)
+  return computeBoard(db, { ...opts, now })
 }
 
 // runtimes: 보여 줄 런타임 목록(null이면 전부). 세션판 서버는 기본 herdr만 보인다(Paseo는 기록으로만 남김).

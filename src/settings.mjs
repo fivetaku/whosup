@@ -18,10 +18,13 @@ export const SETTINGS = {
 }
 
 // 글자 설정: 새 세션·이어서 열기에 쓸 명령. 한 줄, 200자 이하.
+// front_app: 칸을 누르면 앞으로 올릴(없으면 새 창을 열) 터미널 앱 이름. 비어 있으면 자동(떠 있는 앱 > 기본 터미널).
+// 앱 이름은 명령줄과 AppleScript에 들어가므로 글자를 좁게 받는다.
 export const TEXT_SETTINGS = {
   agent_cmd: { def: 'claude', env: 'AGENT_CMD', max: 200 },
+  front_app: { def: '', env: 'FRONT_APP', max: 60, pattern: /^[A-Za-z0-9 ._-]+$/ },
 }
-const validText = (spec, v) => typeof v === 'string' && v.trim().length > 0 && v.length <= spec.max && !/[\r\n\0]/.test(v)
+const validText = (spec, v) => typeof v === 'string' && v.trim().length > 0 && v.length <= spec.max && !/[\r\n\0]/.test(v) && (!spec.pattern || spec.pattern.test(v.trim()))
 
 const fromEnv = (spec) => {
   for (const k of [].concat(spec.env)) if (process.env[k] !== undefined && process.env[k] !== '') return Number(process.env[k])
@@ -38,7 +41,7 @@ export function getSettings(db) {
   }
   for (const [key, spec] of Object.entries(TEXT_SETTINGS)) {
     const cands = [db ? getMeta(db, `setting.${key}`) : null, process.env[spec.env], spec.def]
-    out[key] = cands.find((v) => v != null && validText(spec, v)).trim()
+    out[key] = (cands.find((v) => v != null && validText(spec, v)) ?? spec.def).trim()
   }
   return out
 }
@@ -50,7 +53,7 @@ export function setSettings(db, patch) {
   for (const [key, raw] of Object.entries(patch || {})) {
     if (raw === null || raw === '') { if (SETTINGS[key] || TEXT_SETTINGS[key]) clean[key] = RESET; else errors.push(`unknown setting ${key}`); continue } // 비우면 기본값(환경변수 > 코드 기본값)으로 되돌린다
     if (TEXT_SETTINGS[key]) {
-      if (!validText(TEXT_SETTINGS[key], raw)) { errors.push(`${key} must be one line of 1–${TEXT_SETTINGS[key].max} characters`); continue }
+      if (!validText(TEXT_SETTINGS[key], raw)) { errors.push(TEXT_SETTINGS[key].pattern ? `${key} must be an app name: letters, digits, spaces, . _ - (up to ${TEXT_SETTINGS[key].max})` : `${key} must be one line of 1–${TEXT_SETTINGS[key].max} characters`); continue }
       clean[key] = raw.trim(); continue
     }
     const spec = SETTINGS[key]

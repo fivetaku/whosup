@@ -174,7 +174,7 @@ test('promise3: 보관한 칸은 최근 닫힘으로 가고 되돌릴 수 있다
 
 test('settings: 범위 밖 값은 저장하지 않고, 기본값은 PRD 수치다', () => {
   const db = openDb(':memory:')
-  assert.deepEqual(getSettings(db), { seen_snooze_min: 30, renotify_min: 15, renotify_max: 4, gone_misses: 3, stale_collect_sec: 30, closed_keep_days: 7, stale_days: 3, os_notify: 0, unreachable_ttl_h: 24, split_pct: 0, agent_cmd: process.env.AGENT_CMD || 'claude' })
+  assert.deepEqual(getSettings(db), { seen_snooze_min: 30, renotify_min: 15, renotify_max: 4, gone_misses: 3, stale_collect_sec: 30, closed_keep_days: 7, stale_days: 3, os_notify: 0, unreachable_ttl_h: 24, split_pct: 0, agent_cmd: process.env.AGENT_CMD || 'claude', front_app: process.env.FRONT_APP || '' })
   const r = setSettings(db, { renotify_min: 5, gone_misses: 0 })
   assert.equal(r.ok, false)
   assert.equal(getSettings(db).renotify_min, 15, '하나라도 틀리면 아무것도 저장하지 않는다')

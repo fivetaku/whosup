@@ -1,9 +1,10 @@
 // herdr runtime: every pane of every running session, with agent status where herdr detects one.
 // Nothing here assumes a terminal app, a session name, or an agent wrapper.
-import { execFileSync, spawn } from 'node:child_process'
+import { execFile, execFileSync, spawn } from 'node:child_process'
 import { createConnection } from 'node:net'
-import { existsSync } from 'node:fs'
-import { basename } from 'node:path'
+import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
+import { STATE_DIR } from '../db.mjs'
 import { setTimeout as sleep } from 'node:timers/promises'
 
 export const name = 'herdr'
@@ -26,14 +27,28 @@ function herdr(args, session) {
 }
 const herdrJson = (args, session) => JSON.parse(herdr(args, session)).result
 
+// 비동기 호출: 수집·상태 확인이 서버의 이벤트 루프를 붙잡지 않게 한다(동기 실행은 herdr 한 번에 6~9ms, 세션 3개면 수집마다 50ms+ 멈췄다).
+const herdrAsync = (args, session) => new Promise((resolve, reject) => {
+  execFile(bin(), session ? ['--session', session, ...args] : args, { encoding: 'utf8', timeout: 15000, killSignal: 'SIGKILL', maxBuffer: 32 * 1024 * 1024 },
+    (err, stdout) => (err ? reject(err) : resolve(stdout)))
+})
+const herdrJsonAsync = async (args, session) => JSON.parse(await herdrAsync(args, session)).result
+
 // herdr session list: name status directory socket
-export function sessionTable() {
-  return herdr(['session', 'list']).split('\n').slice(1)
-    .map((line) => line.trim().split(/\s+/))
-    .filter((cols) => cols.length >= 4 && !cols[0].startsWith(TEST_SESSION_PREFIX))
-    .map(([name, status, dir, socket]) => ({ name, status, dir, socket }))
-}
+const parseSessionTable = (text) => text.split('\n').slice(1)
+  .map((line) => line.trim().split(/\s+/))
+  .filter((cols) => cols.length >= 4 && !cols[0].startsWith(TEST_SESSION_PREFIX))
+  .map(([name, status, dir, socket]) => ({ name, status, dir, socket }))
+// 마지막으로 읽은 세션 표. 수집(3초)마다 갱신된다 — 클릭 경로가 herdr를 두 번 더 실행하지 않고 이것을 쓴다.
+let tableCache = { at: 0, rows: [] }
+const remember = (rows) => { tableCache = { at: Date.now(), rows }; return rows }
+export function sessionTable() { return remember(parseSessionTable(herdr(['session', 'list']))) }
+export async function sessionTableAsync() { return remember(parseSessionTable(await herdrAsync(['session', 'list']))) }
+// maxAgeMs 안에 읽은 표가 있으면 그것을, 없으면 새로 읽는다.
+export async function sessionTableRecent(maxAgeMs = 4000) { return Date.now() - tableCache.at < maxAgeMs ? tableCache.rows : sessionTableAsync() }
+export const forgetSessionTable = () => { tableCache = { at: 0, rows: [] } }
 export const runningSessions = () => sessionTable().filter((s) => s.status === 'running').map((s) => s.name)
+export const runningSessionsAsync = async () => (await sessionTableAsync()).filter((s) => s.status === 'running').map((s) => s.name)
 
 export const normalizeStatus = (s) => (['working', 'done', 'blocked', 'idle'].includes(s) ? s : 'unknown')
 
@@ -93,10 +108,75 @@ export function listSessions() {
   return listSnapshot().sessions
 }
 
+// listSnapshot의 비동기판: 세션마다 pane list·agent list를 동시에 부른다. 판정 규칙은 listSnapshot과 같다.
+export async function listSnapshotAsync() {
+  const table = await sessionTableAsync()
+  const per = await Promise.all(table.map(async (row) => {
+    if (row.status !== 'running') return { stopped: row.name }
+    try {
+      const [p, a] = await Promise.all([herdrJsonAsync(['pane', 'list'], row.name), herdrJsonAsync(['agent', 'list'], row.name)])
+      const byPane = new Map((a.agents || []).map((x) => [x.pane_id, x]))
+      return { sessions: (p.panes || []).map((pane) => toSession(row.name, pane, byPane.get(pane.pane_id))) }
+    } catch { return { unreachable: row.name } }
+  }))
+  return {
+    table,
+    sessions: per.flatMap((x) => x.sessions || []),
+    unreachable: per.filter((x) => x.unreachable).map((x) => x.unreachable),
+    stopped: per.filter((x) => x.stopped).map((x) => x.stopped),
+  }
+}
+// 수집기에 넘길 런타임: 미리 읽어 둔 조회 결과(또는 그 실패)를 그대로 돌려준다. collectOnce는 동기 그대로 둔다.
+export async function snapshotRuntime() {
+  let snap, err
+  try { snap = await listSnapshotAsync() } catch (e) { err = e }
+  return { name, FIELDS, TRACKS_GONE, IDLE_AFTER_WORK_IS_DONE, snap, listSnapshot: () => { if (err) throw err; return snap } }
+}
+
+// ── herdr 이벤트 구독 ── 세션 소켓에 events.subscribe를 걸어 두고, 칸이 생기거나 닫히거나 에이전트 상태가 바뀌면 onChange를 부른다.
+// 수집 주기(3초)를 기다리지 않고 바로 수집하게 하는 지름길일 뿐이다 — 구독이 안 되는 herdr여도 주기 수집이 그대로 돈다.
+// 상태 변화 구독은 칸마다 걸어야 해서(pane_id 필수), 칸 구성이 바뀌면 그 세션의 연결을 새로 맺는다.
+const WATCH_GLOBAL = ['pane.created', 'pane.closed', 'pane.exited', 'pane.agent_detected']
+const watchers = new Map() // 세션 이름 → { sock, key, dead }
+export function watchEvents(sessions, table, onChange) {
+  if (process.env.WHOSUP_NO_EVENTS === '1') return
+  const panesBy = new Map()
+  for (const s of sessions) { const { session, pane } = splitRef(s.runtime_ref); if (!panesBy.has(session)) panesBy.set(session, []); panesBy.get(session).push(pane) }
+  for (const row of table) {
+    if (row.status !== 'running') continue
+    const panes = (panesBy.get(row.name) || []).sort()
+    const key = panes.join(',')
+    const cur = watchers.get(row.name)
+    if (cur && cur.key === key && (cur.dead || !cur.sock.destroyed)) continue
+    cur?.sock.destroy()
+    const sock = createConnection(process.platform === 'win32' ? `\\\\.\\pipe\\${row.socket}` : row.socket)
+    const w = { sock, key, dead: false }
+    watchers.set(row.name, w)
+    let buf = ''
+    sock.setEncoding('utf8')
+    sock.on('connect', () => sock.write(`${JSON.stringify({ id: 'whosup:watch', method: 'events.subscribe', params: { subscriptions: [...WATCH_GLOBAL.map((type) => ({ type })), ...panes.map((pane_id) => ({ type: 'pane.agent_status_changed', pane_id }))] } })}\n`))
+    sock.on('data', (chunk) => {
+      buf += chunk
+      let i; let hit = false
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, i); buf = buf.slice(i + 1)
+        if (line.includes('"event"')) hit = true
+        else if (line.includes('"error"')) { w.dead = true; sock.destroy() }   // 구독을 모르는 herdr: 이 칸 구성에서는 다시 시도하지 않는다
+      }
+      if (hit) onChange(row.name)
+    })
+    const drop = () => { if (watchers.get(row.name) === w && !w.dead) watchers.delete(row.name) }
+    sock.on('error', drop); sock.on('close', drop)
+  }
+  for (const [n, w] of watchers) if (!table.some((r) => r.name === n && r.status === 'running')) { w.sock.destroy(); watchers.delete(n) }
+}
+export function stopWatching() { for (const w of watchers.values()) w.sock.destroy(); watchers.clear() }
+
 // Raw socket call for requests the CLI lacks (pane.focus).
-export function apiCall(session, method, params, { timeoutMs = 5000 } = {}) {
-  const row = sessionTable().find((s) => s.name === session)
-  if (!row) return Promise.reject(new Error(`herdr session not found: ${session}`))
+export async function apiCall(session, method, params, { timeoutMs = 5000 } = {}) {
+  // 최근(수집·미리 데우기) 읽은 세션 표를 쓴다 — 클릭마다 herdr를 한 번 더 실행하지 않는다. 표에 없으면 새로 읽어 본다.
+  const row = (await sessionTableRecent()).find((s) => s.name === session) || (await sessionTableAsync()).find((s) => s.name === session)
+  if (!row) throw new Error(`herdr session not found: ${session}`)
   return new Promise((resolve, reject) => {
     // Windows herdr listens on a named pipe \\.\pipe\<socket path>; the .sock file only holds pid:nonce (Windows 실기기 실측).
     const sock = createConnection(process.platform === 'win32' ? `\\\\.\\pipe\\${row.socket}` : row.socket)
@@ -130,43 +210,88 @@ export function cwdMissing(dir) {
   return err
 }
 
+const isRunning = async (session, fresh) => (fresh ? await sessionTableAsync() : await sessionTableRecent()).some((s) => s.name === session && s.status === 'running')
 async function ensureServer(session, dir) {
-  if (runningSessions().includes(session)) return 'running'
+  // 최근 표에 켜져 있다고 나오면 그대로 믿고(틀렸으면 focusNow가 새로 읽고 다시 한다), 꺼져 있다고 나오면 새로 읽어 확인한 뒤에 띄운다.
+  if (await isRunning(session, false) || await isRunning(session, true)) return 'running'
   if (dir && !existsSync(dir)) throw cwdMissing(dir)
   // spawn 실패는 'error' 이벤트로 온다. 리스너가 없으면 상주 서버가 통째로 죽는다(#2).
   let spawnErr = null
   const child = spawn(bin(), ['--session', session, 'server'], { cwd: dir, detached: true, stdio: 'ignore' })
   child.once('error', (err) => { spawnErr = err })
   child.unref()
-  for (let i = 0; i < 20 && !spawnErr && !runningSessions().includes(session); i++) await sleep(250)
+  for (let i = 0; i < 20 && !spawnErr && !(await isRunning(session, true)); i++) await sleep(250)
   if (spawnErr) throw new Error(`could not start herdr session ${session}: ${spawnErr.message}`)
-  if (!runningSessions().includes(session)) throw new Error(`could not start herdr session ${session}`)
+  if (!(await isRunning(session, true))) throw new Error(`could not start herdr session ${session}`)
   return 'started'
 }
 
-// Optional: FRONT_APP (e.g. Ghostty, iTerm2, Terminal) brings the terminal forward on macOS. Off by default.
+// Which terminal app to bring forward on macOS. Order: the app chosen in the settings panel > FRONT_APP > the app
+// that is showing a herdr client right now (auto) > the system terminal. Nothing has to be configured for a click
+// to end in a terminal window.
 // The terminal may run as several app instances (Ghostty `open -na`), so "activate the app" can raise the wrong
 // window. Raise the instance whose process tree holds a herdr client attached to this session instead.
 const clientArgv = (session) => (session === 'default' ? [] : ['--session', session])
+export const DEFAULT_TERMINAL = 'Terminal'
+// 설정 패널에서 고른 앱(서버가 저장·시작 때 넣어 준다). 넣은 적이 없으면 환경변수 FRONT_APP을 본다. ''이면 자동.
+let appChoice
+export const setFrontApp = (v) => { appChoice = String(v ?? '').trim() }
+export const configuredApp = () => (appChoice !== undefined ? appChoice : (process.env.FRONT_APP || '').trim())
 
-// ps rows -> pids of terminal-app processes that host a client of `session`, newest client first.
-export function terminalPidsFor(psText, session, app) {
+// 명령줄에서 그 프로세스가 속한 앱 이름을 꺼낸다. 앱 안에 든 도우미 앱(…/Code.app/Contents/Frameworks/Code Helper.app/…)은
+// 창을 가진 프로세스가 아니므로 건너뛴다 — 부모를 더 올라가면 본체가 나온다.
+const APP_OF = /^(?:(?!\.app\/).)*\/([^/]+)\.app\/Contents\/MacOS\//
+// ps rows -> [{ pid, app }]: `session`의 herdr 클라이언트를 품은 앱 프로세스, 최근 클라이언트 먼저.
+// session이 null이면 어느 세션의 클라이언트든, app이 비면 어느 앱이든 받는다.
+export function terminalHostsFor(psText, session = null, app = '') {
   const rows = psText.split('\n').map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/)).filter(Boolean)
     .map(([, pid, ppid, cmd]) => ({ pid: Number(pid), ppid: Number(ppid), cmd }))
   const byPid = new Map(rows.map((r) => [r.pid, r]))
-  const want = clientArgv(session).join(' ')
+  const want = session === null ? null : clientArgv(session).join(' ')
   const isClient = (cmd) => {
     const m = cmd.match(/^(?:-)?(?:\S*\/)?herdr(?:\s+(.*))?$/)
-    return m && (m[1] || '').trim() === want
+    if (!m) return false
+    const rest = (m[1] || '').trim()
+    return want === null ? /^(--session\s+\S+)?$/.test(rest) : rest === want
   }
-  const appRe = new RegExp(`/${app.replace(/[^A-Za-z0-9 ._-]/g, '')}\\.app/Contents/MacOS/`, 'i')
+  const wantApp = String(app || '').replace(/[^A-Za-z0-9 ._-]/g, '').toLowerCase()
   const out = []
   for (const r of rows.filter((x) => isClient(x.cmd)).sort((a, b) => b.pid - a.pid)) {
     for (let cur = byPid.get(r.ppid), hops = 0; cur && hops < 8; cur = byPid.get(cur.ppid), hops++) {
-      if (appRe.test(cur.cmd)) { if (!out.includes(cur.pid)) out.push(cur.pid); break }
+      const name = APP_OF.exec(cur.cmd)?.[1]
+      if (!name || (wantApp && name.toLowerCase() !== wantApp)) continue
+      if (!out.some((h) => h.pid === cur.pid)) out.push({ pid: cur.pid, app: name })
+      break
     }
   }
   return out
+}
+export const terminalPidsFor = (psText, session, app) => terminalHostsFor(psText, session, app).map((h) => h.pid)
+
+// 새 창을 열어 그 세션에 붙이는 방법을 아는 앱. 여기 없는 앱은 이미 떠 있는 창만 올린다.
+// Terminal.app은 실행 파일(.command)을 열게 한다 — AppleScript로 시키면 자동화 권한 창이 뜬다.
+const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`
+export function openerFor(app, session, herdrBin = bin()) {
+  const argv = [herdrBin, ...clientArgv(session)]
+  if (/^ghostty$/i.test(app)) return { file: '/usr/bin/open', args: ['-na', 'Ghostty', '--args', `--command=${argv.join(' ')}`] }
+  if (/^terminal$/i.test(app)) {
+    const script = join(STATE_DIR, `open-${session}.command`)   // 상태 폴더 안: 다른 whosup 인스턴스와 겹치지 않는다
+    return { file: '/usr/bin/open', args: ['-a', 'Terminal', script], script, body: `#!/bin/sh\nexec ${argv.map(shq).join(' ')}\n` }
+  }
+  return null
+}
+// 붙은 창이 없을 때 새 창을 열 앱: 고른 앱 > 지금 다른 세션을 보여 주는 앱 > 기본 터미널. 여는 방법을 모르는 감지 앱이면 기본 터미널.
+export function appToOpen(configured, psText) {
+  if (configured) return configured
+  const seen = terminalHostsFor(psText, null, '').map((h) => h.app).find((a) => openerFor(a, 'x', 'herdr'))
+  return seen || DEFAULT_TERMINAL
+}
+// 설정 화면에 보여 줄 값: 지금 herdr를 보여 주고 있는 앱(없으면 null)과 기본 터미널.
+export async function detectTerminal() {
+  if (process.platform !== 'darwin') return { supported: false, front_app: null, default_app: null }
+  let text = ''
+  try { text = await psText() || await psText(true) } catch {}
+  return { supported: true, front_app: terminalHostsFor(text, null, '')[0]?.app ?? null, default_app: DEFAULT_TERMINAL }
 }
 
 // One AppleScript (System Events, needs Accessibility) does pick + un-minimize + raise + frontmost in a single
@@ -286,6 +411,7 @@ const run = (file, args, { timeout = 8000, track = false, env } = {}) => new Pro
 // Only the latest click's raise matters: a new click kills the previous raise still in flight.
 const raising = { child: null }
 const openedAt = new Map()
+const OPEN_WAIT_MS = 20000
 
 // Windows: find the console window that hosts a herdr client of this session and bring it forward; if none, open
 // a new PowerShell window attached to the session. whosup must run in the user's desktop session (not an SSH /
@@ -556,11 +682,10 @@ class Helper {
 const macHelper = new Helper('mac', '/usr/bin/osascript', ['-l', 'JavaScript', '-e', MAC_HELPER_JS])
 let winHelper = null
 const winHelperFor = () => (winHelper ||= new Helper('win', 'powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', psEncoded(WIN_HELPER_PS)], { WHOSUP_HERDR_BIN: bin() }))
-// whosup 시작 때 도우미를 미리 띄운다(FRONT_APP이 있을 때만). 끝날 때 stopHelpers().
+// whosup 시작 때 도우미를 미리 띄운다. 맥은 항상(터미널 앱을 자동으로 찾는다), 윈도우는 앱을 정했을 때만. 끝날 때 stopHelpers().
 export function startHelpers() {
-  if (!process.env.FRONT_APP) return
   if (process.platform === 'darwin') macHelper.start()
-  else if (process.platform === 'win32') winHelperFor().start()
+  else if (process.platform === 'win32' && configuredApp()) winHelperFor().start()
 }
 export function stopHelpers() { macHelper.stop(); winHelper?.stop() }
 
@@ -576,21 +701,32 @@ async function psText(fresh = false) {
   return t
 }
 
+// 누르기 직전 준비(보드 화면이 마우스 움직임·창 복귀 때 부른다): 세션 표와 프로세스 목록을 미리 읽어 둔다.
+// 그래야 클릭이 ps(약 90ms)·herdr 실행을 기다리지 않고 바로 칸 이동·창 올리기로 간다.
+export function warmClick() {
+  sessionTableAsync().catch(() => {})
+  if (process.platform === 'darwin' && Date.now() - psCache.at > 2000) psText(true).catch(() => {})
+}
+
 // Returns 'raised' (raise started in the background) | 'opened' | 'app' | 'off'. Never blocks the event loop;
 // the window comes up ~0.1–0.3s after the response.
 export async function activateTerminal(session, split = 0) {
-  const app = process.env.FRONT_APP
-  if (!app) return 'off'
+  const conf = configuredApp()
   if (process.platform === 'win32') {
+    if (!conf) return 'off'
     // 상주 도우미에 세션 이름 한 줄. 응답은 기다리지 않는다(도우미가 결과를 돌려주면 로그만).
     winHelperFor().send(`${session}|${split || 0}`, 8000).then((got) => { if (!/^(raised|opened)/.test(got)) console.error(`whosup: windows terminal raise: ${String(got).slice(0, 200)}`) })
     return 'raised'
   }
   if (process.platform !== 'darwin') return 'off'
+  let app = conf
   try {
-    let pids = terminalPidsFor(await psText(), session, app)
-    if (!pids.length) pids = terminalPidsFor(await psText(true), session, app)   // 창을 방금 연 경우 등: 새로 읽고 판단
+    let text = await psText()
+    let hosts = terminalHostsFor(text, session, conf)
+    if (!hosts.length) { text = await psText(true); hosts = terminalHostsFor(text, session, conf) }   // 창을 방금 연 경우 등: 새로 읽고 판단
+    const pids = hosts.map((h) => h.pid)
     if (pids.length) {
+      app = conf || hosts[0].app
       try { raising.child?.kill() } catch {}
       // 먼저 그 인스턴스를 pid로 바로 앞으로(권한 불필요, 즉시). System Events 정밀 올리기(최소화 해제)는 그 뒤에 —
       // 권한이 없으면 4초 시간 초과를 기다리던 탓에 창이 4초 늦게 올라왔다(2026-11-08 pro QA).
@@ -619,17 +755,24 @@ export async function activateTerminal(session, split = 0) {
         })
       return 'raised'
     }
-    if (/^ghostty$/i.test(app)) {
-      // No window shows this session: open one attached to it (the session keeps running either way).
-      // 창이 막 열리는 중(10초 안)이면 또 열지 않는다 — 클릭마다 인스턴스가 쌓였다(2026-11-08 pro QA).
-      if (Date.now() - (openedAt.get(session) || 0) < 10000) return 'opened'
-      openedAt.set(session, Date.now())
-      const opener = spawn('/usr/bin/open', ['-na', 'Ghostty', '--args', `--command=${[bin(), ...clientArgv(session)].join(' ')}`], { detached: true, stdio: 'ignore' })
+    // No window shows this session: open one attached to it (the session keeps running either way).
+    app = appToOpen(conf, text)
+    const how = openerFor(app, session)
+    if (how) {
+      // 창이 막 열리는 중이면 또 열지 않는다 — 클릭마다 인스턴스가 쌓였다(2026-11-08 pro QA). 터미널 앱이 처음 뜰 때는
+      // 창이 나오기까지 10초를 넘기기도 해서(2026-11-10 실측: Ghostty 첫 실행 16초 이상) 20초 동안 기다린다.
+      // 앱별로 따로 센다 — 방금 다른 앱으로 창을 열었더라도, 설정에서 앱을 바꾼 뒤의 클릭은 새 앱으로 연다.
+      const key = `${app}\n${session}`
+      if (Date.now() - (openedAt.get(key) || 0) < OPEN_WAIT_MS) return 'opened'
+      openedAt.set(key, Date.now())
+      if (how.script) { mkdirSync(dirname(how.script), { recursive: true }); writeFileSync(how.script, how.body); chmodSync(how.script, 0o755) }
+      const opener = spawn(how.file, how.args, { detached: true, stdio: 'ignore' })
       opener.once('error', (err) => console.error(`whosup: could not open a terminal window: ${String(err.message || err).slice(0, 200)}`))
       opener.unref()
       return 'opened'
     }
   } catch (err) { console.error(`whosup: terminal raise failed: ${String(err.message || err).slice(0, 200)}`) }
+  if (!app) return 'off'
   run('/usr/bin/osascript', ['-e', `tell application "${app.replace(/"/g, '')}" to activate`]).catch(() => {})
   return 'app'
 }
@@ -657,11 +800,14 @@ async function focusNow(ref, opts = {}, mine) {
   const { session, pane } = splitRef(ref)
   const stale = Number.isFinite(seq) ? seq < latestClick : mine !== focusSeq
   if (stale && !run) return { session, pane, client: 'running', window: 'superseded' }
-  const client = await ensureServer(session, cwd)
+  let client = await ensureServer(session, cwd)
   // 창 올리기는 칸 이동과 상관없으니 같이 시작한다(ps·osascript 기동 시간을 칸 이동 뒤로 미루지 않게).
-  const windowP = activateTerminal(session, opts.split)
+  // raise:false = 이 클릭을 한 브라우저는 서버 화면 앞에 있지 않다(원격 노트북 등) — 칸만 옮기고 서버 화면의 창은 건드리지 않는다.
+  const windowP = opts.raise === false ? Promise.resolve('skipped') : activateTerminal(session, opts.split)
   for (let i = 0; ; i++) {
     try { await apiCall(session, 'pane.focus', { pane_id: pane }); break } catch (err) {
+      // 최근 표로는 켜져 있었는데 소켓이 없다: 그사이 꺼진 세션이다. 표를 새로 읽고(필요하면 띄우고) 한 번 다시 한다.
+      if (client === 'running' && i === 0 && /ENOENT|ECONNREFUSED|session not found/.test(`${err.code || ''} ${err.message}`)) { forgetSessionTable(); client = await ensureServer(session, cwd); continue }
       if (client !== 'started' || i >= 12) throw err
       await sleep(250)
     }
@@ -690,15 +836,15 @@ export async function stopSession(session) {
 export const validSessionName = (s) => typeof s === 'string' && /^[A-Za-z0-9._][A-Za-z0-9._-]*$/.test(s)
 const checkSessionName = (s) => { if (!validSessionName(s)) throw Object.assign(new Error(`invalid herdr session name: ${String(s).slice(0, 60)}`), { code: 'bad_session' }) }
 // 꺼진 세션 다시 켜기: 서버를 띄우고 그 세션을 보여 주는 창을 연다.
-export async function startSession(session, cwd = process.env.HOME) {
+export async function startSession(session, cwd = process.env.HOME, { raise = true } = {}) {
   checkSessionName(session)
   const client = await ensureServer(session, cwd)
-  const window = await activateTerminal(session)
+  const window = raise === false ? 'skipped' : await activateTerminal(session)
   return { session, client, window }
 }
 
 // New tab in a session with the agent started, then jump there.
-export async function newSession({ session, cwd, command = agentCommand() }) {
+export async function newSession({ session, cwd, command = agentCommand(), raise = true }) {
   checkSessionName(session)
   if (!cwd || !existsSync(cwd)) throw cwdMissing(cwd)
   const client = await ensureServer(session, cwd)
@@ -707,6 +853,6 @@ export async function newSession({ session, cwd, command = agentCommand() }) {
   if (!pane) throw new Error('herdr did not return the new pane id')
   herdr(['pane', 'run', pane, command], session)
   await apiCall(session, 'pane.focus', { pane_id: pane })
-  const window = await activateTerminal(session)
+  const window = raise === false ? 'skipped' : await activateTerminal(session)
   return { session, pane, client, window }
 }

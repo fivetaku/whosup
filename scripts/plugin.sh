@@ -27,6 +27,9 @@ open_browser() {
   # skip when a tab already talks to us (heartbeat written by the page in the last 15 s)
   hb="$STATE/board-heartbeat"
   if [ -f "$hb" ] && [ -n "$(find "$hb" -newermt '-15 seconds' 2>/dev/null)" ]; then return 0; fi
+  # herdr가 켜질 때(start): 가려진 탭이라도 보드에 붙어 있으면 새 탭을 또 열지 않는다. 직접 고른 open(force)은 연다.
+  cn="$STATE/board-connected"
+  if [ "${1:-}" != "force" ] && [ -f "$cn" ] && [ -n "$(find "$cn" -newermt '-15 seconds' 2>/dev/null)" ]; then return 0; fi
   case "$(uname)" in
     Darwin) [ -n "${SSH_CONNECTION:-}" ] || /usr/bin/open "$URL" ;;
     *) [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && command -v xdg-open >/dev/null 2>&1 && xdg-open "$URL" >/dev/null 2>&1 ;;
@@ -64,7 +67,7 @@ case "${1:-status}" in
     ;;
   open)
     healthy || { echo "whosup not running — start it first"; exit 1; }
-    OPEN_BROWSER=1 open_browser; echo "opened $URL"
+    OPEN_BROWSER=1 open_browser force; echo "opened $URL"
     ;;
   *) echo "usage: plugin.sh start|stop|status|open"; exit 2 ;;
 esac
