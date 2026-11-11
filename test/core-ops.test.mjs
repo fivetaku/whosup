@@ -11,6 +11,10 @@ const SOCK = join(dir, 'core.sock')
 const LOG = join(dir, 'app.log')
 process.env.HC_SOCKET = SOCK
 process.env.HC_SESSION = 'whosuptest-unit'
+// 코어의 위치를 정하는 값은 이 시험이 정한 것만 쓴다. 시험을 돌리는 기계의 XDG_* 값(예: 리눅스의 XDG_RUNTIME_DIR)이
+// 새 창 명령에 섞여 들어가 기대값과 달라지지 않게.
+delete process.env.XDG_STATE_HOME
+delete process.env.XDG_RUNTIME_DIR
 process.env.HERDR_APP_BIN = new URL('../test-support/fake-herdr-app.mjs', import.meta.url).pathname
 chmodSync(process.env.HERDR_APP_BIN, 0o755)
 process.env.FAKE_APP_LOG = LOG
@@ -119,6 +123,9 @@ test('이동(창 올리기 켬): 앱이 있으면 앱을 앞으로, 앱 창이 �
   process.env.XDG_STATE_HOME = '/tmp/x state'; seen.length = 0
   try { await openSession(db, idOf(db, 't4'), 11.5) } finally { delete process.env.XDG_STATE_HOME }
   assert.deepEqual(seen[0][1], ['/usr/bin/env', 'HC_SESSION=whosuptest-unit', `HC_SOCKET=${SOCK}`, 'XDG_STATE_HOME=/tmp/x state', 'hc', 'attach', 't4'])
+  process.env.XDG_RUNTIME_DIR = '/run/user/1001'; seen.length = 0                                     // 리눅스 데스크톱·CI에 흔한 값
+  try { await openSession(db, idOf(db, 't4'), 11.7) } finally { delete process.env.XDG_RUNTIME_DIR }
+  assert.deepEqual(seen[0][1], ['/usr/bin/env', 'HC_SESSION=whosuptest-unit', `HC_SOCKET=${SOCK}`, 'XDG_RUNTIME_DIR=/run/user/1001', 'hc', 'attach', 't4'])
   // herdr-app 명령이 아예 없는 기계도 같다(오류 없이 터미널 창으로)
   delete process.env.FAKE_APP_MODE; seen.length = 0
   const bin = process.env.HERDR_APP_BIN; process.env.HERDR_APP_BIN = join(dir, 'no-herdr-app')
