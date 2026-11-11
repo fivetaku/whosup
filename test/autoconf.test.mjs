@@ -354,6 +354,20 @@ test('refreshAuto: 다시 감지해 auto.json을 새로 쓰고, 감지가 실패
   assert.match(readAuto(dir).error, /detect broke/)
 })
 
+test('auto.json 이름 바꾸기: 윈도우가 잠깐 거절하면(EPERM·EACCES·EBUSY) 다시 하고, 다른 오류나 끝내 거절은 그대로 던진다', async () => {
+  const { renameRetry } = await import('../src/autoconf.mjs')
+  const failing = (codes) => { const calls = []; return { calls, rename: (a, b) => { calls.push([a, b]); const c = codes.shift(); if (c) throw Object.assign(new Error(c), { code: c }) } } }
+  const f = failing(['EPERM', 'EBUSY', 'EACCES'])
+  renameRetry('x.tmp', 'x', { rename: f.rename, waitMs: 1 })
+  assert.equal(f.calls.length, 4)
+  const g = failing(['ENOENT'])
+  assert.throws(() => renameRetry('x.tmp', 'x', { rename: g.rename, waitMs: 1 }), { code: 'ENOENT' })
+  assert.equal(g.calls.length, 1)
+  const h = failing(Array(10).fill('EPERM'))
+  assert.throws(() => renameRetry('x.tmp', 'x', { rename: h.rename, tries: 3, waitMs: 1 }), { code: 'EPERM' })
+  assert.equal(h.calls.length, 3)
+})
+
 // 실제 bin/whosup.mjs를 임시 상태 폴더·시험 포트(4800~4899)로 띄운다.
 function runBin(env) {
   return new Promise((resolve) => {

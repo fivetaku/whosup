@@ -27,12 +27,11 @@ jobs:
       - name: unit tests
         run: npm test
 
-  # 윈도우: 처음에는 실패를 허용하는 잡으로 넣어 실패 수를 기준선으로 잰다(REVIEW2 (c)(5)). 시험이 OS 중립으로 정리되고
-  # 윈도우 실기기 확인이 끝나면 continue-on-error를 빼서 필수로 바꾼다. 공개 레포라 GitHub 호스팅 러너만 쓴다.
+  # 윈도우: 처음에는 실패를 허용하는 잡으로 넣어 실패 수를 기준선으로 잰다(REVIEW2 (c)(5)). 시험을 OS 중립으로 정리하고
+  # 윈도우 실기기에서 전체 시험이 통과해 필수 잡으로 바꿨다. 공개 레포라 GitHub 호스팅 러너만 쓴다.
   windows:
-    name: node ${{ matrix.node }} · ${{ matrix.os }} (allowed to fail)
+    name: node ${{ matrix.node }} · ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:

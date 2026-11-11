@@ -392,10 +392,14 @@ async function show(terminal, { raise = true, split = 0 } = {}) {
   // The new window starts with the person's own environment, not this server's. Whatever tells `hc` where this core is
   // goes along, so it attaches to the core the card came from (and does not start another one somewhere else).
   // The session name and the socket this click talked to are always spelled out (the window's own shell may point `hc`
-  // at another core); the state folders only when this server was given them.
+  // at another core); the state folders only when this server was given them. XDG_STATE_HOME is where this file looks for
+  // core.lock on every system (stateDirs), so it goes along everywhere. XDG_RUNTIME_DIR is a POSIX login-session folder:
+  // on Windows it is not this server's to hand on (a stray value inherited from some tool would point `hc` at a path
+  // that means nothing there), and the socket is already spelled out.
   const sock = socketPath()
+  const xdg = isWindows() ? ['XDG_STATE_HOME'] : ['XDG_STATE_HOME', 'XDG_RUNTIME_DIR']
   const env = { HC_SESSION: coreSession(), ...(sock ? { HC_SOCKET: sock } : {}),
-    ...Object.fromEntries(['XDG_STATE_HOME', 'XDG_RUNTIME_DIR'].filter((k) => process.env[k]).map((k) => [k, process.env[k]])) }
+    ...Object.fromEntries(xdg.filter((k) => process.env[k]).map((k) => [k, process.env[k]])) }
   // Windows has no /usr/bin/env: the variables go to the window as PowerShell $env: lines (herdr.openWindowRunning).
   if (isWindows()) return windows.openWindowRunning([hc, 'attach', terminal], `core-${terminal}`, env)
   const argv = ['/usr/bin/env', ...Object.entries(env).map(([k, v]) => `${k}=${v}`), hc, 'attach', terminal]

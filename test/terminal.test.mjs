@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import { appToOpen, isOffApp, openerFor, openerForArgv, terminalHostsFor, terminalPidsFor } from '../src/runtime/herdr.mjs'
 import { openDb } from '../src/db.mjs'
 import { frontAppChoice, getSettings, setAutoValues, setSettings, settingSources } from '../src/settings.mjs'
+import { _setPlatform } from '../src/platform.mjs'
 
 const PS = `
   100     1 /Applications/Ghostty.app/Contents/MacOS/ghostty
@@ -111,6 +112,7 @@ test('자동 세팅 앱(L4)은 고른 앱이 아니라 새 창 앱의 후보: �
 test('설정 front_app: 기본은 빈 값(자동), 저장값 > FRONT_APP, 이상한 글자는 거절, 비우면 되돌아간다', () => {
   const prev = process.env.FRONT_APP
   delete process.env.FRONT_APP
+  _setPlatform('darwin')   // 맥·리눅스의 앱 이름 규칙(윈도우는 경로·창 제목도 받는다 — windows.test.mjs)
   try {
     const db = openDb(':memory:')
     assert.equal(getSettings(db).front_app, '')
@@ -127,7 +129,7 @@ test('설정 front_app: 기본은 빈 값(자동), 저장값 > FRONT_APP, 이상
     assert.equal(getSettings(db).front_app, 'Ghostty', '비우면 환경변수로')
     delete process.env.FRONT_APP
     assert.equal(getSettings(db).front_app, '', '환경변수도 없으면 자동')
-  } finally { if (prev === undefined) delete process.env.FRONT_APP; else process.env.FRONT_APP = prev }
+  } finally { _setPlatform(null); if (prev === undefined) delete process.env.FRONT_APP; else process.env.FRONT_APP = prev }
 })
 
 test('새 창에서 아무 명령이나 돌리기(herdr-core 터미널을 hc attach로 열 때): Ghostty는 --command, Terminal은 실행 파일', () => {

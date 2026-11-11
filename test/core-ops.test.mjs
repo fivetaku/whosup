@@ -130,7 +130,8 @@ test('이동(창 올리기 켬): 앱이 있으면 앱을 앞으로, 앱 창이 �
   assert.deepEqual(seen[0].slice(1), want(...base, ['XDG_STATE_HOME', '/work/x state']))
   process.env.XDG_RUNTIME_DIR = '/run/user/1001'; seen.length = 0                                     // 리눅스 데스크톱·CI에 흔한 값
   try { await openSession(db, idOf(db, 't4'), 11.7) } finally { delete process.env.XDG_RUNTIME_DIR }
-  assert.deepEqual(seen[0].slice(1), want(...base, ['XDG_RUNTIME_DIR', '/run/user/1001']))
+  // 윈도우 새 창에는 넘기지 않는다: POSIX 로그인 세션 폴더라 그곳의 hc에는 뜻이 없다(소켓은 HC_SOCKET으로 이미 정해졌다)
+  assert.deepEqual(seen[0].slice(1), process.platform === 'win32' ? want(...base) : want(...base, ['XDG_RUNTIME_DIR', '/run/user/1001']))
   // herdr-app 명령이 아예 없는 기계도 같다(오류 없이 터미널 창으로)
   delete process.env.FAKE_APP_MODE; seen.length = 0
   const bin = process.env.HERDR_APP_BIN; process.env.HERDR_APP_BIN = join(dir, 'no-herdr-app')

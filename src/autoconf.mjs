@@ -267,8 +267,19 @@ export function writeAuto(stateDir, result) {
   const file = autoPath(stateDir)
   const tmp = `${file}.${process.pid}.tmp`
   writeFileSync(tmp, `${JSON.stringify(result, null, 2)}\n`)
-  renameSync(tmp, file)   // 같은 폴더 안 이름 바꾸기: 읽는 쪽은 옛 파일이나 새 파일 하나를 통째로 본다
+  renameRetry(tmp, file)   // 같은 폴더 안 이름 바꾸기: 읽는 쪽은 옛 파일이나 새 파일 하나를 통째로 본다
   return file
+}
+// 윈도우는 다른 프로세스가 대상 파일을 열고 있는 짧은 순간(판 서버·시작 스크립트·백신이 읽는 중)에 덮어쓰는 이름 바꾸기를
+// EPERM·EACCES·EBUSY로 거절한다(GitHub Actions windows-latest 실측). 잠깐 기다렸다 몇 번 다시 한다. 그 밖의 오류는 그대로 던진다.
+const RETRY_CODES = new Set(['EPERM', 'EACCES', 'EBUSY'])
+export function renameRetry(from, to, { rename = renameSync, tries = 20, waitMs = 25 } = {}) {
+  for (let i = 1; ; i++) {
+    try { return rename(from, to) } catch (err) {
+      if (!RETRY_CODES.has(err?.code) || i >= tries) throw err
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, waitMs)
+    }
+  }
 }
 export function readAuto(stateDir) {
   try { const r = JSON.parse(readFileSync(autoPath(stateDir), 'utf8')); return r && typeof r === 'object' && r.values ? r : null } catch { return null }

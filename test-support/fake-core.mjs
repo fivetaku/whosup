@@ -80,6 +80,8 @@ export function startFakeCore(path) {
     add(t) { terminals.set(t.address, t); emit('created', t.address); return t },
     set(address, patch) { Object.assign(terminals.get(address), patch); emit('status', address, { status: terminals.get(address).status }) },
     sent: () => calls.filter((c) => c.method === 'terminal.send').map((c) => [c.params.terminal, c.params.text]),
-    close: () => new Promise((r) => { for (const s of subs) s.destroy(); server.close(() => r()) }),
+    // 끄면 소켓 자리도 비운다. 유닉스 소켓은 server.close가 파일을 지우지만, 윈도우의 표시 파일은 직접 지워야 한다
+    // (남아 있으면 available()가 꺼진 코어를 켜진 것으로 본다 — 진짜 코어도 끝날 때 그 파일을 지운다는 가정).
+    close: () => new Promise((r) => { for (const s of subs) s.destroy(); server.close(() => { if (win) { try { unlinkSync(path) } catch {} } r() }) }),
   })) }))
 }

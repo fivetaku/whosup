@@ -236,7 +236,10 @@ test('윈도우 Herdr 앱 올리기: 도우미에 앱 이름만(글자 거름) �
 // ── herdr-core 새 창: 윈도우는 /usr/bin/env 대신 환경변수를 따로 넘긴다 ──
 test('herdr-core 카드(앱 창 없음): 윈도우는 [hc, attach, 터미널]과 환경변수 묶음으로 새 창을 연다', async () => {
   const saved = process.env.HC_SOCKET
+  const savedRun = process.env.XDG_RUNTIME_DIR
   process.env.HC_SOCKET = 'C:\\Users\\Hong Gildong\\core.sock'
+  // 리눅스 CI·데스크톱에 흔한 값. 윈도우 새 창에는 넘기지 않는다(POSIX 로그인 세션 폴더), 맥·리눅스 새 창에는 넘긴다.
+  process.env.XDG_RUNTIME_DIR = '/run/user/1001'
   const seen = []
   core._setWindowOps({ openWindowRunning: async (...a) => { seen.push(a); return 'opened' } })
   try {
@@ -247,8 +250,13 @@ test('herdr-core 카드(앱 창 없음): 윈도우는 [hc, attach, 터미널]과
     _setPlatform('darwin')
     await core.__showForTest('t9')
     assert.equal(seen[1][0][0], '/usr/bin/env')
+    assert.ok(seen[1][0].includes('XDG_RUNTIME_DIR=/run/user/1001'), seen[1][0].join(' '))
     assert.equal(seen[1].length, 2)
-  } finally { if (saved === undefined) delete process.env.HC_SOCKET; else process.env.HC_SOCKET = saved; core._setWindowOps({ openWindowRunning: herdr.openWindowRunning }) }
+  } finally {
+    if (saved === undefined) delete process.env.HC_SOCKET; else process.env.HC_SOCKET = saved
+    if (savedRun === undefined) delete process.env.XDG_RUNTIME_DIR; else process.env.XDG_RUNTIME_DIR = savedRun
+    core._setWindowOps({ openWindowRunning: herdr.openWindowRunning })
+  }
 })
 
 // ── node 스크립트 실행 ───────────────────────────────────────────────
