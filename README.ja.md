@@ -103,7 +103,8 @@ Node プロセス1つだけで、ビルドは不要です。herdr の startup �
 | 要対応の状態 | needs input · failed · finished · running · idle · empty |
 | 質問の抽出 | 権限ボックス、フォルダ信頼の確認、「A か B か」の質問を原文のまま表示 |
 | ジャンプ | クリック → `pane.focus`。macOS ではそのセッションを表示しているターミナルのウィンドウが前面に出ます。ターミナルアプリは自動で見つけ、そのセッションを表示するウィンドウがなければ新しいウィンドウを開きます(Ghostty、Terminal) |
-| クリックで開く場所 | **settings** → *Clicking a pane opens*: terminal window(既定)、web address、both から選び、ブラウザごとに保存されます。web address は herdr 用のウェブターミナルでそのペインを新しいタブに開きます。アドレスの `{session}` と `{pane}` が置き換えられ、herdr セッションごとに別のアドレスも指定できます。別のデバイスからボードを使うときに選んでください |
+| クリックで開く場所 | **settings** → *Clicking a pane opens*: terminal window(既定)、web address、both から選び、ブラウザごとに保存されます。web address は herdr 用のウェブターミナルでそのペインを新しいタブに開きます。アドレスの `{session}` と `{pane}` が置き換えられ、herdr セッションごとに別のアドレスも指定できます(ウェブターミナルは通常セッションごとに別のサーバー・別のポートで動きます)。Herdr アプリの行は、その行にアドレスを指定したときだけウェブで開きます。タブは行ごとに使い回すため、開いたボードとつながったまま開きます。信頼できるウェブターミナルのアドレスだけを指定してください。別のデバイスからボードを使うときに選んでください。読み取り専用モードでは使えません(読み取り専用はクリックをすべて止めます) |
+| Herdr アプリのターミナル | このマシンで herdr-core(Herdr デスクトップアプリのターミナル)が動いていれば、そのターミナルもカードになります。アプリのスペースごとに 1 行で、状態と質問文はコアが報告するとおりです。クリックすると Herdr アプリのそのペインに移動し、アプリが前面に出ます。アプリが開いていなければ、ターミナルウィンドウでそのターミナルを開きます(`hc attach`)。閉じる、再開、新しいペイン、行のオン・オフは herdr セッションと同じです。設定は不要で、動いていないコアを whosup が起動することはありません。コアが報告しないフォルダー信頼の確認は画面から読み取り、入力待ちとして表示します。それ以外の状態を画面から推測することはありません |
 | resume | そのペイン自身の会話、なければほかのペインで動いていない、そのフォルダの最新の会話 → `AGENT_CMD --resume`。押す前にどの会話かボードに表示。Claude Code の会話のみ対応、ほかのエージェントは新しく始まる |
 | new pane | セッションとフォルダを選び、エージェントのコマンドを実行 |
 | デスク(任意) | モニターごとのセッションとペインを `desks.json` に宣言。`desks-apply` アクションが足りないものだけを作成(何度実行しても同じ結果) |
@@ -150,6 +151,9 @@ Node プロセス1つだけで、ビルドは不要です。herdr の startup �
 | `WHOSUP_INTERVAL` | 3 | 収集間隔(秒) |
 | `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | resume と最後のリクエストが Claude Code の会話を探すフォルダ |
 | `HERDR_BIN_PATH`(または `HERDR_BIN`) | 自動 | herdr 実行ファイルのパス。未設定なら `/opt/homebrew/bin`、`/usr/local/bin`、`~/.local/bin`、`PATH` の順に探す |
+| `WHOSUP_RUNTIMES` | auto | 読み取る対象: `auto`(herdr セッションと herdr-core ターミナルのうち存在するものすべて)、`herdr`、`herdr-core` |
+| `HC_SOCKET` | 自動 | herdr-core のソケット。未設定ならコアの `core.lock` から読む(`HC_SESSION`、`XDG_STATE_HOME` に従う) |
+| `HERDR_APP_BIN` · `HERDR_APP_NAME` · `HC_BIN` | `herdr-app` · `Herdr` · `hc` | Herdr アプリのコマンド(移動、新しいタブ、スペースを閉じる)、macOS で前面に出すアプリ名、herdr-core のターミナルをターミナルウィンドウで開くときのコマンド |
 
 ### デスク(任意)
 
@@ -174,7 +178,7 @@ herdr は再起動後にエージェントを自分で起動し直すことも�
 
 ## 動作要件
 
-- [herdr](https://herdr.dev) 0.9.0 以降
+- [herdr](https://herdr.dev) 0.9.0 以降。Herdr デスクトップアプリのターミナル(herdr-core)も動いていれば一緒に読み取ります。どちらか一方だけでも使えます
 - Node.js 22.13 以降(`node:sqlite` をフラグなしで使用)。bun もビルドも不要
 - curl(`start`・`status`・`open` アクションが稼働確認に使用)
 - macOS または Linux

@@ -1,7 +1,7 @@
 // 이동 시 앞으로 올릴 터미널 찾기: 앱 인스턴스가 여러 개여도 그 세션을 붙든 인스턴스만 고른다.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { appToOpen, openerFor, terminalHostsFor, terminalPidsFor } from '../src/runtime/herdr.mjs'
+import { appToOpen, openerFor, openerForArgv, terminalHostsFor, terminalPidsFor } from '../src/runtime/herdr.mjs'
 import { openDb } from '../src/db.mjs'
 import { getSettings, setSettings, settingSources } from '../src/settings.mjs'
 
@@ -66,6 +66,10 @@ test('auto: 세션을 가리지 않으면 herdr를 보여 주는 앱 전부(서�
 test('새 창: Ghostty와 Terminal은 여는 방법이 있고, 그 밖의 앱은 없다', () => {
   const g = openerFor('Ghostty', 'side', '/opt/homebrew/bin/herdr')
   assert.deepEqual(g.args, ['-na', 'Ghostty', '--args', '--command=/opt/homebrew/bin/herdr --session side'])
+  // Ghostty는 인자가 붙은 명령을 셸로 돌린다: 공백·따옴표가 든 인자는 감싸서 인자 경계를 지킨다(평범한 인자는 그대로)
+  assert.deepEqual(openerFor('Ghostty', 'side', "/Users/a b/it's/herdr").args.at(-1), "--command='/Users/a b/it'\\''s/herdr' --session side")
+  assert.deepEqual(openerForArgv('Ghostty', ['/usr/bin/env', 'XDG_STATE_HOME=/tmp/x state', 'HC_SESSION=default', 'hc', 'attach', 't4'], 'core-t4').args.at(-1),
+    "--command=/usr/bin/env 'XDG_STATE_HOME=/tmp/x state' HC_SESSION=default hc attach t4")
   const t = openerFor('terminal', 'default', "/Users/a b/it's/herdr")
   assert.deepEqual(t.args.slice(0, 2), ['-a', 'Terminal'])
   assert.match(t.script, /open-default\.command$/)
@@ -101,4 +105,13 @@ test('설정 front_app: 기본은 빈 값(자동), 저장값 > FRONT_APP, 이상
     delete process.env.FRONT_APP
     assert.equal(getSettings(db).front_app, '', '환경변수도 없으면 자동')
   } finally { if (prev === undefined) delete process.env.FRONT_APP; else process.env.FRONT_APP = prev }
+})
+
+test('새 창에서 아무 명령이나 돌리기(herdr-core 터미널을 hc attach로 열 때): Ghostty는 --command, Terminal은 실행 파일', () => {
+  const g = openerForArgv('Ghostty', ['hc', 'attach', 't4'], 'core-t4')
+  assert.deepEqual(g.args, ['-na', 'Ghostty', '--args', '--command=hc attach t4'])
+  const t = openerForArgv('Terminal', ['/usr/bin/env', 'HC_SESSION=x y', 'hc', 'attach', 't4'], 'core-t4')
+  assert.match(t.script, /open-core-t4\.command$/)
+  assert.equal(t.body, "#!/bin/sh\nexec '/usr/bin/env' 'HC_SESSION=x y' 'hc' 'attach' 't4'\n")
+  assert.equal(openerForArgv('iTerm', ['hc'], 'k'), null)
 })

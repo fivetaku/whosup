@@ -1,7 +1,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
-import { branchOf, lastApiError, lastPrompt, paneContext, resumeTarget, warmContext } from './context.mjs'
+import { branchOf, coreContext, lastApiError, lastPrompt, paneContext, resumeTarget, warmContext } from './context.mjs'
+import { capsOf, deskLabelOf, deskOf } from '../runtime/index.mjs'
 import { getMeta } from '../db.mjs'
 import { getSettings } from '../settings.mjs'
 
@@ -57,7 +58,7 @@ export function collectHealth(db, now, cfg) {
 // 서버가 쓰는 판 계산: 칸 화면·git을 비동기로 먼저 읽어 두고(서버가 멈추지 않는다) 같은 규칙으로 계산한다.
 export async function computeBoardAsync(db, opts = {}) {
   const now = opts.now || new Date()
-  await warmContext(db.prepare('SELECT runtime, runtime_ref, status, unreachable, cwd FROM session WHERE archived = 0').all(), now.getTime(), opts.onLate)
+  await warmContext(db.prepare('SELECT id, runtime, runtime_ref, status, unreachable, cwd, fields_json FROM session WHERE archived = 0').all(), now.getTime(), opts.onLate)
   return computeBoard(db, { ...opts, now })
 }
 
@@ -69,12 +70,12 @@ export function computeBoard(db, { now = new Date(), withContext = true } = {}) 
   const ttlMs = cfg.unreachable_ttl_h * 3600000
   const sessions = db.prepare('SELECT * FROM session WHERE archived = 0').all()
   const STALE_MS = cfg.stale_days * 86400000
-  // 칸 문맥(라벨·브랜치·질문 원문·마지막 요청)은 herdr 칸에만 읽는다. 못 읽으면 null.
+  // 칸 문맥(라벨·브랜치·질문 원문·마지막 요청)은 아는 런타임(herdr, herdr-core)의 칸에만 읽는다. 못 읽으면 null.
   const contextOf = (s) => {
-    if (!withContext || s.runtime !== 'herdr') return {}
+    if (!withContext || !capsOf(s)) return {}
     const [desk, pane] = s.runtime_ref.split('/')
     const live = !['stopped', 'gone', 'shell'].includes(s.status) && !s.unreachable
-    const ctx = live && ['blocked', 'done'].includes(s.status) ? paneContext(desk, pane, s.status, now.getTime()) : null
+    const ctx = live && ['blocked', 'done'].includes(s.status) ? (s.runtime === 'herdr' ? paneContext(desk, pane, s.status, now.getTime()) : coreContext(s)) : null
     const prompt = lastPrompt(s.provider_session, now.getTime())
     // 실패는 기록의 구조 표식이 먼저(I-5). 화면 정규식은 표식이 없는 공급자용으로 질문을 읽지 못한 blocked 칸에만 남는다(I-1).
     const apiErr = ['blocked', 'done'].includes(s.status) ? lastApiError(s.provider_session, now.getTime()) : null
@@ -97,11 +98,13 @@ export function computeBoard(db, { now = new Date(), withContext = true } = {}) 
     }
   }
   const base = (s) => {
-    const [desk, pane] = s.runtime_ref.split('/')
+    const pane = s.runtime_ref.split('/')[1]
     return {
       id: s.id,
       ref: s.runtime_ref,
-      desk, pane,
+      // desk = 줄 열쇠(herdr 세션 이름 또는 core:<공간>), desk_label = 줄에 보일 이름, caps = 이 카드에서 할 수 있는 일
+      desk: deskOf(s), desk_label: deskLabelOf(s), pane,
+      caps: capsOf(s),
       project: s.project,
       title: s.title || '(제목 없음)',
       runtime: s.runtime,
@@ -211,7 +214,7 @@ export function setStashed(db, sessionId, on, now = new Date()) {
 export function todayStats(db, now = new Date()) {
   const today = startOfDay(now).toISOString()
   const rows = db.prepare(`SELECT e.session_id, e.at, e.after FROM event e JOIN session s ON s.id = e.session_id
-    WHERE e.field = 'requiresAttention' AND e.at >= ? AND s.runtime = 'herdr' ORDER BY e.at`).all(today)
+    WHERE e.field = 'requiresAttention' AND e.at >= ? AND s.runtime IN ('herdr', 'herdr-core') ORDER BY e.at`).all(today)
   const hourly = Array.from({ length: 24 }, () => 0)
   const open = new Map()
   let raised = 0

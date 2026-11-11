@@ -103,7 +103,8 @@ browser  ◄──  http://127.0.0.1:4790  ◄──  board server  ◄───
 | 关注状态 | needs input · failed · finished · running · idle · empty |
 | 问题提取 | 权限框、文件夹信任确认和"A 还是 B？"类问题会原文显示 |
 | 跳转 | 点击 → `pane.focus`，在 macOS 上显示该会话的终端窗口会切到前台。终端应用会自动找到；如果没有窗口显示该会话，就打开一个新窗口（Ghostty、Terminal） |
-| 点击后打开的位置 | **settings** → *Clicking a pane opens*：terminal window（默认）、web address 或 both，按浏览器分别保存。web address 会在 herdr 的网页终端里用新标签页打开该窗格，地址中的 `{session}` 和 `{pane}` 会被替换，每个 herdr 会话可以单独填写地址。从其他设备使用看板时请选它 |
+| 点击后打开的位置 | **settings** → *Clicking a pane opens*：terminal window（默认）、web address 或 both，按浏览器分别保存。web address 会在 herdr 的网页终端里用新标签页打开该窗格，地址中的 `{session}` 和 `{pane}` 会被替换，每个 herdr 会话可以单独填写地址（网页终端通常每个会话各有一个服务器和端口）。Herdr 应用的行只有在该行填写了自己的地址时才会在网页中打开。标签页按行复用，因此会与打开它的看板保持关联：请只填写你信任的网页终端地址。从其他设备使用看板时请选它。只读模式下不可用（只读会拦住所有点击） |
+| Herdr 应用的终端 | 本机上如果 herdr-core（Herdr 桌面应用的终端）正在运行，它的每个终端也会成为一张卡片：应用的每个空间占一行，状态和提问文字以核心报告的为准。点击会跳到 Herdr 应用里的那个窗格并把应用带到前台；应用没有打开时，会在终端窗口中打开该终端（`hc attach`）。关闭、继续、新窗格以及整行的关闭和开启与 herdr 会话相同。无需配置，whosup 也不会启动未运行的核心。核心不会报告的信任文件夹提示会从屏幕读取，并显示为等待输入；除此之外不会根据屏幕内容猜测状态 |
 | resume | 窗格自己的对话，否则是该文件夹下没有在其他窗格运行的最新对话 → `AGENT_CMD --resume`；点击前看板会显示是哪一段。仅支持 Claude Code 对话，其他代理会重新开始 |
 | new pane | 选择会话和文件夹，运行你的代理命令 |
 | desk（可选） | 在 `desks.json` 中按显示器声明会话和窗格；`desks-apply` 操作只补齐缺失的部分，可重复执行 |
@@ -150,6 +151,9 @@ browser  ◄──  http://127.0.0.1:4790  ◄──  board server  ◄───
 | `WHOSUP_INTERVAL` | 3 | 采集间隔（秒） |
 | `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | resume 和最后一次请求查找 Claude Code 对话的目录 |
 | `HERDR_BIN_PATH`（或 `HERDR_BIN`） | 自动 | herdr 可执行文件路径；未设置时依次查找 `/opt/homebrew/bin`、`/usr/local/bin`、`~/.local/bin`、`PATH` |
+| `WHOSUP_RUNTIMES` | auto | 读取对象：`auto`（herdr 会话和 herdr-core 终端，有哪个读哪个）、`herdr` 或 `herdr-core` |
+| `HC_SOCKET` | 自动 | herdr-core 的套接字；未设置时从核心自己的 `core.lock` 读取（遵循 `HC_SESSION` 和 `XDG_STATE_HOME`） |
+| `HERDR_APP_BIN` · `HERDR_APP_NAME` · `HC_BIN` | `herdr-app` · `Herdr` · `hc` | Herdr 应用的命令（跳转、新标签页、关闭空间）、macOS 上要带到前台的应用名，以及在终端窗口中打开 herdr-core 终端所用的命令 |
 
 ### desk（可选）
 
@@ -174,7 +178,7 @@ herdr 自己也可以在重启后重新启动代理（`[session] resume_agents_o
 
 ## 环境要求
 
-- [herdr](https://herdr.dev) 0.9.0 或更高版本
+- [herdr](https://herdr.dev) 0.9.0 或更高版本。Herdr 桌面应用的终端（herdr-core）在运行时也会一并读取，两者有其一即可
 - Node.js 22.13 或更高版本（无需标志即可使用 `node:sqlite`）；不需要 bun，也无需构建
 - curl（`start`、`status` 和 `open` 操作用它做健康检查）
 - macOS 或 Linux

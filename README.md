@@ -103,7 +103,8 @@ One Node process, no build step. herdr's startup hook is a one-shot command: whe
 | Attention states | needs input · failed · finished · running · idle · empty |
 | Question extraction | Permission boxes, trust-folder prompts, and "A or B?" questions are shown verbatim |
 | Jump | Click → `pane.focus`, and on macOS the terminal window showing that session comes forward. The terminal app is found automatically; when no window shows the session, a new one opens (Ghostty and Terminal) |
-| Where a click goes | **settings** → *Clicking a pane opens*: terminal window (default), web address, or both, saved per browser. Web address opens the pane in a web terminal for herdr in a new tab, with `{session}` and `{pane}` filled in; each herdr session can have its own address. Pick it when you use the board from another device |
+| Where a click goes | **settings** → *Clicking a pane opens*: terminal window (default), web address, or both, saved per browser. Web address opens the pane in a web terminal for herdr in a new tab, with `{session}` and `{pane}` filled in; each herdr session can have its own address (a web terminal usually runs one server per session, on its own port), and a Herdr app row opens on the web only when it has an address of its own. The tab is reused per row, so it stays linked to the board that opened it: set only the address of a web terminal you trust. Pick it when you use the board from another device. The board must not be read-only for this: read-only mode blocks every click |
+| Herdr app terminals | When herdr-core (the terminals of the Herdr desktop app) is running on this machine, each of its terminals is a card too: one row per space of the app, with the status and the question text the core reports. A click jumps to that pane in the Herdr app and brings the app forward; when the app is not open the terminal opens in a terminal window (`hc attach`). Close, resume, new pane and turning a row off and on work as they do for herdr sessions. Nothing to configure, and whosup never starts a core that is not running. An agent stopped at its trust-folder prompt, which the core does not report, is read from the screen and shown as needing input; no other state is guessed from the screen |
 | Resume | The pane's own conversation, else the newest one in its folder that is not live in another pane → `AGENT_CMD --resume`; the board shows which one before you click. Claude Code conversations only; other agents start fresh |
 | New pane | Session + folder picker, runs your agent command |
 | Desks (optional) | Declare sessions and panes per monitor in `desks.json`; the `desks-apply` action creates what is missing, idempotently |
@@ -150,6 +151,9 @@ Put `KEY=value` lines in `.env` inside the plugin config dir (`herdr plugin conf
 | `WHOSUP_INTERVAL` | 3 | seconds between collects |
 | `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | where resume and the last request look for Claude Code conversations |
 | `HERDR_BIN_PATH` (or `HERDR_BIN`) | auto | path to the herdr binary; otherwise whosup tries `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, then `PATH` |
+| `WHOSUP_RUNTIMES` | auto | what to read: `auto` (herdr sessions and herdr-core terminals, whichever is there), `herdr`, or `herdr-core` |
+| `HC_SOCKET` | auto | herdr-core socket; otherwise taken from the core's own `core.lock` (follows `HC_SESSION` and `XDG_STATE_HOME`) |
+| `HERDR_APP_BIN` · `HERDR_APP_NAME` · `HC_BIN` | `herdr-app` · `Herdr` · `hc` | the Herdr app command (jump, new tab, close a space), the app to bring forward on macOS, and the command used to open a herdr-core terminal in a terminal window |
 
 ### Desks (optional)
 
@@ -174,7 +178,7 @@ herdr can restart agents itself after a reboot (`[session] resume_agents_on_rest
 
 ## Requirements
 
-- [herdr](https://herdr.dev) 0.9.0 or newer
+- [herdr](https://herdr.dev) 0.9.0 or newer. Terminals of the Herdr desktop app (herdr-core) are picked up as well when it is running; either one is enough
 - Node.js 22.13 or newer (`node:sqlite` without a flag); no bun, no build
 - curl (the `start`, `status` and `open` actions use it for health checks)
 - macOS or Linux

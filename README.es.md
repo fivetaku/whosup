@@ -103,7 +103,8 @@ Un solo proceso de Node, sin paso de compilación. El hook de arranque de herdr 
 | Estados de atención | needs input · failed · finished · running · idle · empty |
 | Extracción de preguntas | Los cuadros de permisos, las confirmaciones de confianza en la carpeta y las preguntas "¿A o B?" se muestran tal cual |
 | Salto | Clic → `pane.focus`, y en macOS la ventana de la terminal que muestra esa sesión pasa al frente. La app de terminal se detecta sola; si ninguna ventana muestra la sesión, se abre una nueva (Ghostty y Terminal) |
-| Dónde abre un clic | **settings** → *Clicking a pane opens*: terminal window (por defecto), web address o both, guardado por navegador. Web address abre el panel en una terminal web para herdr en una pestaña nueva, con `{session}` y `{pane}` sustituidos; cada sesión de herdr puede tener su propia dirección. Elígelo cuando uses el tablero desde otro dispositivo |
+| Dónde abre un clic | **settings** → *Clicking a pane opens*: terminal window (por defecto), web address o both, guardado por navegador. Web address abre el panel en una terminal web para herdr en una pestaña nueva, con `{session}` y `{pane}` sustituidos; cada sesión de herdr puede tener su propia dirección (una terminal web suele tener un servidor y un puerto por sesión), y una fila de la app Herdr solo se abre en la web cuando tiene una dirección propia. La pestaña se reutiliza por fila, así que queda vinculada al tablero que la abrió: pon solo la dirección de una terminal web en la que confíes. Elígelo cuando uses el tablero desde otro dispositivo. No funciona en modo de solo lectura (ese modo bloquea todos los clics) |
+| Terminales de la app Herdr | Si herdr-core (las terminales de la app de escritorio Herdr) está en marcha en este equipo, cada una de sus terminales también es una tarjeta: una fila por espacio de la app, con el estado y el texto de la pregunta tal como los informa el núcleo. Un clic salta a ese panel en la app Herdr y la trae al frente; si la app no está abierta, la terminal se abre en una ventana de terminal (`hc attach`). Cerrar, reanudar, panel nuevo y apagar o encender una fila funcionan igual que con las sesiones de herdr. No hay nada que configurar y whosup nunca arranca un núcleo que no esté en marcha. Un agente detenido en el aviso de confianza de carpeta, que el núcleo no informa, se lee de la pantalla y se muestra como pendiente de respuesta; ningún otro estado se deduce de la pantalla |
 | resume | La conversación del propio panel o, si no, la más reciente de su carpeta que no esté viva en otro panel → `AGENT_CMD --resume`; el tablero muestra cuál antes de hacer clic. Solo conversaciones de Claude Code; otros agentes empiezan de cero |
 | new pane | Selector de sesión y carpeta, ejecuta el comando de tu agente |
 | Desks (opcional) | Declara sesiones y paneles por monitor en `desks.json`; la acción `desks-apply` crea solo lo que falta (puedes repetirla sin efectos extra) |
@@ -150,6 +151,9 @@ Pon líneas `KEY=value` en el `.env` dentro del directorio de configuración del
 | `WHOSUP_INTERVAL` | 3 | segundos entre recogidas |
 | `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | dónde buscan resume y la última petición las conversaciones de Claude Code |
 | `HERDR_BIN_PATH` (o `HERDR_BIN`) | automático | ruta del ejecutable de herdr; si no se define, se prueba `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin` y luego `PATH` |
+| `WHOSUP_RUNTIMES` | auto | qué leer: `auto` (sesiones de herdr y terminales de herdr-core, lo que haya), `herdr` o `herdr-core` |
+| `HC_SOCKET` | automático | socket de herdr-core; si no se define, se toma del `core.lock` del propio núcleo (respeta `HC_SESSION` y `XDG_STATE_HOME`) |
+| `HERDR_APP_BIN` · `HERDR_APP_NAME` · `HC_BIN` | `herdr-app` · `Herdr` · `hc` | el comando de la app Herdr (saltar, pestaña nueva, cerrar un espacio), la app que se trae al frente en macOS y el comando para abrir una terminal de herdr-core en una ventana de terminal |
 
 ### Desks (opcional)
 
@@ -174,7 +178,7 @@ herdr puede volver a lanzar los agentes por sí mismo tras reiniciar el equipo (
 
 ## Requisitos
 
-- [herdr](https://herdr.dev) 0.9.0 o superior
+- [herdr](https://herdr.dev) 0.9.0 o superior. Las terminales de la app de escritorio Herdr (herdr-core) también se leen cuando está en marcha; basta con una de las dos
 - Node.js 22.13 o superior (`node:sqlite` sin flag); sin bun, sin compilación
 - curl (las acciones `start`, `status` y `open` lo usan para comprobar el estado)
 - macOS o Linux

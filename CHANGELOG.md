@@ -19,6 +19,28 @@ All notable changes to whosup are recorded here. The format follows
   told at once, so a state change shows in well under a second instead of
   waiting for the next 3 s pass.
 - Tab moves between panes, and Enter or Space opens the focused pane.
+- Herdr app terminals: when herdr-core is running, each of its terminals is a
+  card as well, one row per space of the Herdr app. Status and the question
+  text come from the core. A click jumps to that pane in the Herdr app and
+  brings the app forward (or opens the terminal in a terminal window when the
+  app is not open). Close, resume, new pane and turning a row off and on work
+  as they do for herdr sessions. whosup reads the core's socket and never
+  starts a core that is not running. `WHOSUP_RUNTIMES` picks what to read.
+- Herdr app terminals: an agent stopped at its "trust this folder?" prompt
+  shows as needing input. The core has no status for it yet, so this one
+  prompt is read from the screen, by the same rule the herdr cards use.
+- Herdr app terminals: an agent that goes back to idle right after finishing
+  (Codex) keeps its "finished" card until the turn has been looked at, in the
+  app or by opening the card.
+- Web address: a Herdr app row opens on the web only when it has its own
+  address (the field shows even when that row is the only one on the board);
+  the web terminal button fills the address field clicked last, so a
+  per-session port is one edit. An address that does not parse is refused,
+  and a row whose own address is wrong opens no web tab instead of falling
+  back to another session's address. The tab goes to the clicked pane on every
+  click, and a tab the browser blocked is reported instead of "moved". With
+  "web address" chosen, a pane that has no address still brings its terminal
+  or the Herdr app forward.
 
 ### Changed
 
@@ -43,6 +65,15 @@ All notable changes to whosup are recorded here. The format follows
 - The first screen waited for git branch lookups.
 - A new terminal window could open twice when the terminal app was slow to
   start.
+- A new Ghostty window did not open when the path to herdr contained a space
+  or a quote.
+- Resuming the same conversation from two empty panes at once started it
+  twice. The second request is turned away.
+- A pane closed from the board could come back for a few seconds when a
+  collect that had started before the close finished after it.
+- The last request of a conversation that had just started could stay empty
+  for five minutes, because a history file that did not exist yet was
+  remembered as missing. It is looked for again after ten seconds.
 
 ## [0.1.0] - 2026-11-10
 

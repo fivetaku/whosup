@@ -5,6 +5,7 @@ import { closeSync, existsSync, fstatSync, openSync, readFileSync, readSync, rea
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { bin as herdrBin } from '../runtime/herdr.mjs'
+import * as core from '../runtime/core.mjs'
 
 const cache = new Map()
 // 뒤에서 새로 읽는 중인 키. 그동안은 옛 값을 그대로 준다(동기 실행으로 서버를 멈추지 않게).
@@ -20,6 +21,7 @@ function memo(key, ttlMs, fn, now = Date.now()) {
   return value
 }
 export const clearContextCache = () => { cache.clear(); fileCache.clear() }
+export const _cacheKeys = () => [...cache.keys()]   // 시험
 // 비동기로 캐시를 채운다. 값이 신선하면 null, 아니면 읽고 있는 약속을 돌려준다(기다릴지는 부르는 쪽이 정한다).
 function refresh(key, ttlMs, fn, now) {
   const hit = cache.get(key)
@@ -83,8 +85,30 @@ export function bodyLines(text) {
 // 권한 상자(╭ │ ╰)는 "명령 — 승인?" 꼴로 줄인다.
 const BOX = /^[\s│╭╰╮╯]+|[\s│]+$/g
 const unbox = (l) => l.replace(BOX, '').replace(/^[⏺●]\s*/, '')
+// 폴더 신뢰 화면의 고정 문구. 에이전트가 아직 뜨기 전이라 런타임이 상태를 알리지 못하는 대기다 —
+// herdr-core 런타임은 상태 없는 터미널의 화면이 이 질문으로 읽힐 때만 '입력 필요'로 올린다(isTrustScreen).
+export const TRUST_QUESTION = Object.freeze({ text: '이 폴더를 신뢰할까요? (Yes, I trust this folder)', kind: 'approval' })
+// 폴더 신뢰 대화상자인가: 질문 줄(…trust…?) + 신뢰를 고르는 선택지 + 맨 아래의 Enter 안내가 함께 있을 때만.
+// 선택 커서(❯ › >)와 번호는 떼고 본다 — 커서가 어느 선택지에 있어도 같은 화면이다. 낱말 하나가 아니라 구조를 보는
+// 이유: 문서를 보여 주는 프로그램의 화면에 같은 문장이 있다고 걸리면 안 된다(herdr-core 카드는 이 판정으로 상태를 올린다).
+// 확인한 화면: Claude Code 2.1("Yes, I trust this folder" / "Enter to confirm"), Codex 0.167("Trust and continue" / "enter continue").
+const CURSOR = /^[\s❯›>▶]*(\d+\.\s*)?/
+export function trustDialogOf(text) {
+  const lines = String(text || '').replace(/\r/g, '').split('\n').map((l) => l.replace(/^[\s│╭╰╮╯]+|[\s│]+$/g, '')).filter(Boolean)
+  const tail = lines.slice(-16)
+  let hint = -1
+  for (let i = tail.length - 1; i >= Math.max(0, tail.length - 3); i--) if (/^enter\b.{0,12}\b(confirm|continue)\b/i.test(tail[i])) { hint = i; break }
+  if (hint < 0) return null
+  const above = tail.slice(0, hint)
+  const option = above.slice(-8).some((l) => /^(yes,?\s+)?(i\s+)?trust\b.{0,30}$/i.test(l.replace(CURSOR, '')))
+  const asks = above.some((l) => /\btrust\b[^?]{0,80}\?/i.test(l)) && above.some((l) => /\b(folder|project|workspace|directory)\b/i.test(l))
+  return option && asks ? TRUST_QUESTION : null
+}
+export const isTrustScreen = (text) => trustDialogOf(text) === TRUST_QUESTION
 // #17 질문 문장과 종류: approval(권한 상자·폴더 신뢰) | question(그 밖의 물음).
 export function questionOf(text) {
+  const trust = trustDialogOf(text)   // 커서가 신뢰 선택지에 있으면 아래 줄 단위 규칙은 그 줄을 잡음으로 버린다
+  if (trust) return trust
   const raw = bodyLines(text)
   const body = raw.map(unbox).filter((l) => l.trim() && !NOISE.test(l) && !/^[─╭╰╮╯]+$/.test(l))
   for (let i = body.length - 1; i >= 0; i--) {
@@ -97,7 +121,7 @@ export function questionOf(text) {
       const cmd = (titleIdx >= 0 ? head.slice(titleIdx + 1) : head).map((h) => h.trim()).find((h) => h && !/^(Bash command|Edit file|Write file)/i.test(h))
       return { text: cmd ? `${cmd.slice(0, 120)} — 승인할까요?` : '승인할까요?', kind: 'approval' }
     }
-    if (/trust this folder/i.test(l)) return { text: '이 폴더를 신뢰할까요? (Yes, I trust this folder)', kind: 'approval' }
+    if (/trust this folder/i.test(l)) return TRUST_QUESTION
     if (/^Enter to confirm/i.test(l)) {
       for (let k = i - 1; k >= Math.max(0, i - 12); k--) if (/[?？]/.test(body[k])) return { text: joinWrapped(body, k), kind: 'question' }
     }
@@ -167,6 +191,38 @@ export function paneContext(session, pane, status, now = Date.now()) {
   return memo(`pane:${session}/${pane}:${status}`, 10000, () => parsePane(readPane(session, pane), status), now)
 }
 
+// herdr-core 칸: 코어가 질문·승인 문구를 직접 알려 준다(status.msg). 그것을 먼저 쓰고, 없을 때만 화면에서 찾는다.
+// 문구 머리의 "answer: "·"approve "는 코어가 붙인 꼬리표라 뗀다. 승인은 herdr 칸과 같은 꼴("… — 승인할까요?")로 맞춘다.
+export function coreQuestion(fields) {
+  // 화면에서 읽어 올린 폴더 신뢰 대기: 이미 그 질문으로 확인한 것이라 화면을 다시 읽지 않고 같은 문구를 쓴다.
+  if (fields?.statusKind === 'trust') return TRUST_QUESTION
+  const msg = String(fields?.statusMsg || '').replace(/\s+/g, ' ').trim()
+  if (!msg) return null
+  if (fields.statusKind === 'permission') return { text: `${msg.replace(/^approve\s+/i, '').slice(0, 120)} — 승인할까요?`, kind: 'approval' }
+  return { text: msg.replace(/^answer:\s*/i, '').slice(0, 200), kind: 'question' }
+}
+// 화면 캐시의 열쇠: 카드(행 id)와 턴까지 넣는다. 같은 주소를 새 터미널이 물려받거나 같은 터미널의 다음 턴이
+// 같은 상태로 보일 때 앞 화면의 질문·답변이 새 카드에 붙지 않게.
+const coreKey = (s) => {
+  let turn = ''
+  try { turn = JSON.parse(s.fields_json || '{}').turn ?? '' } catch {}
+  return `pane:core:${s.id ?? s.runtime_ref}:${s.status}:${turn}`
+}
+// 화면 글(마지막 말·실패 신호)은 warmContext가 비동기로 읽어 둔 것만 본다 — 소켓 읽기라 동기로 읽을 길이 없다.
+export function coreContext(s) {
+  let f = {}
+  try { f = JSON.parse(s.fields_json || '{}') } catch {}
+  const screen = cache.get(coreKey(s))?.value || null
+  const asked = s.status === 'blocked' ? coreQuestion(f) : null
+  return {
+    question: asked?.text ?? screen?.question ?? null,
+    ask_kind: asked?.kind ?? screen?.ask_kind ?? null,
+    last_say: screen?.last_say ?? null,
+    // 실패는 코어가 오류라고 알린 칸뿐이다. 화면의 오류 낱말로 실패를 추측하지 않는다(답변에 "Fixed API Error"가 있다고 실패가 아니다).
+    failed: Boolean(f.failed),
+  }
+}
+
 // 판을 계산하기 전에 칸 화면·git 브랜치를 비동기로 미리 읽어 캐시에 넣는다. 그 뒤의 computeBoard는 캐시만 본다.
 // 칸 화면(질문 원문)은 새 값을 기다린다. 브랜치는 기다리지 않는다 — 판은 바로 내주고(첫 화면이 git을 기다리지 않는다),
 // 읽고 나서 값이 달라졌으면 onLate를 한 번 불러 화면이 다시 읽게 한다.
@@ -174,13 +230,19 @@ export async function warmContext(rows, now = Date.now(), onLate = null) {
   const jobs = []
   const late = []
   const cwds = new Set()
+  // 코어 카드의 화면 캐시는 열쇠에 턴이 들어 있어 턴마다 새로 생긴다: 지금 판의 카드가 쓰지 않는 것은 버린다.
+  const keep = new Set(rows.filter((s) => s.runtime === core.name).map(coreKey))
+  for (const k of cache.keys()) if (k.startsWith('pane:core:') && !keep.has(k) && !inflight.has(k)) cache.delete(k)
   for (const s of rows) {
-    if (s.runtime !== 'herdr') continue
-    const [session, pane] = s.runtime_ref.split('/')
+    if (s.runtime !== 'herdr' && s.runtime !== core.name) continue
     const live = !['stopped', 'gone', 'shell'].includes(s.status) && !s.unreachable
     if (live && ['blocked', 'done'].includes(s.status)) {
-      jobs.push(refresh(`pane:${session}/${pane}:${s.status}`, 10000, async () =>
-        parsePane(await run(herdrBin(), ['--session', session, 'pane', 'read', pane, '--source', 'detection', '--lines', '60'], { timeout: 4000 }), s.status), now))
+      if (s.runtime === core.name) jobs.push(refresh(coreKey(s), 10000, async () => parsePane(await core.readScreen(s.runtime_ref), s.status), now))
+      else {
+        const [session, pane] = s.runtime_ref.split('/')
+        jobs.push(refresh(`pane:${session}/${pane}:${s.status}`, 10000, async () =>
+          parsePane(await run(herdrBin(), ['--session', session, 'pane', 'read', pane, '--source', 'detection', '--lines', '60'], { timeout: 4000 }), s.status), now))
+      }
     }
     if (s.cwd && !cwds.has(s.cwd) && existsSync(s.cwd)) {
       cwds.add(s.cwd)
@@ -206,7 +268,8 @@ const projectsDir = () => process.env.CLAUDE_PROJECTS_DIR || join(homedir(), '.c
 
 export function findSessionFile(sessionId) {
   if (!sessionId || !/^[0-9a-f-]{36}$/i.test(sessionId)) return null
-  return memo(`file:${sessionId}`, 300000, () => {
+  const key = `file:${sessionId}`
+  const file = memo(key, 300000, () => {
     const root = projectsDir()
     for (const dir of readdirSync(root)) {
       const p = join(root, dir, `${sessionId}.jsonl`)
@@ -214,6 +277,10 @@ export function findSessionFile(sessionId) {
     }
     return null
   })
+  // 아직 없는 기록은 5분 동안 "없음"으로 굳히지 않는다 — 대화 id가 기록 파일보다 먼저 알려지는 경우(막 시작한 대화)
+  // 마지막 요청이 5분 뒤에야 보였다. 10초 뒤 다시 찾는다.
+  if (!file) { const hit = cache.get(key); if (hit && Date.now() - hit.at < 290000) hit.at -= 290000 }
+  return file
 }
 
 function tailText(path, bytes) {

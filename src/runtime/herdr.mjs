@@ -130,7 +130,7 @@ export async function listSnapshotAsync() {
 export async function snapshotRuntime() {
   let snap, err
   try { snap = await listSnapshotAsync() } catch (e) { err = e }
-  return { name, FIELDS, TRACKS_GONE, IDLE_AFTER_WORK_IS_DONE, snap, listSnapshot: () => { if (err) throw err; return snap } }
+  return { name, FIELDS, TRACKS_GONE, IDLE_AFTER_WORK_IS_DONE, snap, err, absent: err?.code === 'ENOENT', listSnapshot: () => { if (err) throw err; return snap } }
 }
 
 // ── herdr 이벤트 구독 ── 세션 소켓에 events.subscribe를 걸어 두고, 칸이 생기거나 닫히거나 에이전트 상태가 바뀌면 onChange를 부른다.
@@ -272,10 +272,15 @@ export const terminalPidsFor = (psText, session, app) => terminalHostsFor(psText
 // Terminal.app은 실행 파일(.command)을 열게 한다 — AppleScript로 시키면 자동화 권한 창이 뜬다.
 const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`
 export function openerFor(app, session, herdrBin = bin()) {
-  const argv = [herdrBin, ...clientArgv(session)]
-  if (/^ghostty$/i.test(app)) return { file: '/usr/bin/open', args: ['-na', 'Ghostty', '--args', `--command=${argv.join(' ')}`] }
+  return openerForArgv(app, [herdrBin, ...clientArgv(session)], session)
+}
+// 같은 방법으로 아무 명령이나 새 창에서 돌린다(herdr-core 터미널을 `hc attach`로 여는 데 쓴다). key는 스크립트 파일 이름.
+export function openerForArgv(app, argv, key) {
+  // Ghostty는 인자가 붙은 명령을 /bin/sh -c로 돌린다(Ghostty 문서의 command 항목). 공백·따옴표·셸 기호가 든 인자만
+  // 따옴표로 감싸 인자 경계를 지킨다 — 평범한 인자는 예전과 글자 하나 다르지 않다.
+  if (/^ghostty$/i.test(app)) return { file: '/usr/bin/open', args: ['-na', 'Ghostty', '--args', `--command=${argv.map((a) => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(String(a)) ? a : shq(a))).join(' ')}`] }
   if (/^terminal$/i.test(app)) {
-    const script = join(STATE_DIR, `open-${session}.command`)   // 상태 폴더 안: 다른 whosup 인스턴스와 겹치지 않는다
+    const script = join(STATE_DIR, `open-${key}.command`)   // 상태 폴더 안: 다른 whosup 인스턴스와 겹치지 않는다
     return { file: '/usr/bin/open', args: ['-a', 'Terminal', script], script, body: `#!/bin/sh\nexec ${argv.map(shq).join(' ')}\n` }
   }
   return null
@@ -708,6 +713,70 @@ export function warmClick() {
   if (process.platform === 'darwin' && Date.now() - psCache.at > 2000) psText(true).catch(() => {})
 }
 
+// 고른 프로세스(같은 앱의 인스턴스들) 중 창이 가장 큰 것을 앞으로 올린다. 최소화돼 있으면 펼치고, split > 0이면 보드와 나란히 놓는다.
+async function raisePids(pids, app, split, label) {
+  try { raising.child?.kill() } catch {}
+  // 먼저 그 인스턴스를 pid로 바로 앞으로(권한 불필요, 즉시). System Events 정밀 올리기(최소화 해제)는 그 뒤에 —
+  // 권한이 없으면 4초 시간 초과를 기다리던 탓에 창이 4초 늦게 올라왔다(2026-11-08 pro QA).
+  // 도우미가 여러 인스턴스 중 창이 가장 큰 것을 골라 앞으로 올리고 그 pid를 돌려준다. 정밀 올리기도 그 pid부터.
+  const got = await macHelper.send(`${pids.join(',')};${split || 0}`, 3000)
+  const m = /^ok:(\d+)(?::(\d+):(.*))?$/.exec(got) || []
+  const chosen = Number(m[1]) || pids[0]
+  // 화면 나눠 쓰기: 누르기 직전 맨 앞 앱(보드 브라우저)과 이 터미널을 나란히 놓는다.
+  if (split > 0 && m[2] && Number(m[2]) !== chosen) {
+    run('/usr/bin/osascript', ['-e', LAYOUT_AS, m[2], String(chosen), String(split), ...m[3].split(' ')], { timeout: 4000 })
+      .then((r) => { if (process.env.WHOSUP_DEBUG_RAISE) console.error(`whosup: split ${r}`) })
+      .catch((err) => console.error(`whosup: split layout failed: ${String(err.message || err).slice(0, 200)}`))
+  }
+  if (got === 'none') psText(true).catch(() => {})   // 그 창이 닫혔으면 다음 클릭을 위해 목록을 새로 읽는다
+  else if (!String(got).startsWith('ok')) run('/usr/bin/osascript', ['-l', 'JavaScript', '-e', ACTIVATE_PID_JS, String(chosen)], { timeout: 3000 }).catch(() => {})
+  // 고른 인스턴스만 넘긴다 — 여러 개를 넘기면 RAISE_AS가 '최소화 안 된 첫 창'을 골라 최소화한 큰 창을 건너뛴다.
+  run('/usr/bin/osascript', ['-e', RAISE_AS, String(chosen)], { track: true, timeout: 4000 })
+    .then((got) => { raiseWarn = null; if (process.env.WHOSUP_DEBUG_RAISE) console.error(`whosup: raise ${label} want=${pids.join(',')} got=${got}`) })
+    .catch((err) => {
+      if (/SIGTERM|exit null/.test(String(err.message))) return
+      // 손쉬운 사용 권한이 없으면 최소화된 창을 펼칠 수 없다 — 보드에 안내를 띄운다(macOS 실측 -25211).
+      if (/-25211|-1719|보조 접근|assistive access/i.test(String(err.message))) raiseWarn = 'mac_accessibility'
+      console.error(`whosup: terminal raise failed (Accessibility?): ${String(err.message || err).slice(0, 200)}`)
+      // 손쉬운 사용 권한이 없어도 앱 단위 activate는 된다(2026-11-08 pro 실측) — 최소한 그 터미널 앱은 앞으로.
+      run('/usr/bin/osascript', ['-e', `tell application "${app.replace(/"/g, '')}" to activate`], { timeout: 3000 }).catch(() => {})
+    })
+}
+// 새 창 띄우기. 창이 막 열리는 중이면 또 열지 않는다 — 클릭마다 인스턴스가 쌓였다(2026-11-08 pro QA). 터미널 앱이 처음 뜰 때는
+// 창이 나오기까지 10초를 넘기기도 해서(2026-11-10 실측: Ghostty 첫 실행 16초 이상) 20초 동안 기다린다.
+// 앱별로 따로 센다 — 방금 다른 앱으로 창을 열었더라도, 설정에서 앱을 바꾼 뒤의 클릭은 새 앱으로 연다.
+function launch(app, what, how) {
+  if (!how) return false
+  const key = `${app}\n${what}`
+  if (Date.now() - (openedAt.get(key) || 0) < OPEN_WAIT_MS) return true
+  openedAt.set(key, Date.now())
+  if (how.script) { mkdirSync(dirname(how.script), { recursive: true }); writeFileSync(how.script, how.body); chmodSync(how.script, 0o755) }
+  const opener = spawn(how.file, how.args, { detached: true, stdio: 'ignore' })
+  opener.once('error', (err) => console.error(`whosup: could not open a terminal window: ${String(err.message || err).slice(0, 200)}`))
+  opener.unref()
+  return true
+}
+// 다른 런타임(herdr-core)이 쓰는 두 가지: 이름으로 앱을 앞으로 올리기, 터미널 창을 새로 열어 명령 돌리기. macOS 밖에서는 'off'.
+const APP_PIDS = (psText, appName) => psText.split('\n').map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/)).filter(Boolean)
+  .filter(([, , , cmd]) => (APP_OF.exec(cmd)?.[1] || '').toLowerCase() === String(appName).toLowerCase()).map(([, pid]) => Number(pid))
+export async function raiseApp(appName, split = 0) {
+  if (process.platform !== 'darwin') return 'off'
+  const safe = String(appName).replace(/[^A-Za-z0-9 ._-]/g, '')
+  try {
+    let pids = APP_PIDS(await psText(), safe)
+    if (!pids.length) pids = APP_PIDS(await psText(true), safe)
+    if (pids.length) { await raisePids(pids, safe, split, safe); return 'raised' }
+  } catch (err) { console.error(`whosup: app raise failed: ${String(err.message || err).slice(0, 200)}`) }
+  run('/usr/bin/osascript', ['-e', `tell application "${safe}" to activate`]).catch(() => {})
+  return 'app'
+}
+export async function openWindowRunning(argv, key) {
+  if (process.platform !== 'darwin') return 'off'
+  let text = ''
+  try { text = await psText() } catch {}
+  const app = appToOpen(configuredApp(), text)
+  return launch(app, key, openerForArgv(app, argv, key)) ? 'opened' : 'off'
+}
 // Returns 'raised' (raise started in the background) | 'opened' | 'app' | 'off'. Never blocks the event loop;
 // the window comes up ~0.1–0.3s after the response.
 export async function activateTerminal(session, split = 0) {
@@ -727,50 +796,12 @@ export async function activateTerminal(session, split = 0) {
     const pids = hosts.map((h) => h.pid)
     if (pids.length) {
       app = conf || hosts[0].app
-      try { raising.child?.kill() } catch {}
-      // 먼저 그 인스턴스를 pid로 바로 앞으로(권한 불필요, 즉시). System Events 정밀 올리기(최소화 해제)는 그 뒤에 —
-      // 권한이 없으면 4초 시간 초과를 기다리던 탓에 창이 4초 늦게 올라왔다(2026-11-08 pro QA).
-      // 도우미가 여러 인스턴스 중 창이 가장 큰 것을 골라 앞으로 올리고 그 pid를 돌려준다. 정밀 올리기도 그 pid부터.
-      const got = await macHelper.send(`${pids.join(',')};${split || 0}`, 3000)
-      const m = /^ok:(\d+)(?::(\d+):(.*))?$/.exec(got) || []
-      const chosen = Number(m[1]) || pids[0]
-      // 화면 나눠 쓰기: 누르기 직전 맨 앞 앱(보드 브라우저)과 이 터미널을 나란히 놓는다.
-      if (split > 0 && m[2] && Number(m[2]) !== chosen) {
-        run('/usr/bin/osascript', ['-e', LAYOUT_AS, m[2], String(chosen), String(split), ...m[3].split(' ')], { timeout: 4000 })
-          .then((r) => { if (process.env.WHOSUP_DEBUG_RAISE) console.error(`whosup: split ${r}`) })
-          .catch((err) => console.error(`whosup: split layout failed: ${String(err.message || err).slice(0, 200)}`))
-      }
-      if (got === 'none') psText(true).catch(() => {})   // 그 창이 닫혔으면 다음 클릭을 위해 목록을 새로 읽는다
-      else if (!String(got).startsWith('ok')) run('/usr/bin/osascript', ['-l', 'JavaScript', '-e', ACTIVATE_PID_JS, String(chosen)], { timeout: 3000 }).catch(() => {})
-      // 고른 인스턴스만 넘긴다 — 여러 개를 넘기면 RAISE_AS가 '최소화 안 된 첫 창'을 골라 최소화한 큰 창을 건너뛴다.
-      run('/usr/bin/osascript', ['-e', RAISE_AS, String(chosen)], { track: true, timeout: 4000 })
-        .then((got) => { raiseWarn = null; if (process.env.WHOSUP_DEBUG_RAISE) console.error(`whosup: raise ${session} want=${pids.join(',')} got=${got}`) })
-        .catch((err) => {
-          if (/SIGTERM|exit null/.test(String(err.message))) return
-          // 손쉬운 사용 권한이 없으면 최소화된 창을 펼칠 수 없다 — 보드에 안내를 띄운다(macOS 실측 -25211).
-          if (/-25211|-1719|보조 접근|assistive access/i.test(String(err.message))) raiseWarn = 'mac_accessibility'
-          console.error(`whosup: terminal raise failed (Accessibility?): ${String(err.message || err).slice(0, 200)}`)
-          // 손쉬운 사용 권한이 없어도 앱 단위 activate는 된다(2026-11-08 pro 실측) — 최소한 그 터미널 앱은 앞으로.
-          run('/usr/bin/osascript', ['-e', `tell application "${app.replace(/"/g, '')}" to activate`], { timeout: 3000 }).catch(() => {})
-        })
+      await raisePids(pids, app, split, session)
       return 'raised'
     }
     // No window shows this session: open one attached to it (the session keeps running either way).
     app = appToOpen(conf, text)
-    const how = openerFor(app, session)
-    if (how) {
-      // 창이 막 열리는 중이면 또 열지 않는다 — 클릭마다 인스턴스가 쌓였다(2026-11-08 pro QA). 터미널 앱이 처음 뜰 때는
-      // 창이 나오기까지 10초를 넘기기도 해서(2026-11-10 실측: Ghostty 첫 실행 16초 이상) 20초 동안 기다린다.
-      // 앱별로 따로 센다 — 방금 다른 앱으로 창을 열었더라도, 설정에서 앱을 바꾼 뒤의 클릭은 새 앱으로 연다.
-      const key = `${app}\n${session}`
-      if (Date.now() - (openedAt.get(key) || 0) < OPEN_WAIT_MS) return 'opened'
-      openedAt.set(key, Date.now())
-      if (how.script) { mkdirSync(dirname(how.script), { recursive: true }); writeFileSync(how.script, how.body); chmodSync(how.script, 0o755) }
-      const opener = spawn(how.file, how.args, { detached: true, stdio: 'ignore' })
-      opener.once('error', (err) => console.error(`whosup: could not open a terminal window: ${String(err.message || err).slice(0, 200)}`))
-      opener.unref()
-      return 'opened'
-    }
+    if (launch(app, session, openerFor(app, session))) return 'opened'
   } catch (err) { console.error(`whosup: terminal raise failed: ${String(err.message || err).slice(0, 200)}`) }
   if (!app) return 'off'
   run('/usr/bin/osascript', ['-e', `tell application "${app.replace(/"/g, '')}" to activate`]).catch(() => {})
@@ -798,7 +829,8 @@ export function focus(ref, opts = {}) {
 async function focusNow(ref, opts = {}, mine) {
   const { cwd = process.env.HOME, run = null, seq } = opts
   const { session, pane } = splitRef(ref)
-  const stale = Number.isFinite(seq) ? seq < latestClick : mine !== focusSeq
+  // superseded(): 보드 서버가 본 판 전체의 순번(다른 런타임의 카드를 더 나중에 눌렀을 때). herdr 카드만 있으면 위 판정과 같다.
+  const stale = (Number.isFinite(seq) ? seq < latestClick : mine !== focusSeq) || opts.superseded?.() === true
   if (stale && !run) return { session, pane, client: 'running', window: 'superseded' }
   let client = await ensureServer(session, cwd)
   // 창 올리기는 칸 이동과 상관없으니 같이 시작한다(ps·osascript 기동 시간을 칸 이동 뒤로 미루지 않게).
