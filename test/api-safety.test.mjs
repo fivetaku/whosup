@@ -6,8 +6,9 @@ import { spawn, spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir, homedir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const ROOT = new URL('..', import.meta.url).pathname
+const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const BIN = join(ROOT, 'bin/whosup.mjs')
 const NO_HERDR = '/nonexistent/whosup-test/herdr'
 const port = () => 4900 + Math.floor(Math.random() * 21)

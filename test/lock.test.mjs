@@ -6,9 +6,10 @@ import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { acquireLock } from '../src/db.mjs'
+import { fileURLToPath } from 'node:url'
 
-const BIN = new URL('../bin/whosup.mjs', import.meta.url).pathname
-const FAKE = new URL('./fixtures/fake-herdr.sh', import.meta.url).pathname
+const BIN = fileURLToPath(new URL('../bin/whosup.mjs', import.meta.url))
+const FAKE = fileURLToPath(new URL('../test-support/fake-herdr.mjs', import.meta.url))
 
 test('acquireLock: 같은 폴더의 두 번째 잠금은 실패하고, 첫 잠금을 놓으면 다시 잡힌다', () => {
   const dir = mkdtempSync(join(tmpdir(), 'whosup-lock-'))

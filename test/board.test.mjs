@@ -6,9 +6,9 @@ import { collectOnce } from '../src/collector.mjs'
 const now = new Date()
 const iso = (m) => new Date(now.getTime() - m * 60000).toISOString()
 const fake = { name: 'herdr', FIELDS: ['lastStatus', 'requiresAttention', 'attentionReason', 'lastUserMessageAt', 'title'], TRACKS_GONE: true, listSessions: () => [
-  { runtime: 'herdr', runtime_ref: 'main/w1:p1', provider_session: 'x', cwd: '/tmp/a', project: 'a', title: 'a', pane_label: 'alpha', provider: 'claude', status: 'blocked', attentionTimestamp: iso(5), archived: false, fields: { lastStatus: 'error', requiresAttention: true, attentionReason: 'blocked', lastUserMessageAt: null, title: 'a' } },
-  { runtime: 'herdr', runtime_ref: 'main/w1:p2', provider_session: null, cwd: '/tmp/b', project: 'b', title: 'b', pane_label: null, provider: null, status: 'shell', attentionTimestamp: null, archived: false, fields: { lastStatus: 'shell', requiresAttention: false, attentionReason: null, lastUserMessageAt: null, title: 'b' } },
-  { runtime: 'herdr', runtime_ref: 'side/w1:p1', provider_session: 'y', cwd: '/tmp/c', project: 'c', title: 'c', pane_label: 'gamma', provider: 'codex', status: 'working', attentionTimestamp: null, archived: false, fields: { lastStatus: 'running', requiresAttention: false, attentionReason: null, lastUserMessageAt: null, title: 'c' } },
+  { runtime: 'herdr', runtime_ref: 'main/w1:p1', provider_session: 'x', cwd: '/work/a', project: 'a', title: 'a', pane_label: 'alpha', provider: 'claude', status: 'blocked', attentionTimestamp: iso(5), archived: false, fields: { lastStatus: 'error', requiresAttention: true, attentionReason: 'blocked', lastUserMessageAt: null, title: 'a' } },
+  { runtime: 'herdr', runtime_ref: 'main/w1:p2', provider_session: null, cwd: '/work/b', project: 'b', title: 'b', pane_label: null, provider: null, status: 'shell', attentionTimestamp: null, archived: false, fields: { lastStatus: 'shell', requiresAttention: false, attentionReason: null, lastUserMessageAt: null, title: 'b' } },
+  { runtime: 'herdr', runtime_ref: 'side/w1:p1', provider_session: 'y', cwd: '/work/c', project: 'c', title: 'c', pane_label: 'gamma', provider: 'codex', status: 'working', attentionTimestamp: null, archived: false, fields: { lastStatus: 'running', requiresAttention: false, attentionReason: null, lastUserMessageAt: null, title: 'c' } },
 ] }
 test('collect → board: blocked is red/next, shell is carry, working is green, labels kept', () => {
   const db = openDb(':memory:')

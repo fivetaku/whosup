@@ -97,7 +97,10 @@ test('한 번의 클릭이 할 일: 설정 패널이 보여 주는 방식과 실
   assert.deepEqual(plan(CORE, { 'whosup-open-url': OVIS, 'whosup-raise': 'off' }), { url: '', raise: true })
   assert.deepEqual(plan(CORE, { 'whosup-open-url:core:spA': 'http://h/{pane}', 'whosup-raise': 'off' }), { url: 'http://h/t4', raise: false })
   // 화면은 이 계획대로 요청한다: 카드 클릭은 plan.raise를 싣고, 요청에 적은 값이 기본값을 이긴다
-  assert.match(html, /const clickPlan = \(c\) => clickPlanOf\(c, lsGet, Object\.keys\(localStorage\)\)/)
+  // 열쇠는 이 브라우저 저장값 + 서버 기본값(client_defaults). 브라우저 저장값이 먼저다(lsGet).
+  assert.match(html, /const clickPlan = \(c\) => clickPlanOf\(c, lsGet, lsKeys\(\)\)/)
+  assert.match(html, /const lsKeys = \(\) => \[\.\.\.new Set\(\[\.\.\.Object\.keys\(localStorage\), \.\.\.Object\.keys\(srvDefaults\)\]\)\]/)
+  assert.match(html, /const lsGet = \(k\) => localStorage\.getItem\(k\) \?\? /)
   assert.match(html, /post\('\/api\/open', \{ id, seq, raise: plan\.raise \}\)/)
   assert.match(html, /JSON\.stringify\(\{ raise: raiseOn\(\), \.\.\.body \}\)/)
 })

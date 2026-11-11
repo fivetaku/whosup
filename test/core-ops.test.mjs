@@ -4,9 +4,11 @@ import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { startFakeCore, term, agentTerm } from '../test-support/fake-core.mjs'
+import { fileURLToPath } from 'node:url'
 
-const dir = mkdtempSync('/tmp/wo-')
+const dir = mkdtempSync(join(tmpdir(), 'wo-'))
 const SOCK = join(dir, 'core.sock')
 const LOG = join(dir, 'app.log')
 process.env.HC_SOCKET = SOCK
@@ -15,7 +17,7 @@ process.env.HC_SESSION = 'whosuptest-unit'
 // 새 창 명령에 섞여 들어가 기대값과 달라지지 않게.
 delete process.env.XDG_STATE_HOME
 delete process.env.XDG_RUNTIME_DIR
-process.env.HERDR_APP_BIN = new URL('../test-support/fake-herdr-app.mjs', import.meta.url).pathname
+process.env.HERDR_APP_BIN = fileURLToPath(new URL('../test-support/fake-herdr-app.mjs', import.meta.url))
 chmodSync(process.env.HERDR_APP_BIN, 0o755)
 process.env.FAKE_APP_LOG = LOG
 process.env.HERDR_BIN = join(dir, 'no-herdr')
@@ -109,7 +111,10 @@ test('이동: 앱 창이 없으면(종료 코드 2) 오류 없이 넘어간다 �
 test('이동(창 올리기 켬): 앱이 있으면 앱을 앞으로, 앱 창이 없으면 터미널 창에서 hc attach로 연다', async () => {
   reset()
   const seen = []
-  core._setWindowOps({ raiseApp: async (name, split) => { seen.push(['raise', name, split]); return 'raised' }, openWindowRunning: async (argv, key) => { seen.push(['open', argv, key]); return 'opened' } })
+  core._setWindowOps({ raiseApp: async (name, split) => { seen.push(['raise', name, split]); return 'raised' }, openWindowRunning: async (...a) => { seen.push(['open', ...a]); return 'opened' } })
+  // 새 창 명령: macOS·리눅스는 /usr/bin/env K=V … , 윈도우는 [hc, attach, t4]와 환경변수 묶음(PowerShell $env:로 넣는다)
+  const want = (...kv) => (process.platform === 'win32' ? [['hc', 'attach', 't4'], 'core-t4', Object.fromEntries(kv)] : [['/usr/bin/env', ...kv.map(([k, v]) => `${k}=${v}`), 'hc', 'attach', 't4'], 'core-t4'])
+  const base = [['HC_SESSION', 'whosuptest-unit'], ['HC_SOCKET', SOCK]]
   fake.add(agentTerm('t4', 'done', { labels: SPACE }))
   const db = openDb(':memory:'); await collectAll(db)
   const a = await openSession(db, idOf(db, 't4'), 10)
@@ -119,13 +124,13 @@ test('이동(창 올리기 켬): 앱이 있으면 앱을 앞으로, 앱 창이 �
   const b = await openSession(db, idOf(db, 't4'), 11)
   assert.deepEqual([b.ok, b.code, b.window], [true, 'focused_opened', 'opened'])
   // 새 창은 이 서버의 환경을 물려받지 않는다: 코어의 위치를 정하는 값(HC_SESSION·HC_SOCKET·XDG_*)을 함께 넘겨 같은 코어에 붙게 한다
-  assert.deepEqual(seen, [['open', ['/usr/bin/env', 'HC_SESSION=whosuptest-unit', `HC_SOCKET=${SOCK}`, 'hc', 'attach', 't4'], 'core-t4']])
-  process.env.XDG_STATE_HOME = '/tmp/x state'; seen.length = 0
+  assert.deepEqual(seen, [['open', ...want(...base)]])
+  process.env.XDG_STATE_HOME = '/work/x state'; seen.length = 0
   try { await openSession(db, idOf(db, 't4'), 11.5) } finally { delete process.env.XDG_STATE_HOME }
-  assert.deepEqual(seen[0][1], ['/usr/bin/env', 'HC_SESSION=whosuptest-unit', `HC_SOCKET=${SOCK}`, 'XDG_STATE_HOME=/tmp/x state', 'hc', 'attach', 't4'])
+  assert.deepEqual(seen[0].slice(1), want(...base, ['XDG_STATE_HOME', '/work/x state']))
   process.env.XDG_RUNTIME_DIR = '/run/user/1001'; seen.length = 0                                     // 리눅스 데스크톱·CI에 흔한 값
   try { await openSession(db, idOf(db, 't4'), 11.7) } finally { delete process.env.XDG_RUNTIME_DIR }
-  assert.deepEqual(seen[0][1], ['/usr/bin/env', 'HC_SESSION=whosuptest-unit', `HC_SOCKET=${SOCK}`, 'XDG_RUNTIME_DIR=/run/user/1001', 'hc', 'attach', 't4'])
+  assert.deepEqual(seen[0].slice(1), want(...base, ['XDG_RUNTIME_DIR', '/run/user/1001']))
   // herdr-app 명령이 아예 없는 기계도 같다(오류 없이 터미널 창으로)
   delete process.env.FAKE_APP_MODE; seen.length = 0
   const bin = process.env.HERDR_APP_BIN; process.env.HERDR_APP_BIN = join(dir, 'no-herdr-app')
@@ -169,7 +174,7 @@ test('이어서 열기: 셸 칸에 실행 명령을 쳐 넣는다. 에이전트�
   const busy = await resumeSession(db, idOf(db, 't8'), undefined, { raise: false })
   assert.deepEqual([busy.ok, busy.code], [false, 'has_agent'])
   // 셸이 아닌 프로그램이 도는 칸에 명령을 쳐 넣지 않는다
-  fake.add(term('t9', { foreground: { argv: ['vim'], cwd: '/tmp', name: 'vim', pid: 1 } }))
+  fake.add(term('t9', { foreground: { argv: ['vim'], cwd: '/work', name: 'vim', pid: 1 } }))
   await assert.rejects(core.focus('whosuptest-unit/t9', { run: 'claude', raise: false }), /not at a shell prompt/)
 })
 
@@ -470,7 +475,7 @@ test('끄는 도중의 수집은 그 줄의 꺼짐 기록을 지우지 않는다
   fake.override = (m) => {
     if (m === 'terminal.read') return false                                                  // 답하지 않는다(읽기가 시간 초과까지 기다린다)
     if (m !== 'terminal.kill' || snap) return undefined
-    fake.terminals.set('t9', term('t9', { labels: SPACE, created_ms: Date.now() + 5000, argv: ['sh', '-c', 'claude'], foreground: { argv: ['claude'], cwd: '/tmp', name: '2.1.322', pid: 71009 } }))
+    fake.terminals.set('t9', term('t9', { labels: SPACE, created_ms: Date.now() + 5000, argv: ['sh', '-c', 'claude'], foreground: { argv: ['claude'], cwd: '/work', name: '2.1.322', pid: 71009 } }))
     snap = core.listSnapshotAsync()
     return undefined
   }

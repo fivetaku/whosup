@@ -17,7 +17,7 @@
   <img src="assets/hero.png" alt="whosup — 散らばって忘れられたターミナルセッションを1枚のボードに。次に見るペインだけがオレンジ" width="900">
 </p>
 
-[クイックスタート](#クイックスタート) • [なぜwhosupなのか](#なぜwhosupなのか) • [画面の見方](#画面の見方) • [仕組み](#仕組み) • [機能](#機能) • [設定](#設定) • [動作要件](#動作要件)
+[クイックスタート](#クイックスタート) • [なぜwhosupなのか](#なぜwhosupなのか) • [画面の見方](#画面の見方) • [仕組み](#仕組み) • [機能](#機能) • [設定](#設定) • [環境別の設定](#環境別の設定) • [動作要件](#動作要件)
 
 ---
 
@@ -44,6 +44,10 @@ herdr --session work      # 名前もターミナルも自由
 ```
 
 実行中のセッションは自動でボードに表示されます。管理するリストはありません。
+
+### Windows の場合
+
+同じプラグインが Windows でも動きます。アクション名の先頭に `win-` が付きます(`win-start`、`win-doctor`、…)。[Windows](#windows) を参照してください。
 
 ---
 
@@ -132,19 +136,21 @@ Node プロセス1つだけで、ビルドは不要です。herdr の startup �
 | `fivetaku.whosup.open` | ブラウザでボードを開く |
 | `fivetaku.whosup.desks-apply` | `desks.json` からセッションとペインを作成 |
 | `fivetaku.whosup.desks-status` | 宣言したペインと実際のペインを比較 |
+| `fivetaku.whosup.autoconf` | このマシンを確認し直し、自動検出の値を更新して表示([値の出所と自動設定](#値の出所と自動設定)を参照) |
+| `fivetaku.whosup.win-*` | Windows 用の同じアクション(`win-start`・`win-stop`・`win-status`・`win-open`・`win-desks-apply`・`win-desks-status`・`win-autoconf`)と `win-doctor` |
 
 ---
 
 ## 設定
 
-プラグインの設定フォルダ(`herdr plugin config-dir fivetaku.whosup`。herdr の外で動かすときは `~/.config/whosup`)の `.env` に `KEY=value` の行を書きます。このファイルは `start` がサーバーを起動するときにだけ読まれるので、変更したら `stop` アクションを実行してから `start` を実行します。`desks-apply` アクションは `.env` を読まず、エージェントのコマンドを `desks.json` の `agent_cmd` から取ります。
+プラグインの設定フォルダ(`herdr plugin config-dir fivetaku.whosup`。herdr の外で動かすときは `~/.config/whosup`)の `.env` に `KEY=value` の行を書きます。このファイルは `start` がサーバーを起動するときにだけ読まれるので、変更したら `stop` アクションを実行してから `start` を実行します。ここに書いた値は自動設定より優先され、設定パネルは両方より優先されます([値の出所と自動設定](#値の出所と自動設定)を参照)。`desks-apply` アクションは `.env` を読まず、エージェントのコマンドを `desks.json` の `agent_cmd` から取ります。
 
 | キー | 既定値 | 意味 |
 |---|---|---|
 | `PORT` | 4790 | 使用中なら次の空きポートを使用 |
 | `OPEN_BROWSER` | 1 | herdr 起動時にタブを一度だけ開く |
 | `AGENT_CMD` | claude | resume と new pane で使うコマンド。ラッパーを使うならここに。**settings** パネルで変えた値が優先 |
-| `FRONT_APP` | 自動 | ジャンプ時に前面に出す macOS のターミナルアプリ(例: `Ghostty`)。未設定なら herdr を表示しているアプリを見つけて使い、ウィンドウがなければ Terminal で新しいウィンドウを開きます。**settings** パネルで変えると再起動なしで反映されます |
+| `FRONT_APP` | 自動 | ジャンプ時に前面に出す macOS のターミナルアプリ(例: `Ghostty`)。未設定なら自動設定が選び([規則表](#値の出所と自動設定)のレーン L4)、ウィンドウがなければ Terminal で新しいウィンドウを開きます。Windows では空欄 = 自動(Windows Terminal があればそれ、なければ PowerShell ウィンドウ)、`PowerShell`、`Windows Terminal`、または `off`(どんな値も受け付けます)。**settings** パネルで変えると再起動なしで反映されます |
 | `STALE_DAYS`(または `WHOSUP_STALE_DAYS`) | 3 | この日数動きがないペインを保管候補として表示 |
 | `WHOSUP_READONLY` | 0 | 1 で読み取り専用: 変更不可、フォルダ一覧も非表示 |
 | `WHOSUP_SEEN_SNOOZE_MIN` · `WHOSUP_RENOTIFY_MIN` · `WHOSUP_RENOTIFY_MAX` · `WHOSUP_GONE_MISSES` · `WHOSUP_STALE_COLLECT_SEC` · `WHOSUP_CLOSED_KEEP_DAYS` · `WHOSUP_OS_NOTIFY` · `WHOSUP_UNREACHABLE_TTL_H` · `WHOSUP_SPLIT_PCT` | 30 · 15 · 4 · 3 · 30 · 7 · 0 · 24 · 0 | 初期値。ヘッダーの **settings** パネルで変えた値がこのコンピューターで優先 |
@@ -153,6 +159,7 @@ Node プロセス1つだけで、ビルドは不要です。herdr の startup �
 | `HERDR_BIN_PATH`(または `HERDR_BIN`) | 自動 | herdr 実行ファイルのパス。未設定なら `/opt/homebrew/bin`、`/usr/local/bin`、`~/.local/bin`、`PATH` の順に探す |
 | `WHOSUP_RUNTIMES` | auto | 読み取る対象: `auto`(herdr セッションと herdr-core ターミナルのうち存在するものすべて)、`herdr`、`herdr-core` |
 | `HC_SOCKET` | 自動 | herdr-core のソケット。未設定ならコアの `core.lock` から読む(`HC_SESSION`、`XDG_STATE_HOME` に従う) |
+| `WHOSUP_CLICK_TARGET` | terminal | まだ選んでいないブラウザでクリックしたときに開く場所: `terminal`、`web`、`both`。初回カードが設定し、**settings** の *クリックで開く場所* がブラウザごとに上書き |
 | `HERDR_APP_BIN` · `HERDR_APP_NAME` · `HC_BIN` | `herdr-app` · `Herdr` · `hc` | Herdr アプリのコマンド(移動、新しいタブ、スペースを閉じる)、macOS で前面に出すアプリ名、herdr-core のターミナルをターミナルウィンドウで開くときのコマンド |
 
 ### デスク(任意)
@@ -176,12 +183,100 @@ herdr は再起動後にエージェントを自分で起動し直すことも�
 
 ---
 
+## 環境別の設定
+
+### Herdr デスクトップアプリ
+
+whosup は Herdr デスクトップアプリのターミナルを、アプリのコアである herdr-core を通して読みます。次がそろっていれば設定は不要です。
+
+- **このコンピューターで herdr-core が動いていること。** コアはソケットのパスを `<state>/herdr-core/<session>/core.lock` に書きます(`<state>` は `XDG_STATE_HOME`、なければ `~/.local/state`、Windows では `%LOCALAPPDATA%` も見ます。`<session>` は `HC_SESSION`、なければ `default`)。`HC_SOCKET` を指定するとそちらが優先です。ソケットがある間はコアが動いているとみなします。whosup はコアを起動しません。
+- **`herdr-app` が `PATH` にあること**(または `HERDR_APP_BIN`)。移動・新しいタブ・スペースを閉じる操作はこのコマンドを使います。なくてもカードは読めます。
+- **`hc` が `PATH` にあること**(または `HC_BIN`)。アプリのウィンドウが開いていないとき、ターミナルウィンドウでそのターミナルを開きます。
+
+自動設定(レーン L6)がインストール時と毎回の起動時にソケットと `herdr-app` を確認します。Herdr アプリのカードをクリックすると、アプリでそのターミナルを表示してアプリ(`HERDR_APP_NAME`、既定 `Herdr`)を前面に出します。アプリのウィンドウがなければ、ターミナルウィンドウで `hc attach <terminal>` を開きます。
+
+ターミナルがボードに出ないときの確認点:
+
+- `WHOSUP_RUNTIMES` が `auto`(既定)か、`herdr-core` を含むこと。`herdr` だけだとアプリは対象外です。
+- whosup に `HC_SOCKET`・`HC_SESSION`・`XDG_STATE_HOME` を渡しているなら、アプリが使うコアと同じ場所を指すこと。
+- `node scripts/doctor.mjs` は core の行(ソケット、または *not running*)、探した状態フォルダ、`herdr-app` が見つかったかを表示します。`autoconf` アクションはレーン L6 とその根拠を表示します([値の出所と自動設定](#値の出所と自動設定)を参照)。
+- Windows で herdr-core が named pipe で待ち受けるかは、まだ確認していません。
+
+### ovis: 別の端末やスマホからペインを開く
+
+[ovis](https://github.com/devswha/ovis) は herdr 用の Web クライアントです(チャット、ライブターミナル、スマホアプリ)。whosup は動いている ovis を見つけてアドレスを埋めるだけで、ovis を起動・停止しません。
+
+```bash
+herdr plugin install devswha/ovis --yes          # ovis の INSTALL.md より
+herdr plugin action invoke devswha.ovis.start
+```
+
+- herdr プラグインとして入れた ovis は herdr と一緒に `http://127.0.0.1:7317` で起動し、自分を起動した herdr セッションのソケットに従います。
+- ovis サーバー1つが見るのは herdr セッション1つです。別のセッションも見るには、`PORT` と `HERDR_SOCKET=~/.config/herdr/sessions/<名前>/herdr.sock` を指定した ovis サーバーを別のポートでもう1つ起動します(ovis の INSTALL.md の Configuration)。whosup はポート 7317〜7330 を見ます。
+- whosup はインストール時と毎回の起動時にこれらのポートを確認します(レーン L7)。`GET /api/health?scope=bridge` が ovis 固有のフィールドで答えたときだけ ovis とみなします。セッションはそのポートで待ち受けるプロセスの `HERDR_SOCKET`(なければ `HERDR_SESSION`)から求めます(macOS は `ps`、Linux は `/proc`)。herdr が一覧に出すセッションごとに、アドレス `http://127.0.0.1:<port>/?pane={pane}` を埋めます。
+- セッションが分からないとき(Windows、herdr の一覧にないセッション、1つのセッションに2つのサーバー)は何も埋めず、そのポートを「要確認」として表示します。その場合は **settings** でアドレスを自分で設定します。
+- ovis があってもクリックの既定はターミナルウィンドウです。ボードを初めて開くと検出した環境をまとめたカードが出て、セッションに対応する ovis があれば、クリックで開く場所(ターミナルウィンドウ / ovis / 両方)を尋ねます。カードで選んだ値はサーバーに保存され(`click_target`)、すべてのブラウザの既定値になります。**settings** → *クリックで開く場所* はそのブラウザだけで選択とアドレスを変え、ブラウザに保存した値があればそれを使います。
+
+埋められるアドレスは `127.0.0.1` なので、ovis が動くコンピューターで開きます。別の端末からはそのポートも転送するか(`ssh -L 4790:127.0.0.1:4790 -L 7317:127.0.0.1:7317 <host>`)、**settings** でその端末から届くアドレスに置き換えます。スマホでは ovis 自身のアプリとリレーを使います(ovis の README を参照)。ボードからペインを開くには、ボードが読み取り専用でない必要があります。
+
+### Windows
+
+whosup は Windows でも動きます(Node と PowerShell、`sh` なし)。プラグインには herdr が `node` で実行する Windows 専用の項目があるので、インストールと起動の手順は同じで、アクション名の先頭に `win-` が付きます。
+
+```powershell
+herdr plugin install fivetaku/whosup --yes
+herdr plugin action invoke fivetaku.whosup.win-start
+herdr plugin action invoke fivetaku.whosup.win-doctor    # この PC を読むだけの点検
+herdr plugin action invoke fivetaku.whosup.win-autoconf  # 自動設定が検出した内容
+```
+
+手動で起動するなら whosup のフォルダで、**デスクトップセッション**から実行します(SSH 経由ではウィンドウが見えません)。
+
+```powershell
+node scripts\doctor.mjs                 # Node・herdr・pipe・PowerShell・Windows Terminal・デスクトップセッションを点検
+node scripts\launch.mjs start           # start アクションと同じ(status・stop・open もあり)
+# または前面で直接。設定は PowerShell の変数で渡します(VAR=値 は sh の書き方なのでここでは使えません)。
+$env:FRONT_APP='Windows Terminal'; node bin\whosup.mjs
+```
+
+- 自動設定はインストール時(`launch.mjs preflight`)と毎回の起動前に動きます。`wt.exe` が `PATH` にあれば **Windows Terminal** を選び、なければクリック時に PowerShell ウィンドウを開きます。
+- SSH 経由で起動した場合や Windows のセッション 0 の場合(サービス。`SESSIONNAME` を見て、なければプロセスのセッション番号を見ます — デスクトップのログオンタスクは `SESSIONNAME` がなくてもデスクトップとみなします)はリモートとみなします。デスクトップには何も表示されないので、ブラウザを開かずウィンドウも前面に出しません(*ターミナルアプリ* = オフ)。ウィンドウを使うならデスクトップセッションから起動します。
+- ペインをクリックすると、そのセッションを表示しているターミナルウィンドウを前面に出し、なければそのセッションにつないだ PowerShell ウィンドウを新しく開きます。設定パネルの *ターミナルアプリ* で **自動**、**PowerShell**、**Windows Terminal**、**オフ** から選べます(`FRONT_APP` でも可)。
+- `node bin\whosup.mjs` は `.env` を読みません。`launch.mjs` とプラグインのアクションは読みます(`KEY=value` の行だけ。何も実行しません)。
+- Windows 用の Node 22.13 以上([nodejs.org](https://nodejs.org)、または nvm-windows・Volta・fnm)が `PATH` に、herdr が `PATH`(または `HERDR_BIN_PATH`)に必要です。
+- Windows の実機ではまだ確認していないこと: Herdr デスクトップアプリ(herdr-core)が Windows で named pipe で待ち受けるか、herdr が起動フックの終了後も whosup を動かし続けるか。`win-doctor` が両方を表示します。Windows では ovis のポートは見つかりますが、各ポートが見るセッションは分からないので「要確認」と表示します。
+
+### 値の出所と自動設定
+
+各設定は次の順で最初に見つかった値を使います: **設定パネル > 環境変数(`.env` を含む) > 自動検出 > 既定値。** パネルや環境変数で人が決めた値を自動設定が変えることはなく、自動設定は `.env` やパネルの値を書きません。
+
+- **設定パネル**: このコンピューターの whosup のデータベースに保存され、すぐに反映されます。欄を空にすると次の層の値に戻ります。
+- **環境変数 / `.env`**: プラグインの設定フォルダ(`herdr plugin config-dir fivetaku.whosup`。herdr の外では `~/.config/whosup`)の `.env` に書く `KEY=value` の行。`start` がサーバーを起動するときにだけ読むので、編集したら `stop`、続けて `start` を実行します。
+- **自動検出**: インストール時(build フック)と毎回の起動前に確認し直し、状態フォルダ(herdr のプラグイン状態フォルダ。herdr の外では `~/.config/whosup`)の `auto.json` に書きます。サーバーは起動時、このファイルが直前に(同じプラットフォームで 2 分以内に)書かれたものなら読み、そうでなければ(`bin/whosup.mjs` を直接起動した場合など)検出し直して書き直します。検出に失敗すると自動値なしで起動します。
+
+何を検出したかは `autoconf` アクション(Windows は `win-autoconf`)か、whosup のフォルダで `node scripts/autoconf.mjs` を実行すると見られます(`--json` で JSON)。レーンごとに値と根拠を表示し、環境変数が勝つ値には印を付けます。動いているボードは `GET /api/autoconf` に答え、`GET /api/settings` の `origins` に設定ごとの出所があります。
+
+| レーン | 何を確認 | 何に決める | どこで変える |
+|---|---|---|---|
+| L1 | OS | 報告のみ: herdr は macOS・Linux では `sh` の項目を、Windows では `node` の項目を実行。Windows では OS 通知の項目を出さない | — |
+| L2 | Node 22.13 以上と `node:sqlite` | 古ければ案内を出してインストールが止まる | Node を更新 |
+| L3 | デスクトップセッションか: SSH(`SSH_CONNECTION`・`SSH_TTY`)、セッション 0 の Windows(`SESSIONNAME` なし・セッション番号 0)、`DISPLAY`・`WAYLAND_DISPLAY` のない Linux | リモートならブラウザを開かない(`OPEN_BROWSER` 0)。ウィンドウを前面に出す機能もオフ(macOS・Windows、`FRONT_APP` の値 `off`) | `OPEN_BROWSER`、`FRONT_APP`、*ターミナルアプリ* |
+| L4 | ターミナルアプリ。macOS: 今 herdr を表示しているアプリ、なければインストール済みの Ghostty・iTerm・WezTerm・kitty。Windows: `PATH` の `wt.exe`。Linux: 確認しない | macOS: そのセッションを表示するウィンドウがないときに新しいウィンドウを開くアプリ(クリック時はそのセッションを表示しているアプリを前面に出し、パネルでは*自動*と表示)。Windows: 使うターミナル。見つからなければクリック時に herdr を表示しているアプリ、それもなければ Terminal(macOS)、PowerShell ウィンドウ(Windows) | *ターミナルアプリ*、`FRONT_APP` |
+| L5 | herdr: 実行ファイル、バージョン、実行中のセッション | 報告のみ。herdr があれば herdr セッションを読む | `HERDR_BIN_PATH`、`WHOSUP_RUNTIMES` |
+| L6 | Herdr デスクトップアプリ: herdr-core のソケット、`herdr-app` コマンド | 報告のみ。コアが動いている間そのターミナルを読む | `WHOSUP_RUNTIMES`、`HC_SOCKET`、`HERDR_APP_*` |
+| L7 | 127.0.0.1:7317〜7330 の ovis と、各サーバーが見る herdr セッション | セッションごとの Web アドレス。クリックはターミナルウィンドウのまま | 初回カード、*クリックで開く場所* とセッションごとのアドレス |
+| L8 | `PATH` の `claude`、なければ `codex`。Claude Code の会話フォルダ | resume と新しいペインに使うエージェントのコマンド、resume が会話を見つけられるか | **settings** のエージェントのコマンド、`AGENT_CMD` |
+| L9 | macOS のアクセシビリティ権限(クリックでウィンドウを前面に出すときに分かる) | 権限がなければ画面分割を使えないと表示 | システム設定 → プライバシーとセキュリティ → アクセシビリティ |
+| L10 | `PORT`(4790)から空いているポート | 報告のみ。whosup が自分で次の空きポートに移る | `PORT` |
+
+---
+
 ## 動作要件
 
 - [herdr](https://herdr.dev) 0.9.0 以降。Herdr デスクトップアプリのターミナル(herdr-core)も動いていれば一緒に読み取ります。どちらか一方だけでも使えます
 - Node.js 22.13 以降(`node:sqlite` をフラグなしで使用)。bun もビルドも不要
-- curl(`start`・`status`・`open` アクションが稼働確認に使用)
-- macOS または Linux
+- curl(macOS と Linux で `start`・`status`・`open` アクションが稼働確認に使用。Windows は Node 自身の `fetch` を使用)
+- macOS、Linux、または Windows 10/11(PowerShell 5.1 以上、デスクトップセッションで実行。[Windows](#windows) を参照)
 
 ---
 

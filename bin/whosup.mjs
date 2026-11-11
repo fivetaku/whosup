@@ -8,6 +8,8 @@ import { startBoard } from '../src/board/server.mjs'
 import { notifyPass } from '../src/notify.mjs'
 import * as herdr from '../src/runtime/herdr.mjs'
 import { collectAll, watchAll, stopWatching } from '../src/runtime/index.mjs'
+import { frontAppChoice, setAutoValues } from '../src/settings.mjs'
+import { autoIsFresh, readAuto, refreshAuto } from '../src/autoconf.mjs'
 
 const INTERVAL_MS = Number(process.env.WHOSUP_INTERVAL || 3) * 1000
 mkdirSync(STATE_DIR, { recursive: true })
@@ -25,6 +27,19 @@ if (!lock) {
 globalThis.__whosupLock = lock
 const db = openDb()
 forgetDownSince(db)
+// 자동 세팅 층: 시작 스크립트(plugin.sh·launch.mjs)가 방금 쓴 auto.json(autoIsFresh: 같은 판본·플랫폼, 2분 안)만 그대로 읽는다.
+// 그 밖(직접 실행, 오래된 파일, 다른 플랫폼·판본)에는 옛 값을 쓰지 않고 그 자리에서 다시 감지해 auto.json을 새로 쓴다 —
+// 보드를 늦추지 않게 뒤에서 하고, 끝나면 그 값을 쓴다. 감지가 실패하면 자동 값 없음(옛 값을 남기지 않는다).
+// 사람이 정한 값(패널·환경변수)은 어느 쪽이든 그대로 이긴다.
+const savedAuto = readAuto(STATE_DIR)
+if (autoIsFresh(savedAuto)) setAutoValues(savedAuto)
+else {
+  refreshAuto(STATE_DIR, { onWriteError: (err) => log(`autoconf: could not write auto.json: ${err.message}`) }).then((r) => {
+    setAutoValues(r)
+    herdr.setFrontApp(...frontAppChoice(db))
+    log(r.error ? `autoconf failed: ${r.error} (no detected values)` : `autoconf: ${Object.keys(r.values).length} detected values${savedAuto ? ' (auto.json was stale)' : ''}`)
+  }).catch((err) => log(`autoconf failed: ${String(err.message || err).slice(0, 200)}`))
+}
 
 let first = true
 let ticking = false

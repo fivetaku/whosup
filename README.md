@@ -17,7 +17,7 @@ You run six, ten, fifteen coding agents in [herdr](https://herdr.dev) panes. Som
   <img src="assets/hero.png" alt="whosup — before: terminal sessions scattered and forgotten; with whosup: one board, the next pane flagged" width="900">
 </p>
 
-[Quick Start](#quick-start) • [Why whosup?](#why-whosup) • [What you see](#what-you-see) • [How it works](#how-it-works) • [Features](#features) • [Settings](#settings) • [Requirements](#requirements)
+[Quick Start](#quick-start) • [Why whosup?](#why-whosup) • [What you see](#what-you-see) • [How it works](#how-it-works) • [Features](#features) • [Settings](#settings) • [Setup](#setup) • [Requirements](#requirements)
 
 ---
 
@@ -44,6 +44,10 @@ herdr --session work      # any name, any terminal
 ```
 
 Every running session shows up on the board by itself. No list to maintain.
+
+### On Windows
+
+The same plugin runs on Windows; its actions carry a `win-` prefix (`win-start`, `win-doctor`, …). See [Windows](#windows).
 
 ---
 
@@ -132,19 +136,21 @@ One Node process, no build step. herdr's startup hook is a one-shot command: whe
 | `fivetaku.whosup.open` | Open the board in the browser |
 | `fivetaku.whosup.desks-apply` | Create sessions/panes from `desks.json` |
 | `fivetaku.whosup.desks-status` | Declared vs existing panes |
+| `fivetaku.whosup.autoconf` | Check this machine again, update the auto-detected values and print them (see [Where each value comes from](#where-each-value-comes-from)) |
+| `fivetaku.whosup.win-*` | The same actions on Windows (`win-start`, `win-stop`, `win-status`, `win-open`, `win-desks-apply`, `win-desks-status`, `win-autoconf`), plus `win-doctor` |
 
 ---
 
 ## Settings
 
-Put `KEY=value` lines in `.env` inside the plugin config dir (`herdr plugin config-dir fivetaku.whosup`; `~/.config/whosup` when run outside herdr). The file is read only when `start` launches the server, so after a change run the `stop` action and then `start`. The `desks-apply` action does not read `.env`; it takes the agent command from `agent_cmd` in `desks.json`.
+Put `KEY=value` lines in `.env` inside the plugin config dir (`herdr plugin config-dir fivetaku.whosup`; `~/.config/whosup` when run outside herdr). The file is read only when `start` launches the server, so after a change run the `stop` action and then `start`. A value set here wins over auto setup; the settings panel wins over both (see [Where each value comes from](#where-each-value-comes-from)). The `desks-apply` action does not read `.env`; it takes the agent command from `agent_cmd` in `desks.json`.
 
 | Key | Default | Meaning |
 |---|---|---|
 | `PORT` | 4790 | next free port is used if taken |
 | `OPEN_BROWSER` | 1 | open the tab once when herdr starts |
 | `AGENT_CMD` | claude | command used by resume and new pane — put your wrapper here; the **settings** panel can override it |
-| `FRONT_APP` | auto | macOS terminal app to bring forward on jump, e.g. `Ghostty`. When unset, the app showing herdr is detected, and Terminal opens a new window if there is none. The **settings** panel changes it without a restart |
+| `FRONT_APP` | auto | macOS terminal app to bring forward on jump, e.g. `Ghostty`. When unset, auto setup picks one (lane L4 in [the rules](#where-each-value-comes-from)), and Terminal opens a new window if there is none. On Windows: blank = auto (Windows Terminal if found, else a PowerShell window), `PowerShell`, `Windows Terminal`, or `off` (any value is accepted there). The **settings** panel changes it without a restart |
 | `STALE_DAYS` (or `WHOSUP_STALE_DAYS`) | 3 | quiet days before a pane is an archive candidate |
 | `WHOSUP_READONLY` | 0 | 1 = read-only view: no changes, no folder list |
 | `WHOSUP_SEEN_SNOOZE_MIN` · `WHOSUP_RENOTIFY_MIN` · `WHOSUP_RENOTIFY_MAX` · `WHOSUP_GONE_MISSES` · `WHOSUP_STALE_COLLECT_SEC` · `WHOSUP_CLOSED_KEEP_DAYS` · `WHOSUP_OS_NOTIFY` · `WHOSUP_UNREACHABLE_TTL_H` · `WHOSUP_SPLIT_PCT` | 30 · 15 · 4 · 3 · 30 · 7 · 0 · 24 · 0 | starting values; the **settings** panel in the header overrides them per computer |
@@ -153,6 +159,7 @@ Put `KEY=value` lines in `.env` inside the plugin config dir (`herdr plugin conf
 | `HERDR_BIN_PATH` (or `HERDR_BIN`) | auto | path to the herdr binary; otherwise whosup tries `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, then `PATH` |
 | `WHOSUP_RUNTIMES` | auto | what to read: `auto` (herdr sessions and herdr-core terminals, whichever is there), `herdr`, or `herdr-core` |
 | `HC_SOCKET` | auto | herdr-core socket; otherwise taken from the core's own `core.lock` (follows `HC_SESSION` and `XDG_STATE_HOME`) |
+| `WHOSUP_CLICK_TARGET` | terminal | where a click goes in a browser that has not chosen yet: `terminal`, `web` or `both`; the first-run card sets it, and *Clicking a pane opens* in **settings** overrides it in one browser |
 | `HERDR_APP_BIN` · `HERDR_APP_NAME` · `HC_BIN` | `herdr-app` · `Herdr` · `hc` | the Herdr app command (jump, new tab, close a space), the app to bring forward on macOS, and the command used to open a herdr-core terminal in a terminal window |
 
 ### Desks (optional)
@@ -176,12 +183,100 @@ herdr can restart agents itself after a reboot (`[session] resume_agents_on_rest
 
 ---
 
+## Setup
+
+### Herdr desktop app
+
+whosup reads the terminals of the Herdr desktop app through herdr-core, the app's core. There is nothing to configure when these are in place:
+
+- **herdr-core is running on this computer.** The core writes its socket path to `<state>/herdr-core/<session>/core.lock` (`<state>` is `XDG_STATE_HOME`, else `~/.local/state`, plus `%LOCALAPPDATA%` on Windows; `<session>` is `HC_SESSION`, else `default`); `HC_SOCKET` overrides that. The core counts as running while its socket exists. whosup never starts a core.
+- **`herdr-app` is on `PATH`** (or set `HERDR_APP_BIN`): jump, new tab and closing a space go through it. Without it the cards are still read.
+- **`hc` is on `PATH`** (or set `HC_BIN`): it opens a terminal in a terminal window when the app has no window open.
+
+Auto setup (lane L6) checks the socket and `herdr-app` at install and at every start. A click on a Herdr app card shows that terminal in the app and brings the app (`HERDR_APP_NAME`, default `Herdr`) forward; with no app window open, `hc attach <terminal>` opens in a terminal window.
+
+If its terminals do not show up:
+
+- `WHOSUP_RUNTIMES` must be `auto` (the default) or include `herdr-core`; `herdr` alone leaves the app out.
+- `HC_SOCKET`, `HC_SESSION` and `XDG_STATE_HOME`, if you set them for whosup, must point at the same core the app uses.
+- `node scripts/doctor.mjs` prints the core line (its socket, or *not running*), the state folders it looked in, and whether `herdr-app` was found; the `autoconf` action prints lane L6 with its reason (see [Where each value comes from](#where-each-value-comes-from)).
+- On Windows it is not checked yet whether herdr-core listens on a named pipe.
+
+### ovis: open panes from another device or a phone
+
+[ovis](https://github.com/devswha/ovis) is a web client for herdr (chat, live terminal, phone app). whosup only finds a running ovis and fills in its address; it never starts or stops it.
+
+```bash
+herdr plugin install devswha/ovis --yes          # from ovis's INSTALL.md
+herdr plugin action invoke devswha.ovis.start
+```
+
+- As a herdr plugin, ovis starts with herdr on `http://127.0.0.1:7317` and follows the socket of the herdr session that started it.
+- One ovis server shows one herdr session. For another session, run another ovis server on its own port with `PORT` and `HERDR_SOCKET=~/.config/herdr/sessions/<name>/herdr.sock` set (see Configuration in ovis's INSTALL.md). whosup looks at ports 7317–7330.
+- At install and every start whosup checks those ports (lane L7). A port counts as ovis only when `GET /api/health?scope=bridge` answers with ovis's own fields. The session comes from `HERDR_SOCKET` (or `HERDR_SESSION`) of the process listening on that port, read with `ps` on macOS and `/proc` on Linux. For each session herdr lists, the address `http://127.0.0.1:<port>/?pane={pane}` is filled in.
+- When the session cannot be told (on Windows, a session herdr does not list, two servers on one session), nothing is filled in and the port is listed as "check". Set that address yourself in **settings**.
+- A click still goes to the terminal window by default, with or without ovis. The first time the board opens, a card shows what was detected and, when an ovis server matches a session, asks where a click should go: terminal window, ovis, or both. The card saves your pick on the server (`click_target`), where it is the default for every browser; **settings** → *Clicking a pane opens* changes it and the addresses for that browser only, and a browser keeps what it saved.
+
+The filled address is `127.0.0.1`, so it opens on the computer running ovis. From another device forward that port as well (`ssh -L 4790:127.0.0.1:4790 -L 7317:127.0.0.1:7317 <host>`), or replace the address in **settings** with one your device can reach. On a phone, ovis's own app and relay are the way in (see ovis's README). Opening panes from the board needs a board that is not read-only.
+
+### Windows
+
+whosup runs on Windows too (Node and PowerShell, no `sh`). The plugin has Windows-only entries that herdr runs with `node`, so install and start the same way; the actions carry a `win-` prefix:
+
+```powershell
+herdr plugin install fivetaku/whosup --yes
+herdr plugin action invoke fivetaku.whosup.win-start
+herdr plugin action invoke fivetaku.whosup.win-doctor    # read-only check of this machine
+herdr plugin action invoke fivetaku.whosup.win-autoconf  # what auto setup detected
+```
+
+To run it by hand instead (from the whosup folder, in your **desktop session** — not over SSH, where windows stay invisible):
+
+```powershell
+node scripts\doctor.mjs                 # what whosup can see: Node, herdr, pipes, PowerShell, Windows Terminal, desktop session
+node scripts\launch.mjs start           # same as the start action (status · stop · open too)
+# or in the foreground; settings go in as PowerShell variables (VAR=value is sh syntax and does not work here):
+$env:FRONT_APP='Windows Terminal'; node bin\whosup.mjs
+```
+
+- Auto setup runs at install (`launch.mjs preflight`) and before every start. With `wt.exe` on `PATH` it picks **Windows Terminal**; otherwise clicks open a PowerShell window.
+- Started over SSH, or in Windows session 0 (a service; checked by `SESSIONNAME`, then the process session number — a logon task on the desktop has no `SESSIONNAME` but still counts as desktop), whosup counts as remote: it opens no browser and raises no windows (*Terminal app* = off), because nothing would show on the desktop. Start it from the desktop session to get windows.
+- Clicking a pane brings its terminal window forward, or opens a PowerShell window attached to that session when none shows it. Pick **Auto**, **PowerShell**, **Windows Terminal** or **off** under *Terminal app* in the settings panel (or set `FRONT_APP`).
+- `node bin\whosup.mjs` does not read `.env`; `launch.mjs` and the plugin actions do (plain `KEY=value` lines, nothing is executed).
+- Needs Node 22.13+ for Windows from [nodejs.org](https://nodejs.org) (or nvm-windows, Volta, fnm) on `PATH`, and herdr on `PATH` (or `HERDR_BIN_PATH`).
+- Not checked on a Windows machine yet: whether the Herdr desktop app (herdr-core) listens on a named pipe there, and whether herdr keeps whosup running after its startup hook returns. `win-doctor` shows both. ovis ports are found on Windows, but not the session each one shows, so they are listed as "check".
+
+### Where each value comes from
+
+Every setting takes the first value it finds in this order: **settings panel > environment variable (`.env` included) > auto-detected > built-in default.** A value you set in the panel or the environment is never changed by auto setup, and auto setup never writes `.env` or panel values.
+
+- **Settings panel**: saved in whosup's database on this computer and used right away. Clearing a field falls back to the next layer.
+- **Environment / `.env`**: `KEY=value` lines in `.env` in the plugin config dir (`herdr plugin config-dir fivetaku.whosup`; `~/.config/whosup` outside herdr). Read only when `start` launches the server, so after an edit run `stop`, then `start`.
+- **Auto-detected**: checked again at install (the build hook) and before every start, and written to `auto.json` in the state folder (herdr's plugin state dir; `~/.config/whosup` outside herdr). The server reads it when it starts if it was just written there (same platform, under 2 minutes old); otherwise, as when you run `bin/whosup.mjs` directly, it detects again and rewrites the file, and a failed check leaves no auto values.
+
+To see what was detected, run the `autoconf` action (`win-autoconf` on Windows) or `node scripts/autoconf.mjs` from the whosup folder (`--json` for JSON). It prints every lane with its value and reason, and marks values where an environment variable wins. A running board answers `GET /api/autoconf`, and `GET /api/settings` gives the origin of each setting in `origins`.
+
+| Lane | What is checked | What it sets | Where you change it |
+|---|---|---|---|
+| L1 | Operating system | Reported: herdr runs the `sh` entries on macOS and Linux and the `node` entries on Windows; OS alerts are not offered on Windows | — |
+| L2 | Node 22.13+ with `node:sqlite` | Install stops with a message when Node is older | Upgrade Node |
+| L3 | Desktop session: SSH (`SSH_CONNECTION`, `SSH_TTY`), Windows session 0 (no `SESSIONNAME` and session number 0), Linux without `DISPLAY`/`WAYLAND_DISPLAY` | Remote: the browser is not opened (`OPEN_BROWSER` 0); window raising is off too (macOS and Windows, `FRONT_APP` value `off`) | `OPEN_BROWSER`, `FRONT_APP`, *Terminal app* |
+| L4 | Terminal app. macOS: the app showing herdr now, else an installed Ghostty, iTerm, WezTerm or kitty. Windows: `wt.exe` on `PATH`. Linux: not checked | macOS: a new window opens in this app when no window shows the session — a click still raises whichever app shows it, and the panel shows *Auto*. Windows: the terminal to use. Nothing found = the app showing herdr at click time, else Terminal (macOS), or a PowerShell window (Windows) | *Terminal app*, `FRONT_APP` |
+| L5 | herdr: binary, version, running sessions | Reported; herdr sessions are read when herdr is found | `HERDR_BIN_PATH`, `WHOSUP_RUNTIMES` |
+| L6 | Herdr desktop app: herdr-core socket, `herdr-app` command | Reported; its terminals are read while the core runs | `WHOSUP_RUNTIMES`, `HC_SOCKET`, `HERDR_APP_*` |
+| L7 | ovis on 127.0.0.1:7317–7330 and the herdr session each server shows | A web address per session; the click stays on the terminal window | First-run card, *Clicking a pane opens* and the per-session addresses |
+| L8 | `claude`, else `codex` on `PATH`; the Claude Code conversation folder | The agent command for resume and new pane; whether resume can find conversations | Agent command in **settings**, `AGENT_CMD` |
+| L9 | macOS Accessibility permission (seen when a click raises a window) | Split screen marked unavailable when the permission is missing | System Settings → Privacy & Security → Accessibility |
+| L10 | Free port from `PORT` (4790) | Reported; whosup moves to the next free port by itself | `PORT` |
+
+---
+
 ## Requirements
 
 - [herdr](https://herdr.dev) 0.9.0 or newer. Terminals of the Herdr desktop app (herdr-core) are picked up as well when it is running; either one is enough
 - Node.js 22.13 or newer (`node:sqlite` without a flag); no bun, no build
-- curl (the `start`, `status` and `open` actions use it for health checks)
-- macOS or Linux
+- curl (the `start`, `status` and `open` actions use it for health checks on macOS and Linux; Windows uses Node's own `fetch`)
+- macOS, Linux, or Windows 10/11 (PowerShell 5.1+, run in the desktop session; see [Windows](#windows))
 
 ---
 

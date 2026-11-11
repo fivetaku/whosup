@@ -4,6 +4,8 @@ import { execFile, execFileSync, spawn } from 'node:child_process'
 import { createConnection } from 'node:net'
 import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
+import { homedir } from 'node:os'
+import { commandFor, connectTarget, isWindows, platform, psQuote } from '../platform.mjs'
 import { STATE_DIR } from '../db.mjs'
 import { setTimeout as sleep } from 'node:timers/promises'
 
@@ -14,36 +16,79 @@ export const TRACKS_GONE = true
 export const IDLE_AFTER_WORK_IS_DONE = process.platform === 'win32'
 export const TEST_SESSION_PREFIX = 'whosuptest-'
 
-const BIN_CANDIDATES = ['/opt/homebrew/bin/herdr', '/usr/local/bin/herdr', `${process.env.HOME}/.local/bin/herdr`]
+// 윈도우에는 정해진 설치 위치가 없어 PATH의 herdr(또는 HERDR_BIN·HERDR_BIN_PATH)를 쓴다.
+const BIN_CANDIDATES = () => (isWindows() ? [] : ['/opt/homebrew/bin/herdr', '/usr/local/bin/herdr', join(homedir(), '.local', 'bin', 'herdr')])
 // herdr 실행 파일 찾기는 여기 한 곳(I-4). 칸 화면 읽기(context.mjs)·데스크 스크립트(desks.mjs)도 이것을 쓴다.
 // 환경변수가 없을 때의 후보 탐색(--version)은 프로세스당 한 번만 한다.
 let probed
-const probe = () => BIN_CANDIDATES.find((p) => { try { execFileSync(p, ['--version'], { stdio: 'ignore', timeout: 3000, killSignal: 'SIGKILL' }); return true } catch { return false } }) || 'herdr'
+const probe = () => BIN_CANDIDATES().find((p) => { try { execFileSync(p, ['--version'], { stdio: 'ignore', timeout: 3000, killSignal: 'SIGKILL' }); return true } catch { return false } }) || 'herdr'
 export const bin = () => process.env.HERDR_BIN_PATH || process.env.HERDR_BIN || (probed ??= probe())
 
+// herdr 실행: 실행 파일이 node 스크립트(시험의 가짜 herdr)면 지금 도는 node로 돌린다 — 윈도우는 shebang을 읽지 않는다.
+export const herdrCommand = (args, session) => commandFor(bin(), session ? ['--session', session, ...args] : args)
 function herdr(args, session) {
-  const full = session ? ['--session', session, ...args] : args
-  return execFileSync(bin(), full, { encoding: 'utf8', timeout: 15000, killSignal: 'SIGKILL' })
+  const [file, argv] = herdrCommand(args, session)
+  return execFileSync(file, argv, { encoding: 'utf8', timeout: 15000, killSignal: 'SIGKILL' })
 }
 const herdrJson = (args, session) => JSON.parse(herdr(args, session)).result
 
 // 비동기 호출: 수집·상태 확인이 서버의 이벤트 루프를 붙잡지 않게 한다(동기 실행은 herdr 한 번에 6~9ms, 세션 3개면 수집마다 50ms+ 멈췄다).
 const herdrAsync = (args, session) => new Promise((resolve, reject) => {
-  execFile(bin(), session ? ['--session', session, ...args] : args, { encoding: 'utf8', timeout: 15000, killSignal: 'SIGKILL', maxBuffer: 32 * 1024 * 1024 },
+  const [file, argv] = herdrCommand(args, session)
+  execFile(file, argv, { encoding: 'utf8', timeout: 15000, killSignal: 'SIGKILL', maxBuffer: 32 * 1024 * 1024 },
     (err, stdout) => (err ? reject(err) : resolve(stdout)))
 })
 const herdrJsonAsync = async (args, session) => JSON.parse(await herdrAsync(args, session)).result
 
-// herdr session list: name status directory socket
-const parseSessionTable = (text) => text.split('\n').slice(1)
-  .map((line) => line.trim().split(/\s+/))
-  .filter((cols) => cols.length >= 4 && !cols[0].startsWith(TEST_SESSION_PREFIX))
-  .map(([name, status, dir, socket]) => ({ name, status, dir, socket }))
+// 세션 목록은 `herdr session list --json`을 먼저 읽는다(0.9.3 실측: { sessions: [{ name, running, session_dir, socket_path }] }).
+// 그 옵션이 없는 herdr면 표(name status directory socket)를 읽는다. 표의 폴더·소켓 칸에는 공백이 들 수 있어서
+// (C:\Users\Hong Gildong\…) 공백으로 다 자르지 않는다 — 소켓은 세션 폴더 안에 있으므로, 오른쪽이 왼쪽으로 시작하는
+// 자리에서 둘을 가른다. 그런 자리가 없으면 마지막 공백에서 가른다(끝 열부터 자르기).
+const notTest = (r) => !r.name.startsWith(TEST_SESSION_PREFIX)
+export function parseSessionJson(text) {
+  const o = JSON.parse(text)
+  const list = Array.isArray(o?.sessions) ? o.sessions : Array.isArray(o?.result?.sessions) ? o.result.sessions : null
+  if (!list) throw new Error('herdr session list --json: no sessions array')
+  return list.filter((s) => s && typeof s.name === 'string' && s.name)
+    .map((s) => ({ name: s.name, status: s.running ? 'running' : 'stopped', dir: String(s.session_dir ?? ''), socket: String(s.socket_path ?? '') }))
+    .filter(notTest)
+}
+function splitSessionRow(line) {
+  const m = line.trim().match(/^(\S+)\s+(\S+)\s+(.+)$/)
+  if (!m) return null
+  const [, name, status, rest] = m
+  const gaps = [...rest.matchAll(/\s+/g)]
+  if (!gaps.length) return null
+  const at = (g) => ({ name, status, dir: rest.slice(0, g.index), socket: rest.slice(g.index + g[0].length) })
+  return gaps.map(at).find((r) => r.socket.startsWith(r.dir)) || at(gaps.at(-1))
+}
+export const parseSessionTable = (text) => String(text).split(/\r?\n/).slice(1).map(splitSessionRow).filter(Boolean).filter(notTest)
+// --json을 받는 herdr인지는 처음 한 번 읽어 보고 프로세스 메모리에만 기억한다. 실행 파일이 없으면(ENOENT) 그대로 알린다.
+let jsonList
+const readSessions = async (call) => {
+  if (jsonList !== false) {
+    try { const rows = parseSessionJson(await call(['session', 'list', '--json'])); jsonList = true; return rows } catch (err) {
+      if (jsonList === true || err?.code === 'ENOENT') throw err
+      jsonList = false
+    }
+  }
+  return parseSessionTable(await call(['session', 'list']))
+}
+const readSessionsSync = (call) => {
+  if (jsonList !== false) {
+    try { const rows = parseSessionJson(call(['session', 'list', '--json'])); jsonList = true; return rows } catch (err) {
+      if (jsonList === true || err?.code === 'ENOENT') throw err
+      jsonList = false
+    }
+  }
+  return parseSessionTable(call(['session', 'list']))
+}
+export const _resetSessionFormat = () => { jsonList = undefined }   // 시험
 // 마지막으로 읽은 세션 표. 수집(3초)마다 갱신된다 — 클릭 경로가 herdr를 두 번 더 실행하지 않고 이것을 쓴다.
 let tableCache = { at: 0, rows: [] }
 const remember = (rows) => { tableCache = { at: Date.now(), rows }; return rows }
-export function sessionTable() { return remember(parseSessionTable(herdr(['session', 'list']))) }
-export async function sessionTableAsync() { return remember(parseSessionTable(await herdrAsync(['session', 'list']))) }
+export function sessionTable() { return remember(readSessionsSync((a) => herdr(a))) }
+export async function sessionTableAsync() { return remember(await readSessions((a) => herdrAsync(a))) }
 // maxAgeMs 안에 읽은 표가 있으면 그것을, 없으면 새로 읽는다.
 export async function sessionTableRecent(maxAgeMs = 4000) { return Date.now() - tableCache.at < maxAgeMs ? tableCache.rows : sessionTableAsync() }
 export const forgetSessionTable = () => { tableCache = { at: 0, rows: [] } }
@@ -149,7 +194,7 @@ export function watchEvents(sessions, table, onChange) {
     const cur = watchers.get(row.name)
     if (cur && cur.key === key && (cur.dead || !cur.sock.destroyed)) continue
     cur?.sock.destroy()
-    const sock = createConnection(process.platform === 'win32' ? `\\\\.\\pipe\\${row.socket}` : row.socket)
+    const sock = createConnection(connectTarget(row.socket))
     const w = { sock, key, dead: false }
     watchers.set(row.name, w)
     let buf = ''
@@ -179,7 +224,7 @@ export async function apiCall(session, method, params, { timeoutMs = 5000 } = {}
   if (!row) throw new Error(`herdr session not found: ${session}`)
   return new Promise((resolve, reject) => {
     // Windows herdr listens on a named pipe \\.\pipe\<socket path>; the .sock file only holds pid:nonce (Windows 실기기 실측).
-    const sock = createConnection(process.platform === 'win32' ? `\\\\.\\pipe\\${row.socket}` : row.socket)
+    const sock = createConnection(connectTarget(row.socket))
     let buf = ''
     const timer = setTimeout(() => { sock.destroy(); reject(new Error(`herdr ${method}: no reply`)) }, timeoutMs)
     sock.on('connect', () => sock.write(`${JSON.stringify({ id: `whosup:${method}`, method, params })}\n`))
@@ -217,7 +262,8 @@ async function ensureServer(session, dir) {
   if (dir && !existsSync(dir)) throw cwdMissing(dir)
   // spawn 실패는 'error' 이벤트로 온다. 리스너가 없으면 상주 서버가 통째로 죽는다(#2).
   let spawnErr = null
-  const child = spawn(bin(), ['--session', session, 'server'], { cwd: dir, detached: true, stdio: 'ignore' })
+  const [file, argv] = herdrCommand(['server'], session)
+  const child = spawn(file, argv, { cwd: dir, detached: true, stdio: 'ignore', windowsHide: true })
   child.once('error', (err) => { spawnErr = err })
   child.unref()
   for (let i = 0; i < 20 && !spawnErr && !(await isRunning(session, true)); i++) await sleep(250)
@@ -234,9 +280,15 @@ async function ensureServer(session, dir) {
 const clientArgv = (session) => (session === 'default' ? [] : ['--session', session])
 export const DEFAULT_TERMINAL = 'Terminal'
 // 설정 패널에서 고른 앱(서버가 저장·시작 때 넣어 준다). 넣은 적이 없으면 환경변수 FRONT_APP을 본다. ''이면 자동.
+// auto: 자동 세팅(auto.json L4)이 정한 앱. 사람이 고른 앱이 없을 때만 쓴다. 맥에서는 '고른 앱'이 아니라 '떠 있는 창이 없을 때
+// 새 창을 열 앱'으로만 쓴다 — 고른 앱처럼 쓰면 시작 때 본 앱에 굳어, 그 세션을 지금 다른 앱이 보여 줘도 그 창을 못 찾는다.
+// 'off'(원격 실행 등)는 맥·윈도우 모두 창 올리기를 끈다.
 let appChoice
-export const setFrontApp = (v) => { appChoice = String(v ?? '').trim() }
+let appAuto = ''
+export const setFrontApp = (v, auto = '') => { appChoice = String(v ?? '').trim(); appAuto = String(auto ?? '').trim() }
 export const configuredApp = () => (appChoice !== undefined ? appChoice : (process.env.FRONT_APP || '').trim())
+const effectiveApp = () => configuredApp() || appAuto
+export const isOffApp = (v) => /^(off|none|no|0|false|disabled?|끔)$/i.test(String(v ?? '').trim())
 
 // 명령줄에서 그 프로세스가 속한 앱 이름을 꺼낸다. 앱 안에 든 도우미 앱(…/Code.app/Contents/Frameworks/Code Helper.app/…)은
 // 창을 가진 프로세스가 아니므로 건너뛴다 — 부모를 더 올라가면 본체가 나온다.
@@ -286,17 +338,48 @@ export function openerForArgv(app, argv, key) {
   return null
 }
 // 붙은 창이 없을 때 새 창을 열 앱: 고른 앱 > 지금 다른 세션을 보여 주는 앱 > 기본 터미널. 여는 방법을 모르는 감지 앱이면 기본 터미널.
-export function appToOpen(configured, psText) {
+// fallback: 자동 세팅이 고른 앱(설치된 앱). 지금 떠 있는 앱보다 뒤, 기본 터미널보다 앞이다.
+export function appToOpen(configured, psText, fallback = '') {
   if (configured) return configured
   const seen = terminalHostsFor(psText, null, '').map((h) => h.app).find((a) => openerFor(a, 'x', 'herdr'))
-  return seen || DEFAULT_TERMINAL
+  return seen || (fallback && openerFor(fallback, 'x', 'herdr') ? fallback : DEFAULT_TERMINAL)
 }
 // 설정 화면에 보여 줄 값: 지금 herdr를 보여 주고 있는 앱(없으면 null)과 기본 터미널.
 export async function detectTerminal() {
-  if (process.platform !== 'darwin') return { supported: false, front_app: null, default_app: null }
+  if (isWindows()) return { supported: true, platform: 'win32', front_app: null, default_app: WIN_DEFAULT_LABEL, choices: WIN_CHOICES }
+  if (platform() !== 'darwin') return { supported: false, platform: platform(), front_app: null, default_app: null }
   let text = ''
   try { text = await psText() || await psText(true) } catch {}
-  return { supported: true, front_app: terminalHostsFor(text, null, '')[0]?.app ?? null, default_app: DEFAULT_TERMINAL }
+  return { supported: true, platform: 'darwin', front_app: terminalHostsFor(text, null, '')[0]?.app ?? null, default_app: DEFAULT_TERMINAL }
+}
+
+// ── 윈도우의 창 올리기 설정 ── 설정 패널·FRONT_APP 값은 윈도우에서 명령줄에 들어가지 않고 두 가지만 정한다: 켬/끔, 새 창을 무엇으로 열지.
+// 기본값은 켬(값이 비어 있으면 PowerShell 창). 이유: macOS는 아무것도 설정하지 않아도 칸을 누르면 터미널이 올라온다. 윈도우만
+// 숨은 환경변수로 켜야 하던 것(REPORT 3번)을 같은 기본으로 맞추고, 끄고 싶으면 설정 패널의 '끔'(값 off)으로 끈다.
+// 바탕화면 세션이 아닌 곳(SSH·서비스, 세션 0)에서는 창이 보이지 않으니 doctor가 경고한다.
+// 선택지 [이름, 저장할 값]. ''은 '자동'(자동 세팅이 고른 터미널, 없으면 PowerShell) — 화면은 이 이름을 '자동'으로 바꿔 보여 준다.
+// PowerShell은 빈 값이 아니라 'PowerShell'로 저장한다: 빈 값이면 '자동'과 같아져, 자동 값이 Windows Terminal일 때
+// PowerShell을 골라도 다시 Windows Terminal로 돌아갔다(2회차 LOOP 회차 1 후보). winTerminal('PowerShell')은 'powershell'이다.
+export const WIN_DEFAULT_LABEL = 'PowerShell'
+export const WIN_CHOICES = [['auto', ''], ['PowerShell', 'PowerShell'], ['Windows Terminal', 'Windows Terminal'], ['off', 'off']]
+export function winTerminal(conf) {
+  const v = String(conf ?? '').trim()
+  if (/^(off|none|no|0|false|disabled?|끔)$/i.test(v)) return null
+  if (/windows\s*terminal|(^|[\\/\s])wt(\.exe)?$/i.test(v)) return 'wt'
+  if (/pwsh/i.test(v)) return 'pwsh'
+  return 'powershell'
+}
+// 새 창에서 herdr 클라이언트를 붙이는 PowerShell 명령. 실행 파일 경로는 작은따옴표 문자열로 감싼다 — 경로에 ' 가 있으면 '' 로
+// 겹쳐 깨지지 않게 한다(REPORT 18번: "& '$bin'"은 ' 가 든 경로에서 깨졌다).
+// 세션 이름도 작은따옴표로 감싼다(codex 리뷰 M5-T4: 이름에 ; 등이 들면 PowerShell 명령이 덧붙을 수 있었다).
+export const winAttachCommand = (herdrBin, session) => ['&', psQuote(herdrBin), ...clientArgv(session).map(psQuote)].join(' ')
+// 아무 명령이나(argv, 덧붙일 환경변수) 새 창에서 돌리는 PowerShell 명령. 환경변수는 $env:로 그 창 안에서 넣는다 —
+// Windows Terminal의 새 탭은 부르는 쪽의 환경을 물려받는다는 보장이 없어서다.
+export const winRunCommand = (argv, env = {}) => [...Object.entries(env).map(([k, v]) => `$env:${k}=${psQuote(v)}`), ['&', ...argv.map(psQuote)].join(' ')].join('; ')
+// 새 콘솔 창을 여는 실행 방법. wt.exe는 명령줄의 ; 를 탭 구분으로 읽으므로 \; 로 바꿔 넘긴다.
+export function winOpener(term, command) {
+  if (term === 'wt') return { file: 'wt.exe', args: ['powershell.exe', '-NoProfile', '-Command', command.replace(/;/g, '\\;')] }
+  return { file: term === 'pwsh' ? 'pwsh.exe' : 'powershell.exe', args: ['-NoProfile', '-Command', command] }
 }
 
 // One AppleScript (System Events, needs Accessibility) does pick + un-minimize + raise + frontmost in a single
@@ -416,44 +499,12 @@ const run = (file, args, { timeout = 8000, track = false, env } = {}) => new Pro
 // Only the latest click's raise matters: a new click kills the previous raise still in flight.
 const raising = { child: null }
 const openedAt = new Map()
+const winOpenedAt = new Map()   // 윈도우 도우미가 새 창을 연 시각(터미널·세션별)
 const OPEN_WAIT_MS = 20000
 
-// Windows: find the console window that hosts a herdr client of this session and bring it forward; if none, open
-// a new PowerShell window attached to the session. whosup must run in the user's desktop session (not an SSH /
-// session-0 service) for windows to appear (Windows 실기기 실측: SSH로 띄운 프로세스는 세션 0이라 창이 안 보임).
-// Prints "raised:<pid>" | "opened" | "fail:<why>".
-const WIN_RAISE_PS = `$ErrorActionPreference = 'Stop'
-$ses = $env:WHOSUP_HERDR_SESSION; $bin = $env:WHOSUP_HERDR_BIN
-Add-Type @"
-using System; using System.Runtime.InteropServices;
-public static class WhosupWin {
-  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
-  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
-  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
-  [DllImport("user32.dll")] public static extern void keybd_event(byte k, byte s, uint f, UIntPtr e);
-}
-"@
-$procs = Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,Name,CommandLine
-$byId = @{}; foreach ($p in $procs) { $byId[[int]$p.ProcessId] = $p }
-$want = if ($ses -eq 'default') { '' } else { "--session $ses" }
-$clients = $procs | Where-Object { $_.Name -ieq 'herdr.exe' -and $_.CommandLine -and (($_.CommandLine -replace '^\\s*"?[^"]*herdr(\\.exe)?"?\\s*','').Trim() -eq $want) } | Sort-Object ProcessId -Descending
-foreach ($c in $clients) {
-  $cur = $byId[[int]$c.ParentProcessId]; $hops = 0
-  while ($cur -and $hops -lt 10) {
-    $gp = Get-Process -Id ([int]$cur.ProcessId) -ErrorAction SilentlyContinue
-    if ($gp -and $gp.MainWindowHandle -ne [IntPtr]::Zero) {
-      $h = $gp.MainWindowHandle
-      if ([WhosupWin]::IsIconic($h)) { [void][WhosupWin]::ShowWindow($h, 9) }
-      [WhosupWin]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero); [WhosupWin]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero)
-      [void][WhosupWin]::SetForegroundWindow($h)
-      "raised:$($gp.Id)"; exit 0
-    }
-    $cur = $byId[[int]$cur.ParentProcessId]; $hops++
-  }
-}
-$args2 = @('-NoProfile', '-Command', "& '$bin' $want")
-Start-Process -FilePath 'powershell.exe' -ArgumentList $args2 | Out-Null
-'opened'`
+// Windows: 상주 도우미(WIN_HELPER_PS)가 그 세션의 herdr 클라이언트를 품은 콘솔 창을 찾아 올리고, 없으면 새 창을 연다.
+// whosup이 사용자의 바탕화면 세션에서 돌아야 창이 보인다(Windows 실기기 실측: SSH로 띄운 프로세스는 세션 0이라 창이 안 보임 —
+// scripts/doctor.mjs가 이것을 알려 준다). 예전 단발 스크립트 WIN_RAISE_PS는 쓰는 곳이 없어 없앴다(REPORT 16번).
 const psEncoded = (script) => Buffer.from(script, 'utf16le').toString('base64')
 
 
@@ -605,7 +656,22 @@ $win = @{}   # 세션 → 창 핸들. 창이 살아 있으면 프로세스 트�
 function Lay($h) { if ($split -gt 0 -and $board -ne [IntPtr]::Zero -and $board -ne $h) { [WhosupWin]::Layout($board, $h, $split); [void][WhosupWin]::Raise($h) } }
 while ($null -ne ($line = [Console]::In.ReadLine())) {
   $res = 'fail:none'
-  $ses, $split = $line.Split('|'); $split = [int]$split
+  # 한 줄 = 세션|나눠쓰기%|새창금지(1=방금 열었음)|터미널(powershell·pwsh·wt)|새 창 명령  또는  !app|앱이름|나눠쓰기%
+  if ($line.StartsWith('!app|')) {
+    $null, $name, $split = $line.Split('|', 3); $split = [int]$split; $board = if ($split -gt 0) { [WhosupWin]::BoardWindow() } else { [IntPtr]::Zero }
+    $res = 'fail:none'
+    try {
+      # 가정(실기기 미확인): 데스크톱 앱의 프로세스 이름이 앱 이름(HERDR_APP_NAME, 기본 Herdr)과 같다. 콘솔 창(herdr CLI)은 건너뛴다.
+      foreach ($gp in (Get-Process -Name $name -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero })) {
+        $c = New-Object System.Text.StringBuilder 64; [void][WhosupWin]::GetClassName($gp.MainWindowHandle, $c, 64)
+        if ($c.ToString() -in @('ConsoleWindowClass', 'CASCADIA_HOSTING_WINDOW_CLASS')) { continue }
+        $okfg = [WhosupWin]::Raise($gp.MainWindowHandle); Lay $gp.MainWindowHandle
+        $res = if ($okfg) { "raised:app:$($gp.Id)" } else { "fail:foreground-locked:app:$($gp.Id)" }; break
+      }
+    } catch { $res = 'fail:' + $_.Exception.Message }
+    [Console]::Out.WriteLine($res); [Console]::Out.Flush(); continue
+  }
+  $ses, $split, $noopen, $term, $cmd = $line.Split('|', 5); $split = [int]$split
   $board = if ($split -gt 0) { [WhosupWin]::BoardWindow() } else { [IntPtr]::Zero }
   try {
     # 캐시는 창이 하나뿐일 때만, 그리고 그 창의 herdr 클라이언트가 살아 있을 때만 쓴다 — 클라이언트가 끝나 빈 PowerShell 창만 남은 경우를
@@ -644,8 +710,12 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
       }
       if ($done) { break }
     }
-    if (-not $done) {
-      Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-Command', "& '$bin' $want") | Out-Null   # -NoExit 없이: herdr 클라이언트가 끝나면(데스크 끄기) 창도 닫힌다
+    if (-not $done -and $noopen -eq '1') { $res = 'opened:waiting' }   # 방금(20초 안에) 연 창이 아직 뜨는 중: 또 열지 않는다(REPORT 7번)
+    elseif (-not $done) {
+      if (-not $cmd) { $cmd = "& '" + ($bin -replace "'", "''") + "' $want" }
+      # -NoExit 없이: herdr 클라이언트가 끝나면(데스크 끄기) 창도 닫힌다
+      if ($term -eq 'wt') { Start-Process -FilePath 'wt.exe' -ArgumentList @('powershell.exe', '-NoProfile', '-Command', ($cmd -replace ';', '\\;')) | Out-Null }
+      else { Start-Process -FilePath $(if ($term -eq 'pwsh') { 'pwsh.exe' } else { 'powershell.exe' }) -ArgumentList @('-NoProfile', '-Command', $cmd) | Out-Null }
       $res = 'opened'
     }
   } catch { $res = 'fail:' + $_.Exception.Message }
@@ -686,11 +756,13 @@ class Helper {
 }
 const macHelper = new Helper('mac', '/usr/bin/osascript', ['-l', 'JavaScript', '-e', MAC_HELPER_JS])
 let winHelper = null
+// 시험이 가짜 도우미를 넣는다(실제 PowerShell을 띄우지 않고 보내는 줄만 본다).
+export const _setWinHelper = (h) => { winHelper = h }
 const winHelperFor = () => (winHelper ||= new Helper('win', 'powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', psEncoded(WIN_HELPER_PS)], { WHOSUP_HERDR_BIN: bin() }))
-// whosup 시작 때 도우미를 미리 띄운다. 맥은 항상(터미널 앱을 자동으로 찾는다), 윈도우는 앱을 정했을 때만. 끝날 때 stopHelpers().
+// whosup 시작 때 도우미를 미리 띄운다. 맥은 항상(터미널 앱을 자동으로 찾는다), 윈도우는 창 올리기가 켜져 있을 때(기본 켬). 끝날 때 stopHelpers().
 export function startHelpers() {
-  if (process.platform === 'darwin') macHelper.start()
-  else if (process.platform === 'win32' && configuredApp()) winHelperFor().start()
+  if (platform() === 'darwin') macHelper.start()
+  else if (isWindows() && winTerminal(effectiveApp())) winHelperFor().start()
 }
 export function stopHelpers() { macHelper.stop(); winHelper?.stop() }
 
@@ -710,7 +782,7 @@ async function psText(fresh = false) {
 // 그래야 클릭이 ps(약 90ms)·herdr 실행을 기다리지 않고 바로 칸 이동·창 올리기로 간다.
 export function warmClick() {
   sessionTableAsync().catch(() => {})
-  if (process.platform === 'darwin' && Date.now() - psCache.at > 2000) psText(true).catch(() => {})
+  if (platform() === 'darwin' && Date.now() - psCache.at > 2000) psText(true).catch(() => {})
 }
 
 // 고른 프로세스(같은 앱의 인스턴스들) 중 창이 가장 큰 것을 앞으로 올린다. 최소화돼 있으면 펼치고, split > 0이면 보드와 나란히 놓는다.
@@ -760,8 +832,13 @@ function launch(app, what, how) {
 const APP_PIDS = (psText, appName) => psText.split('\n').map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/)).filter(Boolean)
   .filter(([, , , cmd]) => (APP_OF.exec(cmd)?.[1] || '').toLowerCase() === String(appName).toLowerCase()).map(([, pid]) => Number(pid))
 export async function raiseApp(appName, split = 0) {
-  if (process.platform !== 'darwin') return 'off'
   const safe = String(appName).replace(/[^A-Za-z0-9 ._-]/g, '')
+  if (isWindows()) {
+    if (!winTerminal(effectiveApp()) || !safe) return 'off'
+    winHelperFor().send(`!app|${safe}|${split || 0}`, 8000).then((got) => { if (!/^raised/.test(got)) console.error(`whosup: windows app raise: ${String(got).slice(0, 200)}`) })
+    return 'raised'
+  }
+  if (platform() !== 'darwin' || isOffApp(effectiveApp())) return 'off'
   try {
     let pids = APP_PIDS(await psText(), safe)
     if (!pids.length) pids = APP_PIDS(await psText(true), safe)
@@ -770,24 +847,42 @@ export async function raiseApp(appName, split = 0) {
   run('/usr/bin/osascript', ['-e', `tell application "${safe}" to activate`]).catch(() => {})
   return 'app'
 }
-export async function openWindowRunning(argv, key) {
-  if (process.platform !== 'darwin') return 'off'
+// env: 새 창에 넣을 환경변수. macOS는 argv 앞에 /usr/bin/env K=V로, 윈도우는 PowerShell $env:로 넣는다.
+export async function openWindowRunning(argv, key, env = {}) {
+  if (isWindows()) {
+    const term = winTerminal(effectiveApp())
+    if (!term) return 'off'
+    return launch(term, key, winOpener(term, winRunCommand(argv, env))) ? 'opened' : 'off'
+  }
+  if (platform() !== 'darwin' || isOffApp(effectiveApp())) return 'off'
+  if (Object.keys(env).length) argv = ['/usr/bin/env', ...Object.entries(env).map(([k, v]) => `${k}=${v}`), ...argv]
   let text = ''
   try { text = await psText() } catch {}
-  const app = appToOpen(configuredApp(), text)
+  const app = appToOpen(configuredApp(), text, appAuto)
   return launch(app, key, openerForArgv(app, argv, key)) ? 'opened' : 'off'
 }
 // Returns 'raised' (raise started in the background) | 'opened' | 'app' | 'off'. Never blocks the event loop;
 // the window comes up ~0.1–0.3s after the response.
 export async function activateTerminal(session, split = 0) {
   const conf = configuredApp()
-  if (process.platform === 'win32') {
-    if (!conf) return 'off'
-    // 상주 도우미에 세션 이름 한 줄. 응답은 기다리지 않는다(도우미가 결과를 돌려주면 로그만).
-    winHelperFor().send(`${session}|${split || 0}`, 8000).then((got) => { if (!/^(raised|opened)/.test(got)) console.error(`whosup: windows terminal raise: ${String(got).slice(0, 200)}`) })
+  if (isWindows()) {
+    const term = winTerminal(effectiveApp())
+    if (!term) return 'off'
+    // 도우미 한 줄은 | 로 가르고 세션 이름이 PowerShell 명령에 들어간다 — herdr 세션 이름 규칙에 맞지 않으면 창을 건드리지 않는다.
+    if (!validSessionName(session)) return 'off'
+    // 새 창 중복 방지(macOS launch()와 같은 20초): 방금 새 창을 열었으면 도우미에 '열지는 말고 찾으면 올려라'로 보낸다.
+    // 찾아서 올렸다는 답이 오면 표시를 지운다(창이 이미 있었으니 다음에 없어지면 바로 열어도 된다).
+    const key = `${term}\n${session}`
+    const noOpen = Date.now() - (winOpenedAt.get(key) || 0) < OPEN_WAIT_MS
+    if (!noOpen) winOpenedAt.set(key, Date.now())
+    // 상주 도우미에 한 줄. 응답은 기다리지 않는다(도우미가 결과를 돌려주면 로그만).
+    winHelperFor().send([session, split || 0, noOpen ? 1 : 0, term, winAttachCommand(bin(), session)].join('|'), 8000).then((got) => {
+      if (!noOpen && /^raised/.test(got) && winOpenedAt.get(key)) winOpenedAt.delete(key)
+      if (!/^(raised|opened)/.test(got)) console.error(`whosup: windows terminal raise: ${String(got).slice(0, 200)}`)
+    })
     return 'raised'
   }
-  if (process.platform !== 'darwin') return 'off'
+  if (platform() !== 'darwin' || isOffApp(effectiveApp())) return 'off'
   let app = conf
   try {
     let text = await psText()
@@ -800,7 +895,7 @@ export async function activateTerminal(session, split = 0) {
       return 'raised'
     }
     // No window shows this session: open one attached to it (the session keeps running either way).
-    app = appToOpen(conf, text)
+    app = appToOpen(conf, text, appAuto)
     if (launch(app, session, openerFor(app, session))) return 'opened'
   } catch (err) { console.error(`whosup: terminal raise failed: ${String(err.message || err).slice(0, 200)}`) }
   if (!app) return 'off'
@@ -827,7 +922,7 @@ export function focus(ref, opts = {}) {
   return job
 }
 async function focusNow(ref, opts = {}, mine) {
-  const { cwd = process.env.HOME, run = null, seq } = opts
+  const { cwd = homedir(), run = null, seq } = opts
   const { session, pane } = splitRef(ref)
   // superseded(): 보드 서버가 본 판 전체의 순번(다른 런타임의 카드를 더 나중에 눌렀을 때). herdr 카드만 있으면 위 판정과 같다.
   const stale = (Number.isFinite(seq) ? seq < latestClick : mine !== focusSeq) || opts.superseded?.() === true
@@ -868,7 +963,7 @@ export async function stopSession(session) {
 export const validSessionName = (s) => typeof s === 'string' && /^[A-Za-z0-9._][A-Za-z0-9._-]*$/.test(s)
 const checkSessionName = (s) => { if (!validSessionName(s)) throw Object.assign(new Error(`invalid herdr session name: ${String(s).slice(0, 60)}`), { code: 'bad_session' }) }
 // 꺼진 세션 다시 켜기: 서버를 띄우고 그 세션을 보여 주는 창을 연다.
-export async function startSession(session, cwd = process.env.HOME, { raise = true } = {}) {
+export async function startSession(session, cwd = homedir(), { raise = true } = {}) {
   checkSessionName(session)
   const client = await ensureServer(session, cwd)
   const window = raise === false ? 'skipped' : await activateTerminal(session)

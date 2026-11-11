@@ -4,13 +4,15 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { startFakeCore, term, agentTerm } from '../test-support/fake-core.mjs'
+import { fileURLToPath } from 'node:url'
 
-const dir = mkdtempSync('/tmp/wc-')
+const dir = mkdtempSync(join(tmpdir(), 'wc-'))
 const SOCK = join(dir, 'core.sock')
 process.env.HC_SOCKET = SOCK
 process.env.HC_SESSION = 'whosuptest-unit'
-process.env.HERDR_APP_BIN = new URL('../test-support/fake-herdr-app.mjs', import.meta.url).pathname
+process.env.HERDR_APP_BIN = fileURLToPath(new URL('../test-support/fake-herdr-app.mjs', import.meta.url))
 chmodSync(process.env.HERDR_APP_BIN, 0o755)
 process.env.HERDR_BIN = join(dir, 'no-herdr')          // herdr가 설치되지 않은 기계
 delete process.env.HERDR_BIN_PATH
@@ -42,13 +44,13 @@ test('toSession: 코어 상태를 판의 상태로 옮긴다(작업 중·입력 
   assert.equal(st(agentTerm('t1', 'done')), 'done')
   assert.equal(st(agentTerm('t1', 'idle')), 'idle')
   assert.equal(st(term('t1')), 'shell')
-  assert.equal(st(term('t1', { argv: ['sleep', '300'], foreground: { argv: ['sleep', '300'], cwd: '/tmp', name: 'sleep', pid: 1 } })), 'unknown')
+  assert.equal(st(term('t1', { argv: ['sleep', '300'], foreground: { argv: ['sleep', '300'], cwd: '/work', name: 'sleep', pid: 1 } })), 'unknown')
   const err = core.toSession(agentTerm('t1', 'error', { msg: 'boom' }))
   assert.deepEqual([err.status, err.fields.failed, err.fields.requiresAttention], ['blocked', true, true])
 })
 
 test('toSession: 주소·줄·공급자·대기 시작 시각', () => {
-  const s = core.toSession(agentTerm('t4', 'blocked', { kind: 'permission', msg: 'approve Bash: ls', labels: SPACE, cwd: '/tmp/proj', name: 'fix' }), { sid: SID })
+  const s = core.toSession(agentTerm('t4', 'blocked', { kind: 'permission', msg: 'approve Bash: ls', labels: SPACE, cwd: '/work/proj', name: 'fix' }), { sid: SID })
   assert.equal(s.runtime, 'herdr-core')
   assert.equal(s.runtime_ref, 'whosuptest-unit/t4')
   assert.equal(s.provider, 'claude')                       // 이어서 열기 규칙이 아는 이름
@@ -87,7 +89,7 @@ const TRUST_SCREEN = `${'─'.repeat(60)}
 
  Enter to confirm · Esc to cancel
 `
-const waitingAgent = (address, over = {}) => term(address, { argv: ['sh', '-c', 'claude'], foreground: { argv: ['claude'], cwd: '/tmp/p', name: '2.1.322', pid: 71000 }, cwd: '/tmp/p', labels: SPACE, ...over })
+const waitingAgent = (address, over = {}) => term(address, { argv: ['sh', '-c', 'claude'], foreground: { argv: ['claude'], cwd: '/work/p', name: '2.1.322', pid: 71000 }, cwd: '/work/p', labels: SPACE, ...over })
 
 test('toSession: 상태를 알리지 않는 터미널의 화면이 폴더 신뢰 질문이면 입력 필요(그 밖에는 화면으로 상태를 정하지 않는다)', () => {
   const s = core.toSession(waitingAgent('t1'), { screenAsk: 'trust' })
@@ -102,7 +104,7 @@ test('폴더 신뢰 화면에 멈춘 에이전트: 입력 필요 카드와 질�
   reset()
   fake.add(waitingAgent('t1'))
   fake.add(term('t2', { labels: SPACE }))                                                              // 셸
-  fake.add(term('t3', { labels: SPACE, argv: ['less', 'notes.txt'], foreground: { argv: ['less', 'notes.txt'], cwd: '/tmp', name: 'less', pid: 71003 } }))   // 에이전트가 아닌 프로그램
+  fake.add(term('t3', { labels: SPACE, argv: ['less', 'notes.txt'], foreground: { argv: ['less', 'notes.txt'], cwd: '/work', name: 'less', pid: 71003 } }))   // 에이전트가 아닌 프로그램
   fake.screens.set('t1', TRUST_SCREEN)
   fake.screens.set('t2', `${TRUST_SCREEN}\n% `)                                                        // 셸 화면에 같은 글자가 남아 있어도
   fake.screens.set('t3', 'meeting notes\nline two\n:')
@@ -153,7 +155,7 @@ test('목록: 살아 있는 이 기계의 터미널만, 대화 id는 Claude 프�
   fake.add(term('t3', { state: 'finished' }))
   fake.add(term('box/t7'))
   const other = '22222222-2222-4222-8222-222222222222'
-  writeFileSync(join(dir, 'claude', 'sessions', '70001.json'), JSON.stringify({ pid: 70001, sessionId: other, cwd: '/tmp' }))
+  writeFileSync(join(dir, 'claude', 'sessions', '70001.json'), JSON.stringify({ pid: 70001, sessionId: other, cwd: '/work' }))
   const snap = await core.listSnapshotAsync()
   assert.deepEqual(snap.sessions.map((s) => [s.runtime_ref.split('/')[1], s.provider_session]), [['t1', other], ['t2', SID]])
   assert.deepEqual([snap.unreachable, snap.stopped], [[], []])
@@ -172,9 +174,9 @@ test('래퍼로 띄운 에이전트: 터미널 프로그램의 자식 프로세�
     }
     assert.ok(child, 'wrapper has a child process')
     const sid = '33333333-3333-4333-8333-333333333333'
-    writeFileSync(join(dir, 'claude', 'sessions', `${child}.json`), JSON.stringify({ pid: child, sessionId: sid, cwd: '/tmp' }))
-    fake.add(agentTerm('t6', 'working', { labels: SPACE, pid: wrapper.pid, foreground: { argv: ['sh'], cwd: '/tmp', name: 'sh', pid: wrapper.pid } }))
-    fake.add(agentTerm('t7', 'idle', { labels: SPACE, pid: wrapper.pid, foreground: { argv: ['sh'], cwd: '/tmp', name: 'sh', pid: wrapper.pid } }))   // 같은 순간에 찾는 터미널이 여럿이어도 된다
+    writeFileSync(join(dir, 'claude', 'sessions', `${child}.json`), JSON.stringify({ pid: child, sessionId: sid, cwd: '/work' }))
+    fake.add(agentTerm('t6', 'working', { labels: SPACE, pid: wrapper.pid, foreground: { argv: ['sh'], cwd: '/work', name: 'sh', pid: wrapper.pid } }))
+    fake.add(agentTerm('t7', 'idle', { labels: SPACE, pid: wrapper.pid, foreground: { argv: ['sh'], cwd: '/work', name: 'sh', pid: wrapper.pid } }))   // 같은 순간에 찾는 터미널이 여럿이어도 된다
     // 프로세스 목록은 5초 동안 다시 읽지 않는다(앞 시험이 방금 읽었다): 갓 뜬 에이전트는 그 뒤 수집에서 잡힌다
     let snap = await core.listSnapshotAsync()
     for (let i = 0; i < 30 && snap.sessions.some((s) => !s.provider_session); i++) { await new Promise((r) => setTimeout(r, 250)); snap = await core.listSnapshotAsync() }
@@ -184,7 +186,7 @@ test('래퍼로 띄운 에이전트: 터미널 프로그램의 자식 프로세�
 
 test('대화 id를 모르면 비워 둔다(같은 폴더의 다른 대화로 추측하지 않는다)', async () => {
   reset()
-  fake.add(agentTerm('t5', 'working', { labels: SPACE, cwd: '/tmp/shared' }))
+  fake.add(agentTerm('t5', 'working', { labels: SPACE, cwd: '/work/shared' }))
   mkdirSync(join(process.env.CLAUDE_PROJECTS_DIR, '-tmp-shared'), { recursive: true })
   writeFileSync(join(process.env.CLAUDE_PROJECTS_DIR, '-tmp-shared', `${SID}.jsonl`), `${JSON.stringify({ type: 'user', message: { content: 'someone else' } })}\n`)
   assert.equal((await core.listSnapshotAsync()).sessions[0].provider_session, null)
@@ -192,9 +194,9 @@ test('대화 id를 모르면 비워 둔다(같은 폴더의 다른 대화로 추
 
 test('수집 → 판: 공간마다 한 줄, 질문은 코어가 알려 준 문구, 할 수 있는 일(caps)', async () => {
   reset()
-  fake.add(agentTerm('t1', 'blocked', { kind: 'question', msg: 'answer: Which color do you prefer? (Red · Blue)', labels: SPACE, cwd: '/tmp/a' }))
-  fake.add(agentTerm('t2', 'blocked', { kind: 'permission', msg: 'approve Bash: curl -s https://example.com', labels: SPACE, cwd: '/tmp/a' }))
-  fake.add(agentTerm('t3', 'done', { labels: { 'herdr.space': 'spB', where: 'other / 1' }, cwd: '/tmp/b' }))
+  fake.add(agentTerm('t1', 'blocked', { kind: 'question', msg: 'answer: Which color do you prefer? (Red · Blue)', labels: SPACE, cwd: '/work/a' }))
+  fake.add(agentTerm('t2', 'blocked', { kind: 'permission', msg: 'approve Bash: curl -s https://example.com', labels: SPACE, cwd: '/work/a' }))
+  fake.add(agentTerm('t3', 'done', { labels: { 'herdr.space': 'spB', where: 'other / 1' }, cwd: '/work/b' }))
   fake.add(term('t4'))
   fake.screens.set('t3', `⏺ Ran the test suite: 24 passed.\n${'─'.repeat(40)}\n❯ \n${'─'.repeat(40)}\n`)
   const db = openDb(':memory:')
@@ -260,11 +262,11 @@ test('다른 에이전트 프로그램이 그 터미널을 차지하면 옛 대�
   const rows = () => db.prepare("SELECT provider, provider_session, archived, status FROM session WHERE runtime = 'herdr-core' ORDER BY id").all().map((r) => Object.values(r))
   assert.deepEqual(rows(), [['claude', SID, 0, 'idle']])
   // 셸로 돌아간 동안에는 그 대화를 기억한다(이어서 열기 대상)
-  fake.set('t2', { status: null, argv: ['/bin/zsh', '-l'], foreground: { argv: ['/bin/zsh', '-l'], cwd: '/tmp', name: 'zsh', pid: 70002 } })
+  fake.set('t2', { status: null, argv: ['/bin/zsh', '-l'], foreground: { argv: ['/bin/zsh', '-l'], cwd: '/work', name: 'zsh', pid: 70002 } })
   await collectAll(db)
   assert.deepEqual(rows(), [['claude', SID, 0, 'shell']])
   // 같은 터미널에서 다른 에이전트가 뜬다: 대화 id를 아직 모른다
-  fake.set('t2', { status: { app: 'codex', state: 'working' }, foreground: { argv: ['codex'], cwd: '/tmp', name: 'codex', pid: 70002 } })
+  fake.set('t2', { status: { app: 'codex', state: 'working' }, foreground: { argv: ['codex'], cwd: '/work', name: 'codex', pid: 70002 } })
   await collectAll(db)
   assert.deepEqual(rows(), [['claude', SID, 1, 'gone'], ['codex', null, 0, 'working']])
 })
@@ -347,7 +349,7 @@ test('herdr와 함께: 두 쪽 칸이 다 나오고 herdr 쪽 수집 상태가 �
   fake.add(agentTerm('t1', 'working', { labels: SPACE }))
   const db = openDb(':memory:')
   const herdrFake = { name: 'herdr', FIELDS: core.FIELDS, TRACKS_GONE: true, listSnapshot: () => ({ sessions: [
-    { runtime: 'herdr', runtime_ref: 'main/w1:p1', provider_session: null, cwd: '/tmp/a', project: 'a', title: 'a', pane_label: 'alpha', provider: 'claude', status: 'blocked', attentionTimestamp: null, archived: false,
+    { runtime: 'herdr', runtime_ref: 'main/w1:p1', provider_session: null, cwd: '/work/a', project: 'a', title: 'a', pane_label: 'alpha', provider: 'claude', status: 'blocked', attentionTimestamp: null, archived: false,
       fields: { lastStatus: 'error', requiresAttention: true, attentionReason: 'blocked', lastUserMessageAt: null, title: 'a' } }], unreachable: ['side'], stopped: [] }) }
   collectOnce(db, herdrFake)
   collectOnce(db, await core.snapshotRuntime(), { health: false })
@@ -467,7 +469,7 @@ test('수집 공백은 런타임마다 잰다: 판의 건강 상태를 herdr가 
 
 test('대화 id는 지금 그 터미널에서 도는 Claude의 것만: 다른 에이전트로 바뀌면 남아 있는 등록부·실행 인자를 읽지 않는다', async () => {
   reset()
-  writeFileSync(join(dir, 'claude', 'sessions', '70009.json'), JSON.stringify({ pid: 70009, sessionId: SID, cwd: '/tmp' }))
+  writeFileSync(join(dir, 'claude', 'sessions', '70009.json'), JSON.stringify({ pid: 70009, sessionId: SID, cwd: '/work' }))
   fake.add(agentTerm('t9', 'working', { labels: SPACE }))
   assert.equal((await core.listSnapshotAsync()).sessions[0].provider_session, SID)
   fake.set('t9', { status: { app: 'codex', state: 'working' } })                            // 같은 pid의 등록부 파일이 남아 있어도
@@ -494,7 +496,7 @@ test('다른 에이전트로 바뀌면 옛 대화 id를 몰랐어도 새 카드�
   fake.add(agentTerm('t2', 'idle', { labels: SPACE }))                                      // Claude, 대화 id는 모른다
   const db = openDb(':memory:'); await collectAll(db)
   db.prepare("UPDATE session SET pinned_at = ? WHERE runtime = 'herdr-core'").run(new Date().toISOString())
-  fake.set('t2', { status: { app: 'codex', state: 'working' }, foreground: { argv: ['codex'], cwd: '/tmp', name: 'codex', pid: 70002 } })
+  fake.set('t2', { status: { app: 'codex', state: 'working' }, foreground: { argv: ['codex'], cwd: '/work', name: 'codex', pid: 70002 } })
   await collectAll(db)
   const rows = db.prepare("SELECT provider, archived, status, pinned_at FROM session WHERE runtime = 'herdr-core' ORDER BY id").all()
   assert.deepEqual(rows.map((r) => [r.provider, r.archived, r.status, Boolean(r.pinned_at)]), [['claude', 1, 'gone', true], ['codex', 0, 'working', false]])

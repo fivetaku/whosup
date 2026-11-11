@@ -4,7 +4,7 @@ import { execFile, execFileSync } from 'node:child_process'
 import { closeSync, existsSync, fstatSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { bin as herdrBin } from '../runtime/herdr.mjs'
+import { herdrCommand } from '../runtime/herdr.mjs'
 import * as core from '../runtime/core.mjs'
 
 const cache = new Map()
@@ -58,7 +58,8 @@ function byFile(kind, path, fn) {
 
 // ── 칸 화면 글 ───────────────────────────────────────────────
 export function readPane(session, pane, lines = 60) {
-  return execFileSync(herdrBin(), ['--session', session, 'pane', 'read', pane, '--source', 'detection', '--lines', String(lines)], { encoding: 'utf8', timeout: 4000, killSignal: 'SIGKILL' })
+  const [file, argv] = herdrCommand(['pane', 'read', pane, '--source', 'detection', '--lines', String(lines)], session)
+  return execFileSync(file, argv, { encoding: 'utf8', timeout: 4000, killSignal: 'SIGKILL' })
 }
 
 const RULE = /^[\s]*[─—-]{10,}\s*$/
@@ -241,7 +242,7 @@ export async function warmContext(rows, now = Date.now(), onLate = null) {
       else {
         const [session, pane] = s.runtime_ref.split('/')
         jobs.push(refresh(`pane:${session}/${pane}:${s.status}`, 10000, async () =>
-          parsePane(await run(herdrBin(), ['--session', session, 'pane', 'read', pane, '--source', 'detection', '--lines', '60'], { timeout: 4000 }), s.status), now))
+          parsePane(await run(...herdrCommand(['pane', 'read', pane, '--source', 'detection', '--lines', '60'], session), { timeout: 4000 }), s.status), now))
       }
     }
     if (s.cwd && !cwds.has(s.cwd) && existsSync(s.cwd)) {
@@ -251,9 +252,9 @@ export async function warmContext(rows, now = Date.now(), onLate = null) {
       const before = cache.get(key)?.value
       const p = refresh(key, 60000, () => gitSlot(async () => {
         const quiet = { timeout: 5000 }
-        const b = (await run('/usr/bin/git', ['-C', s.cwd, 'branch', '--show-current'], quiet)).trim()
+        const b = (await run('git', ['-C', s.cwd, 'branch', '--show-current'], quiet)).trim()
         if (!b) return null
-        const dirty = (await run('/usr/bin/git', ['-C', s.cwd, 'status', '--porcelain', '--untracked-files=no'], quiet)).trim() !== ''
+        const dirty = (await run('git', ['-C', s.cwd, 'status', '--porcelain', '--untracked-files=no'], quiet)).trim() !== ''
         return dirty ? `${b}*` : b
       }), now)
       if (p) late.push(p.then(() => !known || cache.get(key)?.value !== before))
@@ -352,9 +353,9 @@ export function branchOf(cwd, now = Date.now()) {
   if (!cwd || !existsSync(cwd)) return null
   return memo(`branch:${cwd}`, 60000, () => {
     const quiet = { encoding: 'utf8', timeout: 5000, killSignal: 'SIGKILL', stdio: ['ignore', 'pipe', 'ignore'] }
-    const b = execFileSync('/usr/bin/git', ['-C', cwd, 'branch', '--show-current'], quiet).trim() // guard-ok: quiet에 timeout
+    const b = execFileSync('git', ['-C', cwd, 'branch', '--show-current'], quiet).trim() // guard-ok: quiet에 timeout
     if (!b) return null
-    const dirty = execFileSync('/usr/bin/git', ['-C', cwd, 'status', '--porcelain', '--untracked-files=no'], quiet).trim() !== '' // guard-ok: quiet에 timeout
+    const dirty = execFileSync('git', ['-C', cwd, 'status', '--porcelain', '--untracked-files=no'], quiet).trim() !== '' // guard-ok: quiet에 timeout
     return dirty ? `${b}*` : b
   }, now)
 }

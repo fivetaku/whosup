@@ -22,7 +22,10 @@ healthy() {
   if [ -f "$STATE/port" ]; then p="$(cat "$STATE/port")"; curl -fsS -m 2 "http://127.0.0.1:$p/api/health" >/dev/null 2>&1 && { URL="http://127.0.0.1:$p"; return 0; }; fi
   curl -fsS -m 2 "$URL/api/health" >/dev/null 2>&1
 }
+# OPEN_BROWSER: 환경변수·.env > 자동 감지(원격이면 0, auto.json) > 1.
+auto_open_browser() { [ -n "${OPEN_BROWSER:-}" ] || OPEN_BROWSER="$(node "$ROOT/scripts/autoconf.mjs" --read open_browser 2>/dev/null)"; }
 open_browser() {
+  [ "${1:-}" = "force" ] || auto_open_browser
   [ "${OPEN_BROWSER:-1}" = "1" ] || return 0
   # skip when a tab already talks to us (heartbeat written by the page in the last 15 s)
   hb="$STATE/board-heartbeat"
@@ -41,6 +44,7 @@ case "${1:-status}" in
     if healthy; then echo "whosup already listening at $URL"; open_browser; exit 0; fi
     # 기록된 whosup이 살아 있는데 답하지 않으면 새로 띄우지 않는다 — pid 파일을 덮어쓰면 그 프로세스가 고아가 된다.
     if alive; then echo "whosup pid $(cat "$PID") is running but not answering — run stop first, see $LOG"; exit 1; fi
+    # preflight가 autoconf까지 돌려 auto.json을 새로 쓴다(서버는 시작할 때 그 파일을 읽는다).
     sh "$ROOT/scripts/preflight.sh" >/dev/null || exit 1
     cd "$ROOT" || exit 1
     WHOSUP_STATE_DIR="$STATE" PORT="$PORT" nohup node bin/whosup.mjs >>"$LOG" 2>&1 </dev/null &

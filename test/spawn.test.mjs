@@ -1,7 +1,8 @@
 // #2 없는 폴더로 열기가 프로세스를 죽이지 않는다. HERDR_BIN을 가짜로 고정해 실제 herdr를 띄우지 않는다.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-process.env.HERDR_BIN = new URL('./fixtures/fake-herdr.sh', import.meta.url).pathname
+import { fileURLToPath } from 'node:url'
+process.env.HERDR_BIN = fileURLToPath(new URL('../test-support/fake-herdr.mjs', import.meta.url))
 delete process.env.HERDR_BIN_PATH
 const herdr = await import('../src/runtime/herdr.mjs')
 

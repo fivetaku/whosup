@@ -5,17 +5,18 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, writeFileSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const root = mkdtempSync(join(tmpdir(), 'whosup-proj-'))
 process.env.CLAUDE_PROJECTS_DIR = root
-process.env.HERDR_BIN = new URL('./fixtures/fake-herdr.sh', import.meta.url).pathname
+process.env.HERDR_BIN = fileURLToPath(new URL('../test-support/fake-herdr.mjs', import.meta.url))
 const { resumeTarget, clearContextCache } = await import('../src/board/context.mjs')
 const { openDb } = await import('../src/db.mjs')
 const { collectOnce } = await import('../src/collector.mjs')
 const { computeBoard } = await import('../src/board/board.mjs')
 const { resumeSession } = await import('../src/board/server.mjs')
 
-const CWD = '/tmp/whosup-resume-proj'
+const CWD = '/work/whosup-resume-proj'
 const dir = join(root, CWD.replace(/[^A-Za-z0-9]/g, '-'))
 mkdirSync(dir, { recursive: true })
 const id = (n) => `0000000${n}-0000-4000-8000-000000000000`

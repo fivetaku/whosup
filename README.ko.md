@@ -17,7 +17,7 @@
   <img src="assets/hero.png" alt="whosup — 흩어져 잊히던 터미널 세션을 상황판 한 장으로, 다음에 볼 칸 하나만 주황" width="900">
 </p>
 
-[빠른 시작](#빠른-시작) • [왜 whosup인가](#왜-whosup인가) • [화면 구성](#화면-구성) • [동작 원리](#동작-원리) • [기능](#기능) • [설정](#설정) • [요구 사항](#요구-사항)
+[빠른 시작](#빠른-시작) • [왜 whosup인가](#왜-whosup인가) • [화면 구성](#화면-구성) • [동작 원리](#동작-원리) • [기능](#기능) • [설정](#설정) • [환경별 설정](#환경별-설정) • [요구 사항](#요구-사항)
 
 ---
 
@@ -44,6 +44,10 @@ herdr --session work      # 이름 자유, 터미널 자유
 ```
 
 실행 중인 세션은 모두 상황판에 저절로 나타납니다. 따로 등록할 목록이 없습니다.
+
+### 윈도우에서
+
+같은 플러그인이 윈도우에서도 돕니다. 액션 이름 앞에 `win-`이 붙습니다(`win-start`, `win-doctor`, …). [윈도우](#윈도우)를 보세요.
 
 ---
 
@@ -132,19 +136,21 @@ Node 프로세스 하나, 빌드 없음. herdr의 startup 훅은 한 번 실행�
 | `fivetaku.whosup.open` | 브라우저로 열기 |
 | `fivetaku.whosup.desks-apply` | `desks.json`대로 세션·칸 생성 |
 | `fivetaku.whosup.desks-status` | 선언 vs 실제 칸 비교 |
+| `fivetaku.whosup.autoconf` | 이 컴퓨터를 다시 확인해 자동 감지 값을 갱신하고 보여 줌([값의 출처와 자동 세팅](#값의-출처와-자동-세팅) 참고) |
+| `fivetaku.whosup.win-*` | 윈도우용 같은 액션(`win-start`·`win-stop`·`win-status`·`win-open`·`win-desks-apply`·`win-desks-status`·`win-autoconf`)과 `win-doctor` |
 
 ---
 
 ## 설정
 
-플러그인 설정 폴더(`herdr plugin config-dir fivetaku.whosup`, herdr 밖에서 돌리면 `~/.config/whosup`)의 `.env`에 `KEY=value` 줄을 넣습니다. 이 파일은 `start`가 서버를 띄울 때만 읽으므로, 바꾼 뒤에는 `stop` 액션을 실행하고 다시 `start`를 실행합니다. `desks-apply` 액션은 `.env`를 읽지 않고, 에이전트 명령을 `desks.json`의 `agent_cmd`에서 가져옵니다.
+플러그인 설정 폴더(`herdr plugin config-dir fivetaku.whosup`, herdr 밖에서 돌리면 `~/.config/whosup`)의 `.env`에 `KEY=value` 줄을 넣습니다. 이 파일은 `start`가 서버를 띄울 때만 읽으므로, 바꾼 뒤에는 `stop` 액션을 실행하고 다시 `start`를 실행합니다. 여기 적은 값은 자동 세팅보다 먼저이고, 설정 패널은 둘보다 먼저입니다([값의 출처와 자동 세팅](#값의-출처와-자동-세팅) 참고). `desks-apply` 액션은 `.env`를 읽지 않고, 에이전트 명령을 `desks.json`의 `agent_cmd`에서 가져옵니다.
 
 | 키 | 기본값 | 뜻 |
 |---|---|---|
 | `PORT` | 4790 | 사용 중이면 다음 빈 포트 |
 | `OPEN_BROWSER` | 1 | herdr 시작 때 탭 한 번 열기 |
 | `AGENT_CMD` | claude | 이어서 열기·새 세션이 쓰는 명령. 래퍼를 쓰면 여기에. **설정** 패널에서 바꾼 값이 우선 |
-| `FRONT_APP` | 자동 | 이동 때 앞으로 가져올 macOS 터미널 앱, 예 `Ghostty`. 비워 두면 herdr를 띄워 둔 앱을 찾아 쓰고, 떠 있는 창이 없으면 Terminal로 새 창을 엽니다. **설정** 패널에서 바꾸면 재시작 없이 적용됩니다 |
+| `FRONT_APP` | 자동 | 이동 때 앞으로 가져올 macOS 터미널 앱, 예 `Ghostty`. 비워 두면 자동 세팅이 고르고([규칙표](#값의-출처와-자동-세팅)의 레인 L4), 떠 있는 창이 없으면 Terminal로 새 창을 엽니다. 윈도우에서는 비우면 자동(Windows Terminal이 있으면 그것, 없으면 PowerShell 창), `PowerShell`, `Windows Terminal`, 또는 `off`(아무 값이나 받음). **설정** 패널에서 바꾸면 재시작 없이 적용됩니다 |
 | `STALE_DAYS`(또는 `WHOSUP_STALE_DAYS`) | 3 | 이 일 수 동안 조용하면 보관 후보 |
 | `WHOSUP_READONLY` | 0 | 1이면 읽기 전용: 변경 불가, 폴더 목록 안 보임 |
 | `WHOSUP_SEEN_SNOOZE_MIN` · `WHOSUP_RENOTIFY_MIN` · `WHOSUP_RENOTIFY_MAX` · `WHOSUP_GONE_MISSES` · `WHOSUP_STALE_COLLECT_SEC` · `WHOSUP_CLOSED_KEEP_DAYS` · `WHOSUP_OS_NOTIFY` · `WHOSUP_UNREACHABLE_TTL_H` · `WHOSUP_SPLIT_PCT` | 30 · 15 · 4 · 3 · 30 · 7 · 0 · 24 · 0 | 시작값. 헤더 **설정** 패널에서 바꾼 값이 이 컴퓨터에서 우선 |
@@ -153,6 +159,7 @@ Node 프로세스 하나, 빌드 없음. herdr의 startup 훅은 한 번 실행�
 | `HERDR_BIN_PATH`(또는 `HERDR_BIN`) | 자동 | herdr 실행 파일 경로. 없으면 `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, `PATH` 순으로 찾음 |
 | `WHOSUP_RUNTIMES` | auto | 읽을 대상: `auto`(herdr 세션과 herdr-core 터미널 중 있는 것 전부), `herdr`, `herdr-core` |
 | `HC_SOCKET` | 자동 | herdr-core 소켓. 없으면 코어의 `core.lock`에서 읽음(`HC_SESSION`, `XDG_STATE_HOME`을 따름) |
+| `WHOSUP_CLICK_TARGET` | terminal | 아직 고르지 않은 브라우저에서 칸을 누르면 열 곳: `terminal`, `web`, `both`. 첫 실행 카드가 정하고, **설정**의 *칸을 누르면 열 곳*이 브라우저마다 덮어씀 |
 | `HERDR_APP_BIN` · `HERDR_APP_NAME` · `HC_BIN` | `herdr-app` · `Herdr` · `hc` | Herdr 앱 명령(이동, 새 탭, 공간 닫기), macOS에서 앞으로 올릴 앱 이름, herdr-core 터미널을 터미널 창에서 열 때 쓰는 명령 |
 
 ### 데스크(선택)
@@ -176,12 +183,100 @@ herdr는 재부팅 뒤 에이전트를 스스로 다시 띄울 수 있습니다(
 
 ---
 
+## 환경별 설정
+
+### Herdr 데스크톱 앱
+
+whosup은 Herdr 데스크톱 앱의 터미널을 앱의 코어인 herdr-core를 통해 읽습니다. 아래가 갖춰져 있으면 따로 설정할 것이 없습니다.
+
+- **이 컴퓨터에서 herdr-core가 돌고 있어야 합니다.** 코어는 소켓 경로를 `<state>/herdr-core/<session>/core.lock`에 적습니다(`<state>`는 `XDG_STATE_HOME`, 없으면 `~/.local/state`, 윈도우는 `%LOCALAPPDATA%`도 봄. `<session>`은 `HC_SESSION`, 없으면 `default`). `HC_SOCKET`을 주면 그 값이 먼저입니다. 소켓이 있는 동안 코어가 돌고 있다고 봅니다. whosup은 코어를 켜지 않습니다.
+- **`herdr-app`이 `PATH`에 있어야 합니다**(또는 `HERDR_APP_BIN`). 이동·새 탭·공간 닫기가 이 명령을 씁니다. 없어도 카드는 읽습니다.
+- **`hc`가 `PATH`에 있어야 합니다**(또는 `HC_BIN`). 앱 창이 열려 있지 않을 때 터미널 창에서 그 터미널을 엽니다.
+
+자동 세팅(레인 L6)이 설치 때와 시작할 때마다 소켓과 `herdr-app`을 확인합니다. Herdr 앱 카드를 누르면 앱에서 그 터미널을 보여 주고 앱(`HERDR_APP_NAME`, 기본 `Herdr`)을 앞으로 올립니다. 앱 창이 없으면 터미널 창에서 `hc attach <terminal>`을 엽니다.
+
+터미널이 보드에 나오지 않으면 확인할 것:
+
+- `WHOSUP_RUNTIMES`가 `auto`(기본)이거나 `herdr-core`를 포함해야 합니다. `herdr`만 적으면 앱은 빠집니다.
+- whosup에 `HC_SOCKET`·`HC_SESSION`·`XDG_STATE_HOME`을 줬다면 앱이 쓰는 코어와 같은 곳을 가리켜야 합니다.
+- `node scripts/doctor.mjs`는 core 줄(소켓, 또는 *not running*), 찾아본 상태 폴더, `herdr-app`을 찾았는지를 보여 줍니다. `autoconf` 액션은 레인 L6과 그 근거를 보여 줍니다([값의 출처와 자동 세팅](#값의-출처와-자동-세팅) 참고).
+- 윈도우에서 herdr-core가 named pipe로 듣는지는 아직 확인하지 못했습니다.
+
+### ovis: 다른 기기·폰에서 칸 열기
+
+[ovis](https://github.com/devswha/ovis)는 herdr용 웹 클라이언트입니다(채팅, 실시간 터미널, 폰 앱). whosup은 떠 있는 ovis를 찾아 주소를 채워 줄 뿐, ovis를 켜거나 끄지 않습니다.
+
+```bash
+herdr plugin install devswha/ovis --yes          # ovis INSTALL.md 기준
+herdr plugin action invoke devswha.ovis.start
+```
+
+- herdr 플러그인으로 설치한 ovis는 herdr와 함께 `http://127.0.0.1:7317`에 뜨고, 자기를 띄운 herdr 세션의 소켓을 따라갑니다.
+- ovis 서버 하나는 herdr 세션 하나를 봅니다. 다른 세션도 보려면 `PORT`와 `HERDR_SOCKET=~/.config/herdr/sessions/<이름>/herdr.sock`을 준 ovis 서버를 다른 포트로 하나 더 띄웁니다(ovis INSTALL.md의 Configuration). whosup은 7317~7330 포트를 봅니다.
+- whosup은 설치 때와 시작할 때마다 이 포트들을 확인합니다(레인 L7). `GET /api/health?scope=bridge`가 ovis 고유 필드로 답할 때만 ovis로 봅니다. 세션은 그 포트를 듣는 프로세스의 `HERDR_SOCKET`(없으면 `HERDR_SESSION`)으로 알아냅니다(macOS는 `ps`, 리눅스는 `/proc`). herdr가 보여 주는 세션마다 `http://127.0.0.1:<port>/?pane={pane}` 주소를 채웁니다.
+- 세션을 알 수 없으면(윈도우, herdr 목록에 없는 세션, 한 세션에 서버 둘) 아무것도 채우지 않고 그 포트를 "확인 필요"로 표시합니다. 그때는 **설정**에서 주소를 직접 적습니다.
+- ovis가 있어도 클릭 기본은 터미널 창입니다. 보드를 처음 열면 감지한 환경을 보여 주는 카드가 뜨고, 세션과 맞춘 ovis가 있으면 칸을 누를 때 어디로 열지(터미널 창 / ovis / 둘 다) 묻습니다. 카드에서 고른 값은 서버에 저장되어(`click_target`) 모든 브라우저의 기본값이 됩니다. **설정** → *칸을 누르면 열 곳*은 그 브라우저에서만 선택과 주소를 바꾸고, 브라우저에 저장한 값이 있으면 그 값을 씁니다.
+
+채워지는 주소는 `127.0.0.1`이라 ovis가 도는 컴퓨터에서 열립니다. 다른 기기에서는 그 포트도 함께 넘기거나(`ssh -L 4790:127.0.0.1:4790 -L 7317:127.0.0.1:7317 <host>`) **설정**에서 그 기기가 닿는 주소로 바꿉니다. 폰에서는 ovis 자체 앱과 릴레이를 씁니다(ovis README 참고). 보드에서 칸을 열려면 보드가 읽기 전용이 아니어야 합니다.
+
+### 윈도우
+
+whosup은 윈도우에서도 돕니다(Node와 PowerShell, `sh` 없음). 플러그인에 herdr가 `node`로 실행하는 윈도우 전용 항목이 있어서 설치·시작 방법은 같고, 액션 이름 앞에 `win-`이 붙습니다.
+
+```powershell
+herdr plugin install fivetaku/whosup --yes
+herdr plugin action invoke fivetaku.whosup.win-start
+herdr plugin action invoke fivetaku.whosup.win-doctor    # 이 PC를 읽기만 하는 점검
+herdr plugin action invoke fivetaku.whosup.win-autoconf  # 자동 세팅이 감지한 것
+```
+
+손으로 띄우려면 whosup 폴더에서, **바탕화면 세션**에서 실행합니다(SSH로 띄우면 창이 보이지 않습니다).
+
+```powershell
+node scripts\doctor.mjs                 # Node·herdr·pipe·PowerShell·Windows Terminal·바탕화면 세션 점검
+node scripts\launch.mjs start           # start 액션과 같음(status·stop·open도 있음)
+# 또는 앞에서 바로. 설정은 PowerShell 변수로 넣습니다(VAR=값 꼴은 sh 문법이라 여기서는 안 됩니다).
+$env:FRONT_APP='Windows Terminal'; node bin\whosup.mjs
+```
+
+- 자동 세팅은 설치 때(`launch.mjs preflight`)와 시작하기 전마다 돕니다. `wt.exe`가 `PATH`에 있으면 **Windows Terminal**을 고르고, 없으면 칸을 누를 때 PowerShell 창을 엽니다.
+- SSH로 띄웠거나 윈도우 세션 0이면(서비스. `SESSIONNAME`을 보고, 없으면 프로세스의 세션 번호를 본다 — 바탕화면의 로그온 예약 작업은 `SESSIONNAME`이 없어도 바탕화면으로 본다) 원격으로 봅니다. 바탕화면에 아무것도 보이지 않으므로 브라우저를 열지 않고 창도 올리지 않습니다(*터미널 앱* = 끔). 창을 쓰려면 바탕화면 세션에서 띄웁니다.
+- 칸을 누르면 그 세션을 보여 주는 터미널 창을 앞으로 올리고, 없으면 그 세션에 붙은 PowerShell 창을 새로 엽니다. 설정 패널의 *터미널 앱*에서 **자동**, **PowerShell**, **Windows Terminal**, **끔** 가운데 고를 수 있습니다(`FRONT_APP`도 됩니다).
+- `node bin\whosup.mjs`는 `.env`를 읽지 않습니다. `launch.mjs`와 플러그인 액션은 읽습니다(`KEY=value` 줄만, 아무것도 실행하지 않음).
+- Node 22.13 이상(윈도우용 [nodejs.org](https://nodejs.org), 또는 nvm-windows·Volta·fnm)이 `PATH`에, herdr가 `PATH`(또는 `HERDR_BIN_PATH`)에 있어야 합니다.
+- 아직 윈도우 실기기에서 확인하지 못한 것: Herdr 데스크톱 앱(herdr-core)이 윈도우에서 named pipe로 듣는지, herdr가 시작 훅이 끝난 뒤에도 whosup을 살려 두는지. `win-doctor`가 둘 다 보여 줍니다. 윈도우에서는 ovis 포트는 찾지만 각 포트가 보는 세션은 알 수 없어 "확인 필요"로 표시합니다.
+
+### 값의 출처와 자동 세팅
+
+설정마다 이 순서로 처음 찾은 값을 씁니다: **설정 패널 > 환경변수(`.env` 포함) > 자동 감지 > 기본값.** 패널이나 환경변수로 사람이 정한 값은 자동 세팅이 절대 바꾸지 않고, 자동 세팅은 `.env`나 패널 값을 쓰지 않습니다.
+
+- **설정 패널**: 이 컴퓨터의 whosup 데이터베이스에 저장되고 바로 적용됩니다. 칸을 비우면 다음 층의 값으로 돌아갑니다.
+- **환경변수 / `.env`**: 플러그인 설정 폴더(`herdr plugin config-dir fivetaku.whosup`, herdr 밖에서는 `~/.config/whosup`)의 `.env`에 넣는 `KEY=value` 줄. `start`가 서버를 띄울 때만 읽으므로 고친 뒤에는 `stop`, 그다음 `start`를 실행합니다.
+- **자동 감지**: 설치 때(build 훅)와 시작하기 전마다 다시 확인해 상태 폴더(herdr 플러그인 상태 폴더, herdr 밖에서는 `~/.config/whosup`)의 `auto.json`에 씁니다. 서버는 시작할 때 이 파일이 방금(같은 플랫폼, 2분 안) 쓰인 것이면 읽고, 아니면(`bin/whosup.mjs`를 직접 띄운 경우 등) 다시 감지해 새로 씁니다. 감지가 실패하면 자동 값 없이 시작합니다.
+
+무엇을 감지했는지 보려면 `autoconf` 액션(윈도우는 `win-autoconf`)이나 whosup 폴더에서 `node scripts/autoconf.mjs`를 실행합니다(`--json`이면 JSON). 레인마다 값과 근거를 보여 주고, 환경변수가 이기는 값에는 표시를 붙입니다. 떠 있는 보드는 `GET /api/autoconf`에 답하고, `GET /api/settings`의 `origins`에 설정마다 출처가 있습니다.
+
+| 레인 | 무엇을 확인 | 무엇으로 정함 | 어디서 바꿈 |
+|---|---|---|---|
+| L1 | 운영체제 | 보고만: herdr가 macOS·리눅스에서는 `sh` 항목을, 윈도우에서는 `node` 항목을 실행. 윈도우에서는 OS 알림 항목을 내지 않음 | — |
+| L2 | Node 22.13 이상과 `node:sqlite` | 더 낮으면 설치가 안내와 함께 멈춤 | Node 업그레이드 |
+| L3 | 바탕화면 세션 여부: SSH(`SSH_CONNECTION`·`SSH_TTY`), 세션 0인 윈도우(`SESSIONNAME` 없음·세션 번호 0), `DISPLAY`·`WAYLAND_DISPLAY` 없는 리눅스 | 원격이면 브라우저를 열지 않음(`OPEN_BROWSER` 0). 창 올리기도 끔(macOS·윈도우, `FRONT_APP` 값 `off`) | `OPEN_BROWSER`, `FRONT_APP`, *터미널 앱* |
+| L4 | 터미널 앱. macOS: 지금 herdr를 보여 주는 앱, 없으면 설치된 Ghostty·iTerm·WezTerm·kitty. 윈도우: `PATH`의 `wt.exe`. 리눅스: 확인 안 함 | macOS: 그 세션을 보여 주는 창이 없을 때 새 창을 열 앱(누를 때는 그 세션을 보여 주는 앱을 올리고, 패널에는 *자동*으로 보임). 윈도우: 쓸 터미널. 못 찾으면 누를 때 herdr를 보여 주는 앱, 없으면 Terminal(macOS), PowerShell 창(윈도우) | *터미널 앱*, `FRONT_APP` |
+| L5 | herdr: 실행 파일, 버전, 실행 중 세션 | 보고만. herdr가 있으면 herdr 세션을 읽음 | `HERDR_BIN_PATH`, `WHOSUP_RUNTIMES` |
+| L6 | Herdr 데스크톱 앱: herdr-core 소켓, `herdr-app` 명령 | 보고만. 코어가 도는 동안 그 터미널을 읽음 | `WHOSUP_RUNTIMES`, `HC_SOCKET`, `HERDR_APP_*` |
+| L7 | 127.0.0.1:7317~7330의 ovis와 서버마다 보는 herdr 세션 | 세션별 웹 주소. 클릭은 그대로 터미널 창 | 첫 실행 카드, *칸을 누르면 열 곳*과 세션별 주소 |
+| L8 | `PATH`의 `claude`, 없으면 `codex`. Claude Code 대화 폴더 | 이어서 열기·새 세션에 쓸 에이전트 명령, 이어서 열기가 대화를 찾을 수 있는지 | **설정**의 실행 명령, `AGENT_CMD` |
+| L9 | macOS 손쉬운 사용 권한(칸을 눌러 창을 올릴 때 확인) | 권한이 없으면 화면 나눠 쓰기를 쓸 수 없다고 표시 | 시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용 |
+| L10 | `PORT`(4790)부터 빈 포트 | 보고만. whosup이 스스로 다음 빈 포트로 감 | `PORT` |
+
+---
+
 ## 요구 사항
 
 - [herdr](https://herdr.dev) 0.9.0 이상. Herdr 데스크톱 앱의 터미널(herdr-core)도 돌고 있으면 함께 읽습니다. 둘 중 하나만 있어도 됩니다
 - Node.js 22.13 이상(`node:sqlite`를 플래그 없이 씀). bun 없음, 빌드 없음
-- curl(`start`·`status`·`open` 액션이 상태 확인에 씀)
-- macOS 또는 Linux
+- curl(macOS·Linux에서 `start`·`status`·`open` 액션이 상태 확인에 씀. 윈도우는 Node의 `fetch`를 씀)
+- macOS, Linux, 또는 Windows 10/11(PowerShell 5.1 이상, 바탕화면 세션에서 실행 — [윈도우](#윈도우) 참고)
 
 ---
 

@@ -17,7 +17,7 @@
   <img src="assets/hero.png" alt="whosup —— 把散落、被遗忘的终端会话收进一块看板，下一个要看的窗格标成橙色" width="900">
 </p>
 
-[快速开始](#快速开始) • [为什么选择 whosup？](#为什么选择-whosup) • [你会看到什么](#你会看到什么) • [工作原理](#工作原理) • [功能](#功能) • [设置](#设置) • [环境要求](#环境要求)
+[快速开始](#快速开始) • [为什么选择 whosup？](#为什么选择-whosup) • [你会看到什么](#你会看到什么) • [工作原理](#工作原理) • [功能](#功能) • [设置](#设置) • [按环境设置](#按环境设置) • [环境要求](#环境要求)
 
 ---
 
@@ -44,6 +44,10 @@ herdr --session work      # 名字随意，终端随意
 ```
 
 所有运行中的会话都会自动出现在看板上，无需维护任何列表。
+
+### 在 Windows 上
+
+同一个插件也能在 Windows 上运行，操作名带 `win-` 前缀（`win-start`、`win-doctor` 等）。见 [Windows](#windows)。
 
 ---
 
@@ -132,19 +136,21 @@ browser  ◄──  http://127.0.0.1:4790  ◄──  board server  ◄───
 | `fivetaku.whosup.open` | 在浏览器中打开看板 |
 | `fivetaku.whosup.desks-apply` | 根据 `desks.json` 创建会话/窗格 |
 | `fivetaku.whosup.desks-status` | 已声明与实际存在的窗格对比 |
+| `fivetaku.whosup.autoconf` | 重新检查本机，更新自动检测的值并显示出来（见[值的来源与自动设置](#值的来源与自动设置)） |
+| `fivetaku.whosup.win-*` | Windows 上的同名操作（`win-start`、`win-stop`、`win-status`、`win-open`、`win-desks-apply`、`win-desks-status`、`win-autoconf`），外加 `win-doctor` |
 
 ---
 
 ## 设置
 
-在插件配置目录（`herdr plugin config-dir fivetaku.whosup`；在 herdr 之外运行时为 `~/.config/whosup`）下的 `.env` 里写入 `KEY=value` 行。这个文件只在 `start` 启动服务器时读取，所以修改后要先运行 `stop` 操作，再运行 `start`。`desks-apply` 操作不读取 `.env`，代理命令取自 `desks.json` 里的 `agent_cmd`。
+在插件配置目录（`herdr plugin config-dir fivetaku.whosup`；在 herdr 之外运行时为 `~/.config/whosup`）下的 `.env` 里写入 `KEY=value` 行。这个文件只在 `start` 启动服务器时读取，所以修改后要先运行 `stop` 操作，再运行 `start`。这里写的值优先于自动设置，设置面板又优先于两者（见[值的来源与自动设置](#值的来源与自动设置)）。`desks-apply` 操作不读取 `.env`，代理命令取自 `desks.json` 里的 `agent_cmd`。
 
 | 键 | 默认值 | 含义 |
 |---|---|---|
 | `PORT` | 4790 | 端口被占用时使用下一个空闲端口 |
 | `OPEN_BROWSER` | 1 | herdr 启动时打开一次浏览器标签页 |
 | `AGENT_CMD` | claude | resume 和 new pane 使用的命令，如果你有包装脚本，就填在这里；**settings** 面板中改的值优先 |
-| `FRONT_APP` | 自动 | 跳转时要切到前台的 macOS 终端应用，例如 `Ghostty`。未设置时会找到正在显示 herdr 的应用；没有窗口时用 Terminal 打开新窗口。在 **settings** 面板里修改后无需重启即可生效 |
+| `FRONT_APP` | 自动 | 跳转时要切到前台的 macOS 终端应用，例如 `Ghostty`。未设置时由自动设置选择（[规则表](#值的来源与自动设置)中的 L4 通道）；没有窗口时用 Terminal 打开新窗口。在 Windows 上：留空 = 自动（有 Windows Terminal 就用它，否则 PowerShell 窗口）、`PowerShell`、`Windows Terminal` 或 `off`（任何值都接受）。在 **settings** 面板里修改后无需重启即可生效 |
 | `STALE_DAYS`（或 `WHOSUP_STALE_DAYS`） | 3 | 窗格多少天没有动静后标记为可收起 |
 | `WHOSUP_READONLY` | 0 | 设为 1 即只读：不能修改，也不列出文件夹 |
 | `WHOSUP_SEEN_SNOOZE_MIN` · `WHOSUP_RENOTIFY_MIN` · `WHOSUP_RENOTIFY_MAX` · `WHOSUP_GONE_MISSES` · `WHOSUP_STALE_COLLECT_SEC` · `WHOSUP_CLOSED_KEEP_DAYS` · `WHOSUP_OS_NOTIFY` · `WHOSUP_UNREACHABLE_TTL_H` · `WHOSUP_SPLIT_PCT` | 30 · 15 · 4 · 3 · 30 · 7 · 0 · 24 · 0 | 初始值；顶栏 **settings** 面板中改的值在这台电脑上优先 |
@@ -153,6 +159,7 @@ browser  ◄──  http://127.0.0.1:4790  ◄──  board server  ◄───
 | `HERDR_BIN_PATH`（或 `HERDR_BIN`） | 自动 | herdr 可执行文件路径；未设置时依次查找 `/opt/homebrew/bin`、`/usr/local/bin`、`~/.local/bin`、`PATH` |
 | `WHOSUP_RUNTIMES` | auto | 读取对象：`auto`（herdr 会话和 herdr-core 终端，有哪个读哪个）、`herdr` 或 `herdr-core` |
 | `HC_SOCKET` | 自动 | herdr-core 的套接字；未设置时从核心自己的 `core.lock` 读取（遵循 `HC_SESSION` 和 `XDG_STATE_HOME`） |
+| `WHOSUP_CLICK_TARGET` | terminal | 尚未选择的浏览器中点击后打开的位置：`terminal`、`web` 或 `both`；由首次运行卡片设置，**settings** 中的 *点击后打开的位置* 可在单个浏览器里覆盖 |
 | `HERDR_APP_BIN` · `HERDR_APP_NAME` · `HC_BIN` | `herdr-app` · `Herdr` · `hc` | Herdr 应用的命令（跳转、新标签页、关闭空间）、macOS 上要带到前台的应用名，以及在终端窗口中打开 herdr-core 终端所用的命令 |
 
 ### desk（可选）
@@ -176,12 +183,100 @@ herdr 自己也可以在重启后重新启动代理（`[session] resume_agents_o
 
 ---
 
+## 按环境设置
+
+### Herdr 桌面应用
+
+whosup 通过 Herdr 桌面应用的核心 herdr-core 读取应用里的终端。满足下面几点就无需任何配置：
+
+- **herdr-core 正在本机运行。** 核心会把套接字路径写入 `<state>/herdr-core/<session>/core.lock`（`<state>` 为 `XDG_STATE_HOME`，否则为 `~/.local/state`，在 Windows 上还会查看 `%LOCALAPPDATA%`；`<session>` 为 `HC_SESSION`，否则为 `default`）；设置了 `HC_SOCKET` 时以它为准。套接字存在期间就视为核心在运行。whosup 不会启动核心。
+- **`herdr-app` 在 `PATH` 中**（或设置 `HERDR_APP_BIN`）。跳转、新建标签页和关闭空间都通过它完成。没有它也能读取卡片。
+- **`hc` 在 `PATH` 中**（或设置 `HC_BIN`）。应用没有打开窗口时，用它在终端窗口中打开该终端。
+
+自动设置（L6 通道）会在安装时和每次启动时检查套接字和 `herdr-app`。点击 Herdr 应用的卡片，会在应用中显示该终端并把应用（`HERDR_APP_NAME`，默认 `Herdr`）切到前台；应用没有窗口时，会在终端窗口中打开 `hc attach <terminal>`。
+
+终端没有出现在看板上时，请检查：
+
+- `WHOSUP_RUNTIMES` 必须是 `auto`（默认）或包含 `herdr-core`；只写 `herdr` 会排除应用。
+- 如果给 whosup 设置了 `HC_SOCKET`、`HC_SESSION`、`XDG_STATE_HOME`，它们必须指向应用所用的同一个核心。
+- `node scripts/doctor.mjs` 会显示 core 行（套接字，或 *not running*）、查找过的状态目录，以及是否找到 `herdr-app`；`autoconf` 操作会显示 L6 通道及其依据（见[值的来源与自动设置](#值的来源与自动设置)）。
+- 在 Windows 上 herdr-core 是否通过 named pipe 监听，尚未确认。
+
+### ovis：在其他设备或手机上打开窗格
+
+[ovis](https://github.com/devswha/ovis) 是 herdr 的 Web 客户端（聊天、实时终端、手机应用）。whosup 只负责找到正在运行的 ovis 并填好地址，不会启动或停止它。
+
+```bash
+herdr plugin install devswha/ovis --yes          # 依据 ovis 的 INSTALL.md
+herdr plugin action invoke devswha.ovis.start
+```
+
+- 作为 herdr 插件安装的 ovis 会随 herdr 一起在 `http://127.0.0.1:7317` 启动，并跟随启动它的那个 herdr 会话的套接字。
+- 一个 ovis 服务器只对应一个 herdr 会话。要查看其他会话，就在另一个端口再启动一个 ovis 服务器，并设置 `PORT` 和 `HERDR_SOCKET=~/.config/herdr/sessions/<名称>/herdr.sock`（见 ovis INSTALL.md 的 Configuration）。whosup 会查看 7317–7330 端口。
+- whosup 在安装时和每次启动时检查这些端口（L7 通道）。只有当 `GET /api/health?scope=bridge` 用 ovis 自有的字段应答时才视为 ovis。会话取自监听该端口的进程的 `HERDR_SOCKET`（没有则取 `HERDR_SESSION`），macOS 用 `ps` 读取，Linux 用 `/proc`。对 herdr 列出的每个会话，填入地址 `http://127.0.0.1:<port>/?pane={pane}`。
+- 无法判断会话时（Windows、herdr 列表中没有的会话、同一会话有两个服务器），不填任何地址，并把该端口标为“需确认”。这时请在 **settings** 里自己填写地址。
+- 无论有没有 ovis，点击默认都会打开终端窗口。第一次打开看板时会出现一张卡片，汇总检测到的环境；如果有与会话对应的 ovis，还会询问点击后打开哪里：终端窗口、ovis 或两者。卡片中的选择保存在服务器上（`click_target`），作为所有浏览器的默认值；**settings** → *点击后打开的位置* 只在当前浏览器里修改选择和地址，浏览器里有自己保存的值时就用它。
+
+填入的地址是 `127.0.0.1`，所以会在运行 ovis 的电脑上打开。从其他设备访问时，把那个端口也转发过去（`ssh -L 4790:127.0.0.1:4790 -L 7317:127.0.0.1:7317 <host>`），或在 **settings** 里换成该设备能访问到的地址。在手机上请使用 ovis 自己的应用和中继（见 ovis 的 README）。要从看板打开窗格，看板不能是只读模式。
+
+### Windows
+
+whosup 也能在 Windows 上运行（Node 和 PowerShell，无需 `sh`）。插件里有 herdr 用 `node` 运行的 Windows 专用条目，所以安装和启动方式相同，操作名带 `win-` 前缀：
+
+```powershell
+herdr plugin install fivetaku/whosup --yes
+herdr plugin action invoke fivetaku.whosup.win-start
+herdr plugin action invoke fivetaku.whosup.win-doctor    # 只读检查本机
+herdr plugin action invoke fivetaku.whosup.win-autoconf  # 自动设置检测到的内容
+```
+
+如果想手动运行（在 whosup 目录下，于 **桌面会话** 中运行——不要通过 SSH，那样窗口不可见）：
+
+```powershell
+node scripts\doctor.mjs                 # whosup 能看到什么：Node、herdr、pipe、PowerShell、Windows Terminal、桌面会话
+node scripts\launch.mjs start           # 与 start 操作相同（也有 status · stop · open）
+# 或在前台直接运行；设置用 PowerShell 变量传入（VAR=值 是 sh 语法，这里不可用）：
+$env:FRONT_APP='Windows Terminal'; node bin\whosup.mjs
+```
+
+- 自动设置在安装时（`launch.mjs preflight`）和每次启动前运行。`PATH` 中有 `wt.exe` 时选择 **Windows Terminal**，否则点击时打开 PowerShell 窗口。
+- 通过 SSH 启动，或处于 Windows 会话 0（服务；先看 `SESSIONNAME`，没有时看进程的会话编号——桌面上的登录计划任务没有 `SESSIONNAME` 也算桌面）时，whosup 视为远程：桌面上什么也不会显示，所以既不打开浏览器，也不把窗口切到前台（*终端应用* = 关闭）。要用窗口，请从桌面会话启动。
+- 点击窗格会把显示该会话的终端窗口切到前台；没有这样的窗口时，会新开一个连接到该会话的 PowerShell 窗口。可在设置面板的 *终端应用* 中选择 **自动**、**PowerShell**、**Windows Terminal** 或 **关闭**（也可设置 `FRONT_APP`）。
+- `node bin\whosup.mjs` 不读取 `.env`；`launch.mjs` 和插件操作会读取（只有 `KEY=value` 行，不执行任何内容）。
+- 需要 Windows 版 Node 22.13+（[nodejs.org](https://nodejs.org)，或 nvm-windows、Volta、fnm）在 `PATH` 中，herdr 在 `PATH` 中（或设置 `HERDR_BIN_PATH`）。
+- 尚未在 Windows 真机上确认：Herdr 桌面应用（herdr-core）在 Windows 上是否通过 named pipe 监听，以及启动钩子返回后 herdr 是否让 whosup 继续运行。`win-doctor` 会显示这两点。在 Windows 上能找到 ovis 端口，但无法得知每个端口对应的会话，所以标为“需确认”。
+
+### 值的来源与自动设置
+
+每项设置按以下顺序取第一个找到的值：**设置面板 > 环境变量（含 `.env`）> 自动检测 > 内置默认值。** 你在面板或环境变量里设的值，自动设置永远不会改动；自动设置也不会写入 `.env` 或面板的值。
+
+- **设置面板**：保存在本机 whosup 的数据库中，立即生效。清空某一栏，就回到下一层的值。
+- **环境变量 / `.env`**：写在插件配置目录（`herdr plugin config-dir fivetaku.whosup`；在 herdr 之外为 `~/.config/whosup`）下 `.env` 里的 `KEY=value` 行。只在 `start` 启动服务器时读取，所以编辑后先运行 `stop`，再运行 `start`。
+- **自动检测**：在安装时（build 钩子）和每次启动前重新检查，写入状态目录（herdr 的插件状态目录；在 herdr 之外为 `~/.config/whosup`）下的 `auto.json`。服务器启动时，如果这个文件是刚写入的（同一平台、2 分钟内）就读取；否则（例如直接运行 `bin/whosup.mjs`）会重新检测并重写，检测失败时不带自动值启动。
+
+要查看检测结果，运行 `autoconf` 操作（Windows 上为 `win-autoconf`），或在 whosup 目录下运行 `node scripts/autoconf.mjs`（加 `--json` 输出 JSON）。它会列出每个通道的值和依据，并标出由环境变量胜出的值。运行中的看板会应答 `GET /api/autoconf`，`GET /api/settings` 的 `origins` 给出每项设置的来源。
+
+| 通道 | 检查什么 | 设为什么 | 在哪里修改 |
+|---|---|---|---|
+| L1 | 操作系统 | 仅报告：herdr 在 macOS 和 Linux 上运行 `sh` 条目，在 Windows 上运行 `node` 条目；Windows 上不提供系统通知选项 | — |
+| L2 | Node 22.13+ 与 `node:sqlite` | 版本更低时安装会给出提示并停止 | 升级 Node |
+| L3 | 是否为桌面会话：SSH（`SSH_CONNECTION`、`SSH_TTY`）、会话 0 的 Windows（无 `SESSIONNAME` 且会话编号为 0）、没有 `DISPLAY`/`WAYLAND_DISPLAY` 的 Linux | 远程时不打开浏览器（`OPEN_BROWSER` 0）；还会关闭把窗口切到前台（macOS 和 Windows，`FRONT_APP` 值为 `off`） | `OPEN_BROWSER`、`FRONT_APP`、*终端应用* |
+| L4 | 终端应用。macOS：当前显示 herdr 的应用，否则为已安装的 Ghostty、iTerm、WezTerm 或 kitty。Windows：`PATH` 中的 `wt.exe`。Linux：不检查 | macOS：没有窗口显示该会话时用来打开新窗口的应用（点击时仍切到正在显示该会话的应用，面板显示为*自动*）。Windows：使用的终端。找不到时用点击时显示 herdr 的应用，再没有则用 Terminal（macOS）或 PowerShell 窗口（Windows） | *终端应用*、`FRONT_APP` |
+| L5 | herdr：可执行文件、版本、运行中的会话 | 仅报告；找到 herdr 时读取 herdr 会话 | `HERDR_BIN_PATH`、`WHOSUP_RUNTIMES` |
+| L6 | Herdr 桌面应用：herdr-core 套接字、`herdr-app` 命令 | 仅报告；核心运行期间读取它的终端 | `WHOSUP_RUNTIMES`、`HC_SOCKET`、`HERDR_APP_*` |
+| L7 | 127.0.0.1:7317–7330 上的 ovis，以及每个服务器对应的 herdr 会话 | 每个会话的 Web 地址；点击仍打开终端窗口 | 首次运行卡片、*点击后打开的位置* 及每个会话的地址 |
+| L8 | `PATH` 中的 `claude`，否则 `codex`；Claude Code 的对话目录 | 恢复和新建窗格所用的代理命令；恢复能否找到对话 | **settings** 中的代理命令、`AGENT_CMD` |
+| L9 | macOS 辅助功能权限（点击把窗口切到前台时才知道） | 缺少权限时标记分屏不可用 | 系统设置 → 隐私与安全性 → 辅助功能 |
+| L10 | 从 `PORT`（4790）起的空闲端口 | 仅报告；whosup 会自己换到下一个空闲端口 | `PORT` |
+
+---
+
 ## 环境要求
 
 - [herdr](https://herdr.dev) 0.9.0 或更高版本。Herdr 桌面应用的终端（herdr-core）在运行时也会一并读取，两者有其一即可
 - Node.js 22.13 或更高版本（无需标志即可使用 `node:sqlite`）；不需要 bun，也无需构建
-- curl（`start`、`status` 和 `open` 操作用它做健康检查）
-- macOS 或 Linux
+- curl（在 macOS 和 Linux 上 `start`、`status` 和 `open` 操作用它做健康检查；Windows 用 Node 自带的 `fetch`）
+- macOS、Linux 或 Windows 10/11（PowerShell 5.1+，在桌面会话中运行；见 [Windows](#windows)）
 
 ---
 

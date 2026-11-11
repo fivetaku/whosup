@@ -5,13 +5,14 @@
 // 공간 = 터미널 라벨 herdr.space, 이름 = 라벨 where 의 " / " 앞.
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { createConnection } from 'node:net'
+import { connectTarget } from '../src/platform.mjs'
 
 const args = process.argv.slice(2)
 if (process.env.FAKE_APP_LOG) appendFileSync(process.env.FAKE_APP_LOG, `${JSON.stringify(args)}\n`)
 if (process.env.FAKE_APP_MODE === 'no_window') { process.stderr.write('herdr-app: no Herdr window at /nowhere/herdr-app.sock: No such file or directory (os error 2)\n'); process.exit(2) }
 
 const rpc = (method, params = {}) => new Promise((resolve, reject) => {
-  const sock = createConnection(process.env.HC_SOCKET)
+  const sock = createConnection(connectTarget(process.env.HC_SOCKET))   // 윈도우는 named pipe
   let buf = ''
   sock.setEncoding('utf8')
   sock.on('connect', () => sock.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method, params })}\n`))

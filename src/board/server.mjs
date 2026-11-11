@@ -1,13 +1,44 @@
 import { createServer } from 'node:http'
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { isWindows } from '../platform.mjs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { computeBoardAsync, markSeen, markUnseen, resumeFor, setPinned, setStashed, markReopened } from './board.mjs'
-import { getSettings, setSettings, settingSources, SETTING_RANGES } from '../settings.mjs'
+import { autoValues, clientDefaults, frontAppChoice, getSettings, setSettings, settingOrigins, settingSources, SETTING_RANGES, TEXT_SETTINGS } from '../settings.mjs'
+import { getMeta, setMeta } from '../db.mjs'
 import * as herdr from '../runtime/herdr.mjs'
 import * as core from '../runtime/core.mjs'
 import { collectAll, deskLabelOf, deskOf, noteChange, runtimeForDesk, runtimeOf } from '../runtime/index.mjs'
+// 자동 세팅(auto.json) 요약 + 첫 실행 확인 카드. 화면은 이것으로 "감지한 환경" 단락과 카드를 그린다.
+// first_run.show: 아직 카드를 닫은 적 없음(DB meta firstrun.done 없음, 읽기 전용 보기는 늘 false).
+// first_run.ask_click: 세션과 맞춘 ovis가 있을 때만 "칸을 누르면 어디로 열까요?"를 묻는다(없으면 요약과 "이대로 쓰기"만).
+export function autoconfView(db) {
+  const r = autoValues().result
+  const summary = r?.summary ? { ...r.summary } : null
+  const raise = herdr.raiseWarning()
+  if (summary) summary.split_available = raise === 'mac_accessibility' ? false : r.values?.split_available ?? null
+  const askClick = Boolean(summary?.ovis?.some((o) => o.confirmed))
+  return {
+    at: r?.at ?? null,
+    platform: r?.platform ?? null,
+    summary,
+    lanes: r?.lanes ?? [],
+    raise_warning: raise,
+    client_defaults: clientDefaults(db),
+    first_run: { show: !readonly() && !getMeta(db, 'firstrun.done'), ask_click: askClick, choices: TEXT_SETTINGS.click_target.choices, done_at: getMeta(db, 'firstrun.done') || null },
+  }
+}
+// 카드에서 고른 것을 사람이 정한 값으로 저장한다(click_target → 설정 패널 값). 고르지 않고 "이대로 쓰기"면 표시만 남긴다.
+export function firstRunDone(db, choice) {
+  if (choice !== undefined && choice !== null) {
+    const r = setSettings(db, { click_target: choice })
+    if (!r.ok) return r
+  }
+  setMeta(db, 'firstrun.done', new Date().toISOString())
+  return { ok: true, settings: getSettings(db), client_defaults: clientDefaults(db) }
+}
+
 // 보드에서 상태를 바꾼 직후 한 번 바로 수집한다 — 다음 수집 주기(3초)를 기다리지 않고 판이 따라오게.
 const collectNow = async (db) => { try { await collectAll(db, { source: 'board' }) } catch {} }
 
@@ -143,21 +174,23 @@ function readBody(req) {
 // 새 세션 창의 폴더 고르기: 홈 아래만, 숨김 폴더는 빼고, 이름순. 경로를 손으로 칠 필요가 없게 한다.
 const HOME = homedir()
 // Windows 경로(C:\\Users\\…)도 받도록 구분자 대신 relative로 판정 (Windows 실기기 QA: 폴더 탐색이 400)
-const underHome = (p) => { const r = relative(HOME, p); return p === HOME || (!!r && !r.startsWith('..') && !isAbsolute(r)) }
+// 윈도우 경로는 대소문자를 가리지 않는다: c:\users\me 도 홈 자체로 본다(REPORT 14번).
+const sameDir = (a, b) => (isWindows() ? a.toLowerCase() === b.toLowerCase() : a === b)
+const underHome = (p) => { const r = relative(HOME, p); return sameDir(p, HOME) || (!!r && !r.startsWith('..') && !isAbsolute(r)) }
 export function listDirs(path) {
   const p = resolve(path)
   if (!underHome(p)) return { ok: false, message: 'only folders under home' }
   let names = []
-  try { names = readdirSync(p, { withFileTypes: true }).filter((d) => !d.name.startsWith('.') && (d.isDirectory() || (d.isSymbolicLink() && process.platform !== 'win32' && isDir(join(p, d.name))))).map((d) => d.name) }
+  try { names = readdirSync(p, { withFileTypes: true }).filter((d) => !d.name.startsWith('.') && (d.isDirectory() || (d.isSymbolicLink() && !isWindows() && isDir(join(p, d.name))))).map((d) => d.name) }
   catch (err) { return { ok: false, message: String(err.code || err.message) } }
   names.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
-  return { ok: true, path: p, parent: p === HOME ? null : dirname(p), home: HOME, sep, dirs: names.slice(0, 500), more: Math.max(0, names.length - 500) }
+  return { ok: true, path: p, parent: sameDir(p, HOME) ? null : dirname(p), home: HOME, sep, dirs: names.slice(0, 500), more: Math.max(0, names.length - 500) }
 }
 const isDir = (p) => { try { return statSync(p).isDirectory() } catch { return false } }
 // 최근에 칸이 열렸던 폴더(지금도 있는 것만), 최근 활동 순.
 export function recentFolders(db, limit = 12) {
   const rows = db.prepare(`SELECT cwd, MAX(COALESCE(last_user_msg_at, '')) AS t, MAX(updated_at) AS u FROM session WHERE cwd != '' GROUP BY cwd ORDER BY t DESC, u DESC LIMIT 60`).all()
-  return rows.map((r) => r.cwd).filter((c) => underHome(c) && c !== HOME && existsSync(c)).slice(0, limit)
+  return rows.map((r) => r.cwd).filter((c) => underHome(c) && !sameDir(c, HOME) && existsSync(c)).slice(0, limit)
 }
 
 export function createBoardServer(db, { heartbeatPath } = {}) {
@@ -167,7 +200,7 @@ export function createBoardServer(db, { heartbeatPath } = {}) {
   // 가려진 탭이라도 붙어 있으면 그 사실을 적어 둔다 — herdr가 켜질 때 탭을 또 열지 않게(plugin.sh).
   const connectedPath = heartbeatPath ? join(dirname(heartbeatPath), 'board-connected') : null
   const touchConnected = () => { if (connectedPath && clients.size) { try { writeFileSync(connectedPath, new Date().toISOString()) } catch {} } }
-  herdr.setFrontApp(getSettings(db).front_app)   // 설정 패널 값 > FRONT_APP > ''(자동)
+  herdr.setFrontApp(...frontAppChoice(db))   // 설정 패널 값 > FRONT_APP > ''(자동, 자동 세팅 앱은 따로)
   const beat = setInterval(() => { touchConnected(); for (const c of clients) c.write(': ping\n\n') }, 5000)
   beat.unref()
   const server = createServer(async (req, res) => {
@@ -199,7 +232,8 @@ export function createBoardServer(db, { heartbeatPath } = {}) {
         return
       }
       if (req.method === 'GET' && url.pathname === '/api/warm') { if (!readonly()) herdr.warmClick(); return send(200, '{"ok":true}') }
-      if (req.method === 'GET' && url.pathname === '/api/settings') return send(200, JSON.stringify({ settings: getSettings(db), ranges: SETTING_RANGES, sources: settingSources(db), detected: await herdr.detectTerminal() }))
+      if (req.method === 'GET' && url.pathname === '/api/settings') return send(200, JSON.stringify({ settings: getSettings(db), ranges: SETTING_RANGES, sources: settingSources(db), origins: settingOrigins(db), detected: await herdr.detectTerminal(), autoconf: autoconfView(db) }))
+      if (req.method === 'GET' && url.pathname === '/api/autoconf') return send(200, JSON.stringify(autoconfView(db)))
       // 읽기 전용이면 새 세션 열기가 막혀 있으므로 홈 아래 폴더 목록도 내주지 않는다.
       if (req.method === 'GET' && (url.pathname === '/api/folders' || url.pathname === '/api/dirs') && readonly()) return send(403, JSON.stringify({ error: 'read-only', code: 'read_only' }))
       if (req.method === 'GET' && url.pathname === '/api/folders') return send(200, JSON.stringify({ home: homedir(), recent: recentFolders(db) }))
@@ -247,7 +281,8 @@ export function createBoardServer(db, { heartbeatPath } = {}) {
             } finally { deskBusy.delete(session) }
           }
           // 터미널 앱은 저장하는 즉시 다음 클릭부터 쓴다(재시작 없음).
-          if (url.pathname === '/api/settings') { const r = setSettings(db, body.settings); if (r.ok) herdr.setFrontApp(r.settings.front_app); return send(r.ok ? 200 : 400, JSON.stringify(r)) }
+          if (url.pathname === '/api/settings') { const r = setSettings(db, body.settings); if (r.ok) herdr.setFrontApp(...frontAppChoice(db)); return send(r.ok ? 200 : 400, JSON.stringify(r)) }
+          if (url.pathname === '/api/first-run') { const r = firstRunDone(db, body.choice); return send(r.ok ? 200 : 400, JSON.stringify(r)) }
           if (url.pathname === '/api/new') {
             const { session, cwd } = body
             const rt = runtimeForDesk(session)

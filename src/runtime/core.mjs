@@ -9,6 +9,7 @@ import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { STATE_DIR } from '../db.mjs'
+import { commandFor, connectTarget, isWindows } from '../platform.mjs'
 import * as herdr from './herdr.mjs'
 // A cycle on purpose (context.mjs reads screens through this module): only used inside functions, never while loading.
 import { isTrustScreen } from '../board/context.mjs'
@@ -27,11 +28,19 @@ const spaceOf = (desk) => desk.slice(DESK_PREFIX.length)
 
 // ── where the core listens ──────────────────────────────────────────
 // HC_SOCKET wins. Otherwise the core writes its socket path into <state>/herdr-core/<session>/core.lock.
+// Windows (assumption, not checked on a Windows machine: herdr-core's Windows build is unknown): the state folder may be
+// %LOCALAPPDATA% instead of ~/.local/state, so both are looked at, and the socket is reached as a named pipe by the same
+// rule herdr uses (\\.\pipe\<socket path>, see platform.mjs connectTarget). The socket file itself is what tells
+// "running" (available), as with herdr where that file holds pid:nonce.
 const coreSession = () => process.env.HC_SESSION || 'default'
+export const stateDirs = () => (process.env.XDG_STATE_HOME ? [process.env.XDG_STATE_HOME]
+  : [...(isWindows() && process.env.LOCALAPPDATA ? [process.env.LOCALAPPDATA] : []), join(homedir(), '.local', 'state')])
 export function socketPath() {
   if (process.env.HC_SOCKET) return process.env.HC_SOCKET
-  const state = process.env.XDG_STATE_HOME || join(homedir(), '.local', 'state')
-  try { return readFileSync(join(state, 'herdr-core', coreSession(), 'core.lock'), 'utf8').trim() || null } catch { return null }
+  for (const state of stateDirs()) {
+    try { const p = readFileSync(join(state, 'herdr-core', coreSession(), 'core.lock'), 'utf8').trim(); if (p) return p } catch {}
+  }
+  return null
 }
 // Running = the socket is there. No core, or a stopped one, is simply "not here" (no error, no cards).
 export const available = () => { const p = socketPath(); return Boolean(p) && existsSync(p) }
@@ -42,7 +51,7 @@ export function rpc(method, params = {}, { timeoutMs = 5000 } = {}) {
   return new Promise((resolve, reject) => {
     const path = socketPath()
     if (!path) return reject(notRunning())
-    const sock = createConnection(path)
+    const sock = createConnection(connectTarget(path))
     let buf = ''
     let settled = false
     // Every way out goes through here once: a reply, an error reply, a timeout, a socket error, the core hanging up.
@@ -185,7 +194,8 @@ export function sidFromArgv(argv = []) {
 }
 let psCache = { at: 0, kids: null }   // kids: a promise, so terminals looked up at the same moment share one ps run
 function childMap() {
-  if (process.platform === 'win32') return Promise.resolve(new Map())
+  // Windows: no ps. Not looked up there (REPORT 15): the id is read from the argv below instead.
+  if (isWindows()) return Promise.resolve(new Map())
   if (psCache.kids && Date.now() - psCache.at < 5000) return psCache.kids
   const kids = new Promise((resolve) => execFile('/bin/ps', ['-axo', 'pid=,ppid='], { encoding: 'utf8', timeout: 4000, killSignal: 'SIGKILL' }, (err, out) => {
     const map = new Map()
@@ -286,7 +296,7 @@ export function watchEvents(onChange) {
   if (!path || !existsSync(path)) { stopWatching(); return }
   if (watch && watch.path === path && !watch.sock.destroyed) return
   stopWatching()
-  const sock = createConnection(path)
+  const sock = createConnection(connectTarget(path))
   const w = { sock, path }
   watch = w
   let buf = ''
@@ -322,7 +332,8 @@ export const appName = () => process.env.HERDR_APP_NAME || 'Herdr'
 // Resolves { ok, out }. ok=false with code 'no_app' (command not installed) | 'no_window' (the app is not open) | 'failed'.
 function app(args, { timeout = 5000 } = {}) {
   return new Promise((resolve) => {
-    execFile(appBin(), args, { encoding: 'utf8', timeout, killSignal: 'SIGKILL', maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) => {
+    const [file, argv] = commandFor(appBin(), args)
+    execFile(file, argv, { encoding: 'utf8', timeout, killSignal: 'SIGKILL', maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (!err) return resolve({ ok: true, out: stdout })
       const text = `${stderr || ''}${err.message || ''}`
       resolve({ ok: false, code: err.code === 'ENOENT' ? 'no_app' : /no Herdr window/i.test(text) ? 'no_window' : 'failed', message: text.trim().split('\n')[0].slice(0, 300) })
@@ -383,11 +394,14 @@ async function show(terminal, { raise = true, split = 0 } = {}) {
   // The session name and the socket this click talked to are always spelled out (the window's own shell may point `hc`
   // at another core); the state folders only when this server was given them.
   const sock = socketPath()
-  const where = [`HC_SESSION=${coreSession()}`, ...(sock ? [`HC_SOCKET=${sock}`] : []),
-    ...['XDG_STATE_HOME', 'XDG_RUNTIME_DIR'].filter((k) => process.env[k]).map((k) => `${k}=${process.env[k]}`)]
-  const argv = ['/usr/bin/env', ...where, hc, 'attach', terminal]
+  const env = { HC_SESSION: coreSession(), ...(sock ? { HC_SOCKET: sock } : {}),
+    ...Object.fromEntries(['XDG_STATE_HOME', 'XDG_RUNTIME_DIR'].filter((k) => process.env[k]).map((k) => [k, process.env[k]])) }
+  // Windows has no /usr/bin/env: the variables go to the window as PowerShell $env: lines (herdr.openWindowRunning).
+  if (isWindows()) return windows.openWindowRunning([hc, 'attach', terminal], `core-${terminal}`, env)
+  const argv = ['/usr/bin/env', ...Object.entries(env).map(([k, v]) => `${k}=${v}`), hc, 'attach', terminal]
   return windows.openWindowRunning(argv, `core-${terminal}`)
 }
+export const __showForTest = (terminal, opts) => show(terminal, opts)   // tests: the window step alone
 export async function focus(ref, opts = {}) {
   const terminal = terminalOf(ref)
   const { run = null, seq } = opts
