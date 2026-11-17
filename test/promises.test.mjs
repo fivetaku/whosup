@@ -25,7 +25,7 @@ const board = (db, min) => computeBoard(db, { now: at(min), withContext: false }
 const ids = (cards) => cards.map((c) => c.ref)
 const tick = (db, rt, min) => collectOnce(db, rt, { now: at(min) })
 
-test('promise1: 자정 전에 손 든 미확인 칸은 다음 날에도 입력 필요로 남는다', () => {
+test('promise1: 자정 전에 손 든 미확인 세션은 다음 날에도 입력 필요로 남는다', () => {
   const db = openDb(':memory:')
   const rt = fakeRuntime([pane('main/w1:p3', 'blocked'), pane('main/w1:p1', 'working')])
   tick(db, rt, 0)
@@ -46,7 +46,7 @@ test('promise1: 확인함은 30분 미루기 — 지나면 다시 올라오고, 
   assert.deepEqual(ids(b.columns.snoozed), ['main/w1:p1'])
   assert.ok(b.columns.snoozed[0].snoozed_until)
   assert.equal(b.next, null)
-  assert.deepEqual(ids(board(db, 32).columns.red), ['main/w1:p1'], '30분 뒤 다시 손 든 칸')
+  assert.deepEqual(ids(board(db, 32).columns.red), ['main/w1:p1'], '30분 뒤 다시 손 든 세션')
   markUnseen(db, id, at(11))
   assert.deepEqual(ids(board(db, 12).columns.red), ['main/w1:p1'], '확인 취소 즉시 복귀')
 })
@@ -72,7 +72,7 @@ test('promise1: 확인 뒤 대기 종류가 바뀌면(blocked→done) 새 사건
   assert.deepEqual(ids(b.columns.yellow), ['main/w1:p1'])
 })
 
-test('promise1: 수집 공백 뒤 첫 수집은 손 든 칸을 새 사건으로 연다', () => {
+test('promise1: 수집 공백 뒤 첫 수집은 손 든 세션을 새 사건으로 연다', () => {
   const db = openDb(':memory:')
   const rt = fakeRuntime([pane('main/w1:p1', 'done')])
   tick(db, rt, 0)
@@ -83,7 +83,7 @@ test('promise1: 수집 공백 뒤 첫 수집은 손 든 칸을 새 사건으로 
   assert.equal(board(db, 20.1).columns.yellow.length, 1)
 })
 
-test('promise5: 조회하지 못한 herdr 세션의 칸은 사라지지 않고 확인 불가로 남는다', () => {
+test('promise5: 조회하지 못한 데스크의 세션은 사라지지 않고 확인 불가로 남는다', () => {
   const db = openDb(':memory:')
   const rt = fakeRuntime([pane('side/w1:p1', 'blocked'), pane('main/w1:p1', 'working')])
   tick(db, rt, 0)
@@ -97,7 +97,7 @@ test('promise5: 조회하지 못한 herdr 세션의 칸은 사라지지 않고 �
   assert.equal(b.closed.length, 0)
 })
 
-test('promise5: 정말 없어진 칸은 연속 3회 안 보일 때만 닫힘으로 옮긴다', () => {
+test('promise5: 정말 없어진 세션은 연속 3회 안 보일 때만 닫힘으로 옮긴다', () => {
   const db = openDb(':memory:')
   const rt = fakeRuntime([pane('main/w1:p1', 'blocked'), pane('main/w1:p2', 'working')])
   tick(db, rt, 0)
@@ -113,7 +113,7 @@ test('promise5: 정말 없어진 칸은 연속 3회 안 보일 때만 닫힘으�
   assert.deepEqual(b.closed.map((c) => [c.ref, c.reason]), [['main/w1:p1', 'gone']])
 })
 
-test('promise5: herdr에 아예 닿지 않으면 칸을 건드리지 않고 끊김을 알린다', () => {
+test('promise5: herdr에 아예 닿지 않으면 세션을 건드리지 않고 끊김을 알린다', () => {
   const db = openDb(':memory:')
   const rt = fakeRuntime([pane('main/w1:p1', 'blocked')])
   tick(db, rt, 0)
@@ -134,7 +134,7 @@ test('order: 실패 → 입력 필요 → 답변 도착, 각 무리 안은 오�
   assert.deepEqual(out.map((x) => x.id), [4, 3, 2, 1])
 })
 
-test('order: 보드 응답의 order 첫 칸이 곧 다음 1건이다', () => {
+test('order: 보드 응답의 order 첫 세션이 곧 다음 1건이다', () => {
   const db = openDb(':memory:')
   const rt = fakeRuntime([pane('main/w1:p1', 'done'), pane('main/w1:p2', 'blocked')])
   tick(db, rt, 0)
@@ -153,7 +153,7 @@ test('promise3: 이어서 할 것은 개수 제한 없이 모두 실린다', () 
   assert.equal(b.carry_total, 60)
 })
 
-test('promise3: 보관한 칸은 최근 닫힘으로 가고 되돌릴 수 있다, 핀은 유지된다', () => {
+test('promise3: 보관한 세션은 최근 닫힘으로 가고 되돌릴 수 있다, 핀은 유지된다', () => {
   const db = openDb(':memory:')
   const rt = fakeRuntime([pane('main/w1:p1', 'idle'), pane('main/w1:p2', 'blocked')])
   tick(db, rt, 0)
@@ -174,7 +174,7 @@ test('promise3: 보관한 칸은 최근 닫힘으로 가고 되돌릴 수 있다
 
 test('settings: 범위 밖 값은 저장하지 않고, 기본값은 PRD 수치다', () => {
   const db = openDb(':memory:')
-  assert.deepEqual(getSettings(db), { seen_snooze_min: 30, renotify_min: 15, renotify_max: 4, gone_misses: 3, stale_collect_sec: 30, closed_keep_days: 7, stale_days: 3, os_notify: 0, unreachable_ttl_h: 24, split_pct: 0, agent_cmd: process.env.AGENT_CMD || 'claude', front_app: process.env.FRONT_APP || '', click_target: 'terminal' })   // click_target: 2회차 첫 실행 카드 선택(기본 터미널)
+  assert.deepEqual(getSettings(db), { seen_snooze_min: 30, renotify_min: 15, renotify_max: 4, gone_misses: 3, stale_collect_sec: 30, closed_keep_days: 7, stale_days: 3, os_notify: 0, unreachable_ttl_h: 24, split_pct: 0, agent_cmd: process.env.AGENT_CMD || 'claude', front_app: process.env.FRONT_APP || '', click_target: 'terminal', core_target: 'app' })   // click_target: 세션을 여는 곳(기본 터미널 창), core_target: Herdr 앱 세션을 여는 곳(기본 Herdr 앱)
   const r = setSettings(db, { renotify_min: 5, gone_misses: 0 })
   assert.equal(r.ok, false)
   assert.equal(getSettings(db).renotify_min, 15, '하나라도 틀리면 아무것도 저장하지 않는다')
@@ -203,7 +203,7 @@ test('folders: 홈 아래 폴더만 보이고, 숨김 폴더는 뺀다', async (
   assert.equal(listDirs(homedir() + '/../..').ok, false, '.. 로 홈 밖으로 못 나간다')
 })
 
-test('promise4: macOS 알림은 기본 끔, 켜면 처음 1회 + 15분 간격 최대 4회, 미룬 칸·첫 수집은 보내지 않는다', async () => {
+test('promise4: macOS 알림은 기본 끔, 켜면 처음 1회 + 15분 간격 최대 4회, 미룬 세션·첫 수집은 보내지 않는다', async () => {
   const { notifyPass } = await import('../src/notify.mjs')
   const db = openDb(':memory:')
   const rt = fakeRuntime([pane('main/w1:p1', 'blocked'), pane('main/w1:p2', 'done')])
@@ -253,7 +253,7 @@ test('promise1: 개편 전 DB(대기 종류 비어 있음)를 올려도 원래 �
   assert.equal(board(db, 1).columns.red[0].attention_since, at(0).toISOString())
 })
 
-test('promise5: 서버를 끈 세션의 칸은 꺼짐으로 남고 손 든 칸·순번에서 빠진다', () => {
+test('promise5: 서버를 끈 데스크의 세션은 꺼짐으로 남고 손 든 세션·순번에서 빠진다', () => {
   const db = openDb(':memory:')
   const rt = fakeRuntime([pane('side/w1:p1', 'blocked'), pane('main/w1:p1', 'blocked')])
   tick(db, rt, 0)
@@ -268,7 +268,7 @@ test('promise5: 서버를 끈 세션의 칸은 꺼짐으로 남고 손 든 칸·
   assert.equal(b.closed.length, 0)
 })
 
-test('D1: 최근 닫힘에서 이어서 연 칸은 목록에서 빠진다(새 칸으로 다시 잡힌다)', () => {
+test('D1: 최근 닫힘에서 이어서 연 세션은 목록에서 빠진다(새 세션으로 다시 잡힌다)', () => {
   const db = openDb(':memory:')
   const rt = fakeRuntime([pane('main/w1:p1', 'idle'), pane('main/w1:p2', 'working')])
   tick(db, rt, 0)
@@ -280,14 +280,14 @@ test('D1: 최근 닫힘에서 이어서 연 칸은 목록에서 빠진다(새 �
   assert.equal(board(db, 0.21).closed.length, 0, '이어서 연 뒤에는 최근 닫힘에 남지 않는다')
 })
 
-test('D3: 끝난 칸을 유휴로만 알리는 런타임에서 진행 중 → 유휴는 답변 도착으로 올라오고, 새 요청 전까지 유지된다', () => {
+test('D3: 끝난 세션을 유휴로만 알리는 런타임에서 진행 중 → 유휴는 답변 도착으로 올라오고, 새 요청 전까지 유지된다', () => {
   const db = openDb(':memory:')
   const rt = { ...fakeRuntime([pane('w/w1:p1', 'working', { }), pane('w/w1:p2', 'idle')]), IDLE_AFTER_WORK_IS_DONE: true }
   rt.state = { panes: [pane('w/w1:p1', 'working'), pane('w/w1:p2', 'idle')], unreachable: [], fail: null }
   tick(db, rt, 0)
   rt.state.panes = [pane('w/w1:p1', 'idle'), pane('w/w1:p2', 'idle')]
   tick(db, rt, 0.05)
-  assert.deepEqual(ids(board(db, 0.06).columns.yellow), ['w/w1:p1'], '진행 중이던 칸만 답변 도착')
+  assert.deepEqual(ids(board(db, 0.06).columns.yellow), ['w/w1:p1'], '진행 중이던 세션만 답변 도착')
   tick(db, rt, 0.1); tick(db, rt, 0.15)
   assert.deepEqual(ids(board(db, 0.16).columns.yellow), ['w/w1:p1'], '다음 수집에서도 유지')
 })

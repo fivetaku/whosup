@@ -1,4 +1,4 @@
-// 이동 시 앞으로 올릴 터미널 찾기: 앱 인스턴스가 여러 개여도 그 세션을 붙든 인스턴스만 고른다.
+// 이동 시 앞으로 올릴 터미널 찾기: 앱 인스턴스가 여러 개여도 그 데스크를 붙든 인스턴스만 고른다.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { appToOpen, isOffApp, openerFor, openerForArgv, terminalHostsFor, terminalPidsFor } from '../src/runtime/herdr.mjs'
@@ -22,13 +22,13 @@ const PS = `
   501   500 /opt/homebrew/bin/herdr --session air
 `
 
-test('jump: 세션을 붙든 터미널 인스턴스만 고른다(서버·다른 세션 제외)', () => {
+test('jump: 데스크를 붙든 터미널 인스턴스만 고른다(서버·다른 데스크 제외)', () => {
   assert.deepEqual(terminalPidsFor(PS, 'main', 'Ghostty'), [100])
   assert.deepEqual(terminalPidsFor(PS, 'side', 'Ghostty'), [200])
   assert.deepEqual(terminalPidsFor(PS, 'default', 'Ghostty'), [300])
 })
 
-test('jump: 창이 없는 세션·다른 앱의 창은 고르지 않는다', () => {
+test('jump: 창이 없는 데스크·다른 앱의 창은 고르지 않는다', () => {
   assert.deepEqual(terminalPidsFor(PS, 'air', 'Ghostty'), [])
   assert.deepEqual(terminalPidsFor(PS, 'air', 'iTerm'), [500])
   assert.deepEqual(terminalPidsFor(PS, 'nope', 'Ghostty'), [])
@@ -48,7 +48,7 @@ const PS2 = `
   801   800 /opt/homebrew/bin/herdr --session remote
 `
 
-test('auto: 앱을 정하지 않아도 그 세션을 보여 주는 앱을 찾는다(앱 이름과 함께)', () => {
+test('auto: 앱을 정하지 않아도 그 데스크를 보여 주는 앱을 찾는다(앱 이름과 함께)', () => {
   assert.deepEqual(terminalHostsFor(PS, 'main'), [{ pid: 100, app: 'Ghostty' }])
   assert.deepEqual(terminalHostsFor(PS, 'air'), [{ pid: 500, app: 'iTerm' }])
   assert.deepEqual(terminalHostsFor(PS2, 'term'), [{ pid: 700, app: 'Terminal' }])
@@ -59,7 +59,7 @@ test('auto: 앱 안의 도우미 앱은 건너뛰고 창을 가진 본체를 고
   assert.deepEqual(terminalHostsFor(PS2, 'code'), [{ pid: 600, app: 'Visual Studio Code' }])
 })
 
-test('auto: 세션을 가리지 않으면 herdr를 보여 주는 앱 전부(서버 프로세스 제외), 최근 것 먼저', () => {
+test('auto: 데스크를 가리지 않으면 herdr를 보여 주는 앱 전부(서버 프로세스 제외), 최근 것 먼저', () => {
   assert.deepEqual(terminalHostsFor(PS, null).map((h) => h.app), ['iTerm', 'Ghostty', 'Ghostty', 'Ghostty'])
   assert.deepEqual(terminalHostsFor(PS, null).map((h) => h.pid), [500, 300, 200, 100])
 })
@@ -86,7 +86,7 @@ test('새 창을 열 앱: 고른 앱 > 지금 herdr를 보여 주는 앱(여는 
   assert.equal(appToOpen('', ''), 'Terminal', '아무것도 없으면 기본 터미널')
 })
 
-test('자동 세팅 앱(L4)은 고른 앱이 아니라 새 창 앱의 후보: 떠 있는 앱 > 자동 앱 > 기본 터미널, off는 끔', () => {
+test('자동 감지 앱(L4)은 고른 앱이 아니라 새 창 앱의 후보: 떠 있는 앱 > 자동 앱 > 기본 터미널, off는 끔', () => {
   assert.equal(appToOpen('', PS, 'Terminal'), 'Ghostty', '떠 있는 앱이 자동 앱보다 먼저')
   assert.equal(appToOpen('', '', 'Ghostty'), 'Ghostty', '떠 있는 앱이 없으면 자동 앱')
   assert.equal(appToOpen('', '', 'iTerm'), 'Terminal', '여는 방법을 모르는 자동 앱이면 기본 터미널')
@@ -121,7 +121,7 @@ test('설정 front_app: 기본은 빈 값(자동), 저장값 > FRONT_APP, 이상
     assert.equal(getSettings(db).front_app, 'Ghostty')
     assert.equal(settingSources(db).front_app, 'env')
     assert.equal(setSettings(db, { front_app: 'Terminal' }).ok, true)
-    assert.equal(getSettings(db).front_app, 'Terminal', '설정 패널 값이 환경변수보다 먼저')
+    assert.equal(getSettings(db).front_app, 'Terminal', '설정 값이 환경변수보다 먼저')
     assert.equal(settingSources(db).front_app, 'saved')
     for (const bad of ['Term"inal', 'a; echo hi', 'x'.repeat(61), 'tell app\nfoo']) assert.equal(setSettings(db, { front_app: bad }).ok, false, bad)
     assert.equal(getSettings(db).front_app, 'Terminal')

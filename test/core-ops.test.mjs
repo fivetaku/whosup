@@ -1,10 +1,10 @@
-// herdr-core 런타임 — 조작(이동·닫기·이어서 열기·새 세션·줄 끄고 켜기)과 서버의 길 찾기.
+// herdr-core 런타임 — 조작(이동·닫기·이어서 열기·새 세션·데스크 끄고 켜기)과 서버의 길 찾기.
 // 가짜 코어(소켓)와 가짜 herdr-app만 쓴다. 실제 코어·앱·herdr·터미널 창은 건드리지 않는다(raise:false).
 import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { startFakeCore, term, agentTerm } from '../test-support/fake-core.mjs'
 import { fileURLToPath } from 'node:url'
 
@@ -31,6 +31,10 @@ mkdirSync(process.env.CLAUDE_PROJECTS_DIR, { recursive: true })
 const WORK = join(dir, 'work'); mkdirSync(WORK)
 
 const core = await import('../src/runtime/core.mjs')
+// 새 터미널의 셸이 뜨기를 기다리는 일(core.mjs shellReady)은 이 파일의 시험에서는 끈다: 가짜 코어의 화면은 비어 있어 한도까지 기다리게 된다(그 동작의 시험은 test/ovis-app.test.mjs)
+core._setShellWait({ maxMs: 0 })
+// 자기 서버로 코어를 보여 주는 앱의 서버 찾기가 이 기계의 실제 등록부를 읽지 않게 한다(실제 HOME 에서 돌려도 실제 앱의 서버에 묻지 않는다)
+;(await import('../src/runtime/ovis.mjs'))._setLookup({ registryDirs: () => [], userDataDirs: () => [] })
 const { collectAll, noteChange } = await import('../src/runtime/index.mjs')
 const { createBoardServer, openSession, resumeSession, markGoneNow, _clearResumeHolds } = await import('../src/board/server.mjs')
 const { clearContextCache } = await import('../src/board/context.mjs')
@@ -51,7 +55,7 @@ const liveAddrs = () => [...fake.terminals.values()].filter((t) => t.state === '
 // 대화 기록 파일(이어서 열기 대상)
 const transcript = (sid, cwd) => { const d = join(process.env.CLAUDE_PROJECTS_DIR, cwd.replace(/[^A-Za-z0-9]/g, '-')); mkdirSync(d, { recursive: true }); writeFileSync(join(d, `${sid}.jsonl`), `${JSON.stringify({ type: 'user', timestamp: new Date().toISOString(), message: { content: 'hello' } })}\n`) }
 
-test('이동: Herdr 앱에 그 터미널의 칸으로 가라고 시킨다(pane.focus --terminal)', async () => {
+test('이동: Herdr 앱에 그 터미널의 pane으로 가라고 시킨다(pane.focus --terminal)', async () => {
   reset()
   fake.add(agentTerm('t4', 'blocked', { kind: 'question', msg: 'answer: go?', labels: SPACE }))
   const db = openDb(':memory:'); await collectAll(db)
@@ -60,7 +64,7 @@ test('이동: Herdr 앱에 그 터미널의 칸으로 가라고 시킨다(pane.f
   assert.deepEqual(doCalls(), [['pane.focus', { terminal: 't4' }]])
 })
 
-test('이동: 답변 도착 카드를 보드에서 열면 본 것으로 적는다 → 다음 수집에서 쉼으로 내려간다(앱 없이 쓸 때도)', async () => {
+test('이동: 답변 도착 세션을 보드에서 열면 본 것으로 적는다 → 다음 수집에서 쉼으로 내려간다(앱 없이 쓸 때도)', async () => {
   reset()
   process.env.FAKE_APP_MODE = 'no_window'
   fake.add(agentTerm('t4', 'done', { labels: SPACE, turn: 2 }))
@@ -74,22 +78,22 @@ test('이동: 답변 도착 카드를 보드에서 열면 본 것으로 적는�
   // 새 턴이 끝나면 다시 답변 도착
   fake.set('t4', { turn: 3 }); await collectAll(db)
   assert.equal(db.prepare('SELECT status FROM session WHERE id = ?').get(id).status, 'done')
-  // 끝내자마자 idle로 돌아가는 에이전트(Codex)의 답변 도착 카드도 열면 본 것으로 적힌다(격리 코어의 실제 Codex에서 찾은 빈틈)
+  // 끝내자마자 idle로 돌아가는 에이전트(Codex)의 답변 도착 세션도 열면 본 것으로 적힌다(격리 코어의 실제 Codex에서 찾은 빈틈)
   fake.set('t4', { status: { app: 'codex', state: 'idle' }, turn: 4 }); await collectAll(db)
-  const cid = idOf(db, 't4')                         // 다른 에이전트가 그 터미널을 차지했다: 새 카드다
+  const cid = idOf(db, 't4')                         // 다른 에이전트가 그 터미널을 차지했다: 새 세션이다
   assert.notEqual(cid, id)
   assert.equal(db.prepare('SELECT status FROM session WHERE id = ?').get(cid).status, 'done')
   await openSession(db, cid, 1.6, { raise: false })
   assert.equal(fake.terminals.get('t4').labels['whosup.seen'], '4')
   await collectAll(db)
   assert.equal(db.prepare('SELECT status FROM session WHERE id = ?').get(cid).status, 'idle')
-  // 쉬는 카드를 여는 것은 아무것도 적지 않는다
+  // 쉬는 세션을 여는 것은 아무것도 적지 않는다
   fake.calls.length = 0
   await openSession(db, cid, 1.7, { raise: false })
   assert.equal(fake.calls.filter((c) => c.method === 'terminal.label').length, 0)
 })
 
-test('이동: 앱에 그 터미널을 보여 주는 칸이 없으면 칸을 만들어 달라고 한 뒤 간다(terminal.keep)', async () => {
+test('이동: 앱에 그 터미널을 보여 주는 pane이 없으면 pane을 만들어 달라고 한 뒤 간다(terminal.keep)', async () => {
   reset()
   fake.add(term('t5'))                                      // 공간 밖 터미널
   const db = openDb(':memory:'); await collectAll(db)
@@ -105,7 +109,7 @@ test('이동: 앱 창이 없으면(종료 코드 2) 오류 없이 넘어간다 �
   const db = openDb(':memory:'); await collectAll(db)
   const r = await openSession(db, idOf(db, 't4'), 3, { raise: false })
   assert.deepEqual([r.ok, r.window], [true, 'skipped'])
-  assert.deepEqual(doCalls().map((c) => c[0]), ['pane.focus'])        // 창이 없으면 칸 만들기를 시도하지 않는다
+  assert.deepEqual(doCalls().map((c) => c[0]), ['pane.focus'])        // 창이 없으면 앱의 pane 만들기를 시도하지 않는다
 })
 
 test('이동(창 올리기 켬): 앱이 있으면 앱을 앞으로, 앱 창이 없으면 터미널 창에서 hc attach로 연다', async () => {
@@ -139,6 +143,28 @@ test('이동(창 올리기 켬): 앱이 있으면 앱을 앞으로, 앱 창이 �
   core._setWindowOps({ raiseApp: async () => 'off', openWindowRunning: async () => 'off' })
 })
 
+test('설정 core_target=terminal: Herdr 앱이 열려 있어도 앱을 거치지 않고 터미널 창에서 연다. app으로 돌리면 다시 앱으로 간다', async () => {
+  reset()
+  const seen = []
+  core._setWindowOps({ raiseApp: async (name) => { seen.push(['raise', name]); return 'raised' }, openWindowRunning: async (argv) => { seen.push(['open', argv.slice(-2)]); return 'opened' } })
+  fake.add(agentTerm('t4', 'idle', { labels: SPACE }))
+  const db = openDb(':memory:'); await collectAll(db)
+  try {
+    core.setOpenIn('terminal')
+    const a = await openSession(db, idOf(db, 't4'), 20)
+    assert.deepEqual([a.ok, a.window], [true, 'opened'])
+    assert.deepEqual(seen, [['open', ['attach', 't4']]])
+    assert.deepEqual(doCalls().filter((c) => c[0] === 'pane.focus'), [], '앱에는 시키지 않는다')
+    core.setOpenIn('app'); seen.length = 0
+    const b = await openSession(db, idOf(db, 't4'), 21)
+    assert.deepEqual([b.ok, b.window], [true, 'raised'])
+    assert.deepEqual(doCalls().map((c) => c[0]), ['pane.focus'])
+    core.setOpenIn('nonsense'); seen.length = 0
+    await openSession(db, idOf(db, 't4'), 22)
+    assert.equal(seen[0][0], 'raise', '모르는 값은 app으로 본다')
+  } finally { core.setOpenIn('app'); core._setWindowOps({ raiseApp: async () => 'off', openWindowRunning: async () => 'off' }) }
+})
+
 test('이동: 이미 끝난 터미널이면 오류 대신 최근 닫힘으로 옮긴다', async () => {
   reset()
   fake.add(agentTerm('t4', 'idle', { labels: SPACE }))
@@ -150,7 +176,7 @@ test('이동: 이미 끝난 터미널이면 오류 대신 최근 닫힘으로 �
   assert.deepEqual(Object.values(db.prepare('SELECT archived, status FROM session WHERE id = ?').get(id)), [1, 'gone'])
 })
 
-test('닫기: 앱이 열려 있으면 그 칸을 닫고(pane.close), 없으면 터미널을 끝낸다(terminal.kill)', async () => {
+test('닫기: 앱이 열려 있으면 앱의 그 pane을 닫고(pane.close), 없으면 터미널을 끝낸다(terminal.kill)', async () => {
   reset()
   fake.add(agentTerm('t4', 'idle', { labels: SPACE })); fake.add(agentTerm('t6', 'idle', { labels: SPACE }))
   await core.closePane('whosuptest-unit/t4')
@@ -160,10 +186,10 @@ test('닫기: 앱이 열려 있으면 그 칸을 닫고(pane.close), 없으면 �
   await core.closePane('whosuptest-unit/t6')
   assert.ok(fake.calls.some((c) => c.method === 'terminal.kill' && c.params.terminal === 't6'))
   assert.deepEqual(liveAddrs(), [])
-  await assert.rejects(core.closePane('whosuptest-unit/t99'), /not found/)
+  await assert.rejects(core.closePane('whosuptest-unit/t99'), (e) => e.code === 'terminal_not_found' && /not found/.test(e.message))
 })
 
-test('이어서 열기: 셸 칸에 실행 명령을 쳐 넣는다. 에이전트가 도는 칸에는 넣지 않는다', async () => {
+test('이어서 열기: 셸 세션에 실행 명령을 쳐 넣는다. 에이전트가 도는 세션에는 넣지 않는다', async () => {
   reset()
   transcript(SID, WORK)
   fake.add(term('t7', { labels: SPACE, cwd: WORK, foreground: { argv: ['/bin/zsh', '-l'], cwd: WORK, name: 'zsh', pid: 70007 } }))
@@ -174,7 +200,7 @@ test('이어서 열기: 셸 칸에 실행 명령을 쳐 넣는다. 에이전트�
   assert.deepEqual(fake.sent(), [['t7', `claude --resume ${SID}`]])
   const busy = await resumeSession(db, idOf(db, 't8'), undefined, { raise: false })
   assert.deepEqual([busy.ok, busy.code], [false, 'has_agent'])
-  // 셸이 아닌 프로그램이 도는 칸에 명령을 쳐 넣지 않는다
+  // 셸이 아닌 프로그램이 도는 세션에 명령을 쳐 넣지 않는다
   fake.add(term('t9', { foreground: { argv: ['vim'], cwd: '/work', name: 'vim', pid: 1 } }))
   await assert.rejects(core.focus('whosuptest-unit/t9', { run: 'claude', raise: false }), /not at a shell prompt/)
 })
@@ -223,7 +249,7 @@ async function withServer(db, fn) {
   try { await fn({ post, get }) } finally { await new Promise((r) => server.close(r)) }
 }
 
-test('줄 끄기 → 켜기: 공간을 닫아 터미널을 끝내고, 켜면 같은 이름·폴더의 공간에 대화를 이어 연다', async () => {
+test('데스크 끄기 → 켜기: 공간을 닫아 터미널을 끝내고, 켜면 같은 이름·폴더의 공간에 대화를 이어 연다', async () => {
   reset()
   transcript(SID, WORK)
   process.env.FAKE_APP_FOLDER = WORK
@@ -232,21 +258,21 @@ test('줄 끄기 → 켜기: 공간을 닫아 터미널을 끝내고, 켜면 같
   fake.add(agentTerm('t3', 'working', { labels: { 'herdr.space': 'spB', where: 'other / 1' } }))
   const db = openDb(':memory:'); await collectAll(db)
   await withServer(db, async ({ post, get }) => {
-    // 줄 이름이 아닌 것, herdr 세션 이름 규칙에도 코어 줄 규칙에도 안 맞는 것은 거절
+    // 데스크 이름이 아닌 것, herdr 데스크 이름 규칙에도 코어 데스크 규칙에도 안 맞는 것은 거절
     assert.equal((await post('/api/desk', { session: 'core:bad space', on: false })).status, 400)
-    assert.equal((await post('/api/desk', { session: 'core:', on: false })).status, 500)          // 공간 밖 줄은 통째로 끌 수 없다
+    assert.equal((await post('/api/desk', { session: 'core:', on: false })).status, 500)          // 공간 밖 데스크는 통째로 끌 수 없다
     assert.deepEqual(liveAddrs().sort(), ['t1', 't2', 't3'])
     const off = await post('/api/desk', { session: 'core:spA', on: false })
     assert.deepEqual([off.status, off.data.code], [200, 'desk_stopped'])
     assert.deepEqual(doCalls().filter((c) => c[0] === 'space.close'), [['space.close', { id: 'spA', confirmed: true }]])
     assert.deepEqual(liveAddrs(), ['t3'])                    // 다른 공간은 그대로
     assert.deepEqual(core.offDesks()['core:spA'] && [core.offDesks()['core:spA'].label, core.offDesks()['core:spA'].folder], ['my project', WORK])
-    // 꺼 둔 줄의 칸은 닫힘으로 보내지 않고 '꺼짐'으로 둔다(herdr 세션을 끈 것과 같은 모양)
+    // 꺼 둔 데스크의 세션은 닫힘으로 보내지 않고 '꺼짐'으로 둔다(herdr 데스크를 끈 것과 같은 모양)
     for (let i = 0; i < 4; i++) await collectAll(db)
     const rows = db.prepare("SELECT runtime_ref, archived, unreachable FROM session WHERE runtime = 'herdr-core' ORDER BY runtime_ref").all()
     assert.deepEqual(rows.map((r) => [r.runtime_ref.split('/')[1], r.archived, r.unreachable]), [['t1', 0, 2], ['t2', 0, 2], ['t3', 0, 0]])
     const b = await get('/api/board')
-    assert.deepEqual(b.health.stopped, ['core:spA'])         // herdr가 없는 기계라 코어가 수집 상태를 적는다 → 꺼 둔 줄이 적힌다
+    assert.deepEqual(b.health.stopped, ['core:spA'])         // herdr가 없는 기계라 코어가 수집 상태를 적는다 → 꺼 둔 데스크가 적힌다
     const offCards = Object.values(b.columns).flat().filter((c) => c.off)
     assert.deepEqual(offCards.map((c) => [c.desk, c.desk_label]).sort(), [['core:spA', 'my project'], ['core:spA', 'my project']])
 
@@ -255,16 +281,16 @@ test('줄 끄기 → 켜기: 공간을 닫아 터미널을 끝내고, 켜면 같
     assert.deepEqual([on.status, on.data.code], [200, 'desk_started'])
     assert.deepEqual(doCalls().filter((c) => c[0] === 'space.new'), [['space.new', { name: 'my project', folder: WORK }]])
     const fresh = [...fake.terminals.values()].filter((t) => t.state === 'live' && t.address !== 't3')
-    assert.equal(fresh.length, 1)                             // 대화가 있던 칸 하나만 다시 연다(빈 셸은 다시 만들지 않는다)
+    assert.equal(fresh.length, 1)                             // 대화가 있던 세션 하나만 다시 연다(빈 셸은 다시 만들지 않는다)
     assert.deepEqual(fake.sent(), [[fresh[0].address, `claude --resume ${SID}`]])
     assert.equal(core.offDesks()['core:spA'], undefined)
     const after = db.prepare("SELECT status, archived FROM session WHERE runtime_ref IN ('whosuptest-unit/t1', 'whosuptest-unit/t2') AND status = 'reopened'").all()
-    assert.equal(after.length, 2)                             // 옛 칸은 접힌다
+    assert.equal(after.length, 2)                             // 옛 세션은 접힌다
   })
   delete process.env.FAKE_APP_FOLDER
 })
 
-test('꺼 둔 줄: 끄기 직전에 읽은 목록(옛 터미널이 아직 있음)으로는 다시 켜진 것으로 보지 않는다', async () => {
+test('꺼 둔 데스크: 끄기 직전에 읽은 목록(옛 터미널이 아직 있음)으로는 다시 켜진 것으로 보지 않는다', async () => {
   reset()
   fake.add(agentTerm('t1', 'idle', { labels: SPACE, created_ms: Date.now() - 60000 }))
   fake.add(agentTerm('t2', 'idle', { labels: { 'herdr.space': 'spB', where: 'other / 1' } }))
@@ -280,11 +306,11 @@ test('꺼 둔 줄: 끄기 직전에 읽은 목록(옛 터미널이 아직 있음
   fake.terminals.get('t1').state = 'finished'
   fake.add(agentTerm('t3', 'idle', { labels: SPACE, created_ms: Date.now() + 1000 }))
   assert.deepEqual((await core.listSnapshotAsync()).stopped, [])
-  // 꺼 둔 적 없는 줄은 켤 수 없다(엉뚱한 공간을 만들지 않는다)
+  // 꺼 둔 적 없는 데스크는 켤 수 없다(엉뚱한 공간을 만들지 않는다)
   await assert.rejects(core.startSession('core:spZ', undefined, { raise: false }), (e) => e.code === 'bad_session')
 })
 
-test('줄 끄기: 터미널을 끝내기 전에 꺼짐을 먼저 적는다(끄는 도중의 수집이 칸을 닫힘으로 보내지 않게). 겹친 요청은 받지 않는다', async () => {
+test('데스크 끄기: 터미널을 끝내기 전에 꺼짐을 먼저 적는다(끄는 도중의 수집이 세션을 닫힘으로 보내지 않게). 겹친 요청은 받지 않는다', async () => {
   reset()
   fake.add(agentTerm('t1', 'idle', { labels: SPACE, created_ms: Date.now() - 60000 }))
   fake.add(agentTerm('t2', 'working', { labels: SPACE, created_ms: Date.now() - 60000 }))
@@ -297,7 +323,7 @@ test('줄 끄기: 터미널을 끝내기 전에 꺼짐을 먼저 적는다(끄�
   // 앱이 공간을 닫으라는 말을 받은 순간, 꺼짐 기록은 이미 있었다
   assert.ok(JSON.parse(readFileSync(`${OFF}.at-close`, 'utf8'))['core:spA'])
   assert.deepEqual(liveAddrs(), [])
-  // 그 뒤 수집이 여러 번 돌아도(닫힘 판정 기준 3회를 넘겨도) 칸은 '꺼짐'으로 남는다
+  // 그 뒤 수집이 여러 번 돌아도(닫힘 판정 기준 3회를 넘겨도) 세션은 '꺼짐'으로 남는다
   for (let i = 0; i < 5; i++) await collectAll(db)
   const rows = db.prepare("SELECT archived, unreachable FROM session WHERE runtime = 'herdr-core' ORDER BY runtime_ref").all()
   assert.deepEqual(rows.map((r) => [r.archived, r.unreachable]), [[0, 2], [0, 2]])
@@ -310,7 +336,7 @@ test('줄 끄기: 터미널을 끝내기 전에 꺼짐을 먼저 적는다(끄�
   assert.equal(core.offDesks()['core:spA'], undefined)
 })
 
-test('서버: 새 세션·닫기가 줄 열쇠·카드의 런타임을 따라 herdr-core로 간다. 새 세션 대상에 Herdr 앱 공간이 나온다', async () => {
+test('서버: 새 세션·닫기가 데스크 열쇠·세션의 런타임을 따라 herdr-core로 간다. 새 세션 대상에 Herdr 앱 공간이 나온다', async () => {
   reset()
   fake.add(agentTerm('t1', 'idle', { labels: SPACE, cwd: WORK }))
   const db = openDb(':memory:'); await collectAll(db)
@@ -327,7 +353,7 @@ test('서버: 새 세션·닫기가 줄 열쇠·카드의 런타임을 따라 he
   })
 })
 
-test('읽기 전용: herdr-core 카드 조작도 전부 막힌다', async () => {
+test('읽기 전용: herdr-core 세션 조작도 전부 막힌다', async () => {
   reset()
   fake.add(agentTerm('t1', 'blocked', { kind: 'question', msg: 'answer: go?', labels: SPACE }))
   const db = openDb(':memory:'); await collectAll(db)
@@ -346,7 +372,7 @@ test('읽기 전용: herdr-core 카드 조작도 전부 막힌다', async () => 
 })
 
 // ── 코드 리뷰에서 찾은 경계 (2026-11-11) ─────────────────────────────
-test('주소가 다른 터미널에 넘어간 뒤의 옛 카드: 열기·닫기가 새 터미널을 건드리지 않고 옛 카드만 닫힘으로 간다', async () => {
+test('주소가 다른 터미널에 넘어간 뒤의 옛 세션: 열기·닫기가 새 터미널을 건드리지 않고 옛 세션만 닫힘으로 간다', async () => {
   reset()
   fake.add(agentTerm('t1', 'idle', { labels: SPACE, created_ms: 1000 }))
   fake.add(agentTerm('t2', 'idle', { labels: SPACE, created_ms: 1000 }))
@@ -368,13 +394,13 @@ test('주소가 다른 터미널에 넘어간 뒤의 옛 카드: 열기·닫기�
   assert.deepEqual(liveAddrs().sort(), ['t1', 't2'])                                        // 새 터미널은 그대로 살아 있다
   const old = db.prepare('SELECT archived, status FROM session WHERE id IN (?, ?) ORDER BY id').all(id1, id2)
   assert.deepEqual(old.map((x) => [x.archived, x.status]), [[1, 'gone'], [1, 'gone']])
-  // 다른 코어의 카드(코어 세션 이름이 다른 참조)는 이 코어의 같은 주소로 가지 않는다
-  await assert.rejects(core.focus('another-core/t1', { raise: false }), /not found/)
-  await assert.rejects(core.closePane('another-core/t1'), /not found/)
+  // 다른 코어의 세션(herdr-core session 이름이 다른 참조)은 이 코어의 같은 주소로 가지 않는다
+  await assert.rejects(core.focus('another-core/t1', { raise: false }), (e) => e.code === 'core_unavailable')
+  await assert.rejects(core.closePane('another-core/t1'), (e) => e.code === 'core_unavailable')
   assert.deepEqual(liveAddrs().sort(), ['t1', 't2'])
 })
 
-test('본 것으로 적기: 적기 직전에 터미널을 다시 읽어 그때의 턴을 적고, 적지 못하면 그렇다고 돌려준다(카드는 답변 도착으로 남는다)', async () => {
+test('본 것으로 적기: 적기 직전에 터미널을 다시 읽어 그때의 턴을 적고, 적지 못하면 그렇다고 돌려준다(세션은 답변 도착으로 남는다)', async () => {
   reset()
   process.env.FAKE_APP_MODE = 'no_window'
   fake.add(agentTerm('t4', 'done', { labels: SPACE, turn: 2 }))
@@ -392,12 +418,12 @@ test('본 것으로 적기: 적기 직전에 터미널을 다시 읽어 그때�
   assert.equal(fake.terminals.get('t4').labels['whosup.seen'], '3')
   fake.override = null
   assert.equal(core.toSession(fake.terminals.get('t4')).status, 'done')
-  // 쉬는 카드는 적을 것이 없다
+  // 쉬는 세션은 적을 것이 없다
   fake.terminals.get('t4').labels['whosup.seen'] = '4'
   assert.equal((await core.focus(core.refOf('t4'), { raise: false })).seen, null)
 })
 
-test('꺼 둔 줄 둘을 함께 켜도 서로의 터미널을 집지 않는다(만들기는 한 번에 하나)', async () => {
+test('꺼 둔 데스크 둘을 함께 켜도 서로의 터미널을 집지 않는다(만들기는 한 번에 하나)', async () => {
   reset()
   fake.add(agentTerm('t1', 'idle', { labels: SPACE, cwd: WORK, created_ms: Date.now() - 60000 }))
   fake.add(agentTerm('t2', 'idle', { labels: SPACE_B, cwd: WORK, created_ms: Date.now() - 60000 }))
@@ -417,7 +443,7 @@ test('꺼 둔 줄 둘을 함께 켜도 서로의 터미널을 집지 않는다(�
   assert.deepEqual([a.done, a.failed, b.done, b.failed], [[1], [], [2], []])
 })
 
-test('줄 켜기: 이어 열지 못한 대화의 옛 칸은 접지 않는다. 첫 대화도 제 폴더에서 연다. 다시 눌러도 공간이 또 생기지 않는다', async () => {
+test('데스크 켜기: 이어 열지 못한 대화의 옛 세션은 접지 않는다. 첫 대화도 제 폴더에서 연다. 다시 눌러도 공간이 또 생기지 않는다', async () => {
   reset()
   const SUB = join(WORK, 'api'); mkdirSync(SUB, { recursive: true })
   transcript(SID, SUB); transcript(SID2, WORK)
@@ -439,13 +465,13 @@ test('줄 켜기: 이어 열지 못한 대화의 옛 칸은 접지 않는다. �
     assert.deepEqual(sent.map((s) => s[1]), [`claude --resume ${SID}`])
     assert.equal(fake.terminals.get(sent[0][0]).cwd, SUB)
     assert.equal(doCalls().filter((c) => c[0] === 'tab.new' && c[1].folder === SUB).length, 1)
-    // 이어 연 대화의 옛 칸만 접힌다. 못 연 대화의 옛 칸은 닫힌 칸으로 가서 하나씩 이어 열 수 있다
+    // 이어 연 대화의 옛 세션만 접힌다. 못 연 대화의 옛 세션은 닫힌 세션으로 가서 하나씩 이어 열 수 있다
     const st = (id) => db.prepare('SELECT status, archived FROM session WHERE id = ?').get(id)
     assert.deepEqual(Object.values(st(id1)), ['reopened', 1])
     assert.notEqual(st(id2).status, 'reopened')
     for (let i = 0; i < 4; i++) await collectAll(db)
     assert.deepEqual(Object.values(st(id2)), ['gone', 1])
-    // 줄은 켜졌다: 다시 눌러도 공간을 또 만들지 않는다
+    // 데스크는 켜졌다: 다시 눌러도 공간을 또 만들지 않는다
     assert.equal(core.offDesks()['core:spA'], undefined)
     const again = await post('/api/desk', { session: 'core:spA', on: true })
     assert.equal(again.status, 500)
@@ -453,7 +479,7 @@ test('줄 켜기: 이어 열지 못한 대화의 옛 칸은 접지 않는다. �
   })
 })
 
-test('줄 끄기·켜기 요청은 그 뒤의 수집까지 끝나야 다음 것을 받는다(끄자마자 겹친 요청은 바쁨으로 돌려보낸다)', async () => {
+test('데스크 끄기·켜기 요청은 그 뒤의 수집까지 끝나야 다음 것을 받는다(끄자마자 겹친 요청은 바쁨으로 돌려보낸다)', async () => {
   reset()
   fake.add(agentTerm('t1', 'idle', { labels: SPACE, created_ms: Date.now() - 60000 }))
   const db = openDb(':memory:'); await collectAll(db)
@@ -463,11 +489,11 @@ test('줄 끄기·켜기 요청은 그 뒤의 수집까지 끝나야 다음 것�
     assert.equal(both.find((r) => r.status === 409).data.code, 'busy')
     assert.equal(doCalls().filter((c) => c[0] === 'space.new').length, 0)                   // 켜기는 받지 않았다
     assert.ok(core.offDesks()['core:spA'])
-    assert.equal(db.prepare("SELECT unreachable FROM session WHERE runtime = 'herdr-core'").get().unreachable, 2)   // 응답이 왔을 때 판은 이미 꺼진 줄을 안다
+    assert.equal(db.prepare("SELECT unreachable FROM session WHERE runtime = 'herdr-core'").get().unreachable, 2)   // 응답이 왔을 때 판은 이미 꺼진 데스크를 안다
   })
 })
 
-test('끄는 도중의 수집은 그 줄의 꺼짐 기록을 지우지 않는다(끄는 사이 그 공간에 터미널이 새로 보여도)', async () => {
+test('끄는 도중의 수집은 그 데스크의 꺼짐 기록을 지우지 않는다(끄는 사이 그 공간에 터미널이 새로 보여도)', async () => {
   reset()
   fake.add(agentTerm('t1', 'idle', { labels: SPACE, created_ms: Date.now() - 60000 }))
   // 끄는 도중(앱이 공간을 닫으며 첫 터미널을 끝내는 순간) 그 공간에 새 터미널이 생기고 수집이 돈다.
@@ -491,7 +517,7 @@ test('끄는 도중의 수집은 그 줄의 꺼짐 기록을 지우지 않는다
   assert.deepEqual(liveAddrs(), [])                                                          // 끄는 사이 생긴 터미널도 함께 끝났다
 })
 
-test('코어에 닿지 못해도 꺼 둔 줄은 꺼 둔 줄로 남는다', async () => {
+test('코어에 닿지 못해도 꺼 둔 데스크는 꺼 둔 데스크로 남는다', async () => {
   reset()
   fake.add(agentTerm('t1', 'idle', { labels: SPACE, created_ms: Date.now() - 60000 }))
   process.env.FAKE_APP_MODE = 'no_window'
@@ -504,7 +530,7 @@ test('코어에 닿지 못해도 꺼 둔 줄은 꺼 둔 줄로 남는다', async
   assert.deepEqual([snap.holdAll, snap.stopped], [true, ['core:spA']])
 })
 
-test('같은 대화를 서로 다른 두 칸에서 동시에 이어 열지 않는다', async () => {
+test('같은 대화를 서로 다른 두 세션에서 동시에 이어 열지 않는다', async () => {
   reset()
   transcript(SID, WORK)
   for (const n of [11, 12, 13, 14, 15, 16, 17]) fake.add(agentTerm(`t${n}`, 'working', { labels: SPACE_B }))   // 행 id를 앞 시험들과 다르게(연타 방지가 id로 3초 막는다)
@@ -518,7 +544,7 @@ test('같은 대화를 서로 다른 두 칸에서 동시에 이어 열지 않�
   assert.equal(fake.sent()[0][1], `claude --resume ${SID}`)
 })
 
-test('닫은 카드는 닫기 전에 읽기 시작한 수집이 되살리지 못한다', async () => {
+test('닫은 세션은 닫기 전에 읽기 시작한 수집이 되살리지 못한다', async () => {
   reset()
   fake.add(agentTerm('t1', 'idle', { labels: SPACE }))
   const db = openDb(':memory:'); await collectAll(db)
@@ -558,7 +584,7 @@ test('판이 계속 바뀌는 동안에는 낡은 목록을 적용하지 않고 
   assert.deepEqual([ok.skipped, ok.runs.length], [undefined, 1])
 })
 
-test('이어 열기를 잡아 둔 대화: 같은 칸에서 다시 누르는 것은 받는다(다른 칸만 돌려보낸다)', async () => {
+test('이어 열기를 잡아 둔 대화: 같은 세션에서 다시 누르는 것은 받는다(다른 세션만 돌려보낸다)', async () => {
   reset()
   transcript(SID, WORK)
   for (const n of [21, 22, 23, 24, 25, 26, 27, 28, 29, 30]) fake.add(agentTerm(`t${n}`, 'working', { labels: SPACE_B }))   // 행 id를 앞 시험들과 다르게
@@ -568,8 +594,64 @@ test('이어 열기를 잡아 둔 대화: 같은 칸에서 다시 누르는 것�
   const first = await resumeSession(db, idOf(db, 't1'), undefined, { raise: false })
   assert.equal(first.code, 'resumed')
   assert.equal((await resumeSession(db, idOf(db, 't2'), undefined, { raise: false })).code, 'busy')
-  await sleep(3200)                                                                           // 같은 칸의 연타 방지(3초)가 풀린 뒤: 에이전트가 바로 꺼져 다시 셸인 칸에서 다시 누른다
+  await sleep(3200)                                                                           // 같은 세션의 연타 방지(3초)가 풀린 뒤: 에이전트가 바로 꺼져 다시 셸인 세션에서 다시 누른다
   const again = await resumeSession(db, idOf(db, 't1'), undefined, { raise: false })
   assert.equal(again.code, 'resumed')
   assert.equal((await resumeSession(db, idOf(db, 't2'), undefined, { raise: false })).code, 'busy')
+})
+
+test('이어서 열기·새 세션·데스크 끄고 켜기도 판을 직접 바꾼 일이다: 그보다 먼저 읽기 시작한 수집은 낡은 목록을 적용하지 않고 다시 읽는다 (P2-M5)', async () => {
+  reset()
+  for (let n = 41; n <= 56; n++) fake.add(agentTerm(`t${n}`, 'working', { labels: SPACE_B }))   // 행 id를 앞 시험들과 다르게(연타 방지가 id로 3초 막는다)
+  const M5 = join(WORK, 'm5'); mkdirSync(M5, { recursive: true })
+  fake.add(term('t1', { labels: SPACE, cwd: M5, foreground: { argv: ['/bin/zsh', '-l'], cwd: M5, name: 'zsh', pid: 70001 }, created_ms: Date.now() - 60000 }))
+  const db = openDb(':memory:'); await collectAll(db)
+  const id = idOf(db, 't1')
+  const row = () => db.prepare('SELECT status, unreachable, archived FROM session WHERE id = ?').get(id)
+  const lists = () => fake.calls.filter((c) => c.method === 'terminal.list').length
+  // 느린 주기 수집: 바꾸기 전의 목록을 붙잡아 두었다가 change() 가 끝난 뒤에 돌려준다. 돌려받은 뒤 목록을 다시 읽었는지 센다.
+  const staleCollect = async (change) => {
+    let release
+    const held = new Promise((r) => { release = r })
+    let first = true
+    fake.override = (m, p, sock) => {
+      if (m !== 'terminal.list' || !first) return undefined
+      first = false
+      const stale = JSON.stringify({ jsonrpc: '2.0', id: 1, result: { hidden_finished: 0, terminals: [...fake.terminals.values()].filter((x) => x.state === 'live').map((x) => ({ ...x })) } })
+      held.then(() => sock.write(`${stale}\n`))
+      return false
+    }
+    const slow = collectAll(db)
+    await sleep(50)
+    await change()
+    const before = lists()
+    release()
+    const r = await slow
+    fake.override = null
+    return { r, reread: lists() - before }
+  }
+
+  // 이어서 열기: 셸에 명령을 넣었고 에이전트가 떴다. 넣기 전에 읽은 목록(셸)이 뒤늦게 적용되면 세션이 다시 셸로 보인다
+  const a = await staleCollect(async () => {
+    const r = await resumeSession(db, id, undefined, { raise: false })
+    assert.deepEqual([r.ok, r.code], [true, 'started'])
+    fake.set('t1', { status: { app: 'claude-code', state: 'working' }, status_ms: Date.now(), turn: 1 })
+  })
+  assert.deepEqual([a.r.skipped, a.reread], [undefined, 1])
+  assert.equal(row().status, 'working')
+
+  await withServer(db, async ({ post }) => {
+    // 새 세션: 만들기 전에 읽은 목록에는 새 터미널이 없다 — 그 목록이 적용되면 방금 연 세션이 "안 보임"으로 세어진다
+    const b = await staleCollect(async () => { const r = await post('/api/new', { session: 'core:spA', cwd: homedir() }); assert.deepEqual([r.status, r.data.code], [200, 'opened_new']) })
+    assert.ok(b.reread >= 1, `새 세션 뒤 다시 읽음 ${b.reread}`)
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM session WHERE archived = 0 AND miss_count > 0").get().n, 0)
+    // 데스크 끄기: 끄기 전에 읽은 목록(터미널이 살아 있다)이 적용되면 꺼 둔 데스크의 세션이 다시 살아 있는 것으로 보인다
+    const c = await staleCollect(async () => { assert.equal((await post('/api/desk', { session: 'core:spA', on: false })).status, 200) })
+    assert.ok(c.reread >= 1, `데스크 끄기 뒤 다시 읽음 ${c.reread}`)
+    assert.equal(row().unreachable, 2)
+    // 데스크 켜기
+    const d = await staleCollect(async () => { assert.equal((await post('/api/desk', { session: 'core:spA', on: true })).status, 200) })
+    assert.ok(d.reread >= 1, `데스크 켜기 뒤 다시 읽음 ${d.reread}`)
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM session WHERE archived = 0 AND miss_count > 0").get().n, 0)
+  })
 })

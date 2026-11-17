@@ -1,5 +1,5 @@
-// 칸을 누르면 열 웹 주소(웹 터미널) — 화면(index.html)의 /*weburl*/ 덩어리를 그대로 읽어 시험한다.
-// 이 기능에는 시험이 하나도 없었다. 주소 만들기·줄별 주소 고르기·누름 방식 판정·읽기 전용 동작을 여기서 고정한다.
+// 세션을 누르면 열 웹 주소(웹 터미널) — 화면(index.html)의 /*weburl*/ 덩어리를 그대로 읽어 시험한다.
+// 이 기능에는 시험이 하나도 없었다. 주소 만들기·데스크별 주소 고르기·누름 방식 판정·읽기 전용 동작을 여기서 고정한다.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -33,35 +33,35 @@ test('주소 꼴: http(s)로 시작하고 {pane}이 들어가야 한다', () => 
   assert.equal(buildOpenUrl(herdrCard('a b', 'w1:p3'), 'http://{session}.term.example.com/{pane}'), '')   // 자리를 채운 결과가 주소가 아니면 열지 않는다
 })
 
-test('주소 만들기: {pane}·{session}을 채우고 칸 id의 특수 문자를 인코딩한다', () => {
+test('주소 만들기: {pane}·{session}을 채우고 herdr pane id의 특수 문자를 인코딩한다', () => {
   assert.equal(buildOpenUrl(herdrCard('alpha', 'w1:p3'), OVIS), 'http://127.0.0.1:7317/?pane=w1%3Ap3')
   assert.equal(buildOpenUrl(herdrCard('beta', 'w2:p1'), 'https://t.example.com/{session}?pane={pane}&s={session}'), 'https://t.example.com/beta?pane=w2%3Ap1&s=beta')
-  // 칸 id에 '/'가 들어 있어도 전체가 칸 id다
+  // herdr pane id에 '/'가 들어 있어도 전체가 herdr pane id다
   assert.equal(buildOpenUrl(herdrCard('alpha', 'w1/p3'), OVIS), 'http://127.0.0.1:7317/?pane=w1%2Fp3')
-  // Herdr 앱 카드: {session}은 공간 이름, {pane}은 터미널 주소
+  // Herdr 앱 세션: {session}은 공간 이름, {pane}은 터미널 주소
   assert.equal(buildOpenUrl(coreCard('spA', 'my project', 't4'), 'http://h/{session}/{pane}'), 'http://h/my%20project/t4')
-  // 주소로 열 수 없는 카드(caps에 web 없음)·틀린 주소·카드 없음 → ''
+  // 주소로 열 수 없는 세션(caps에 web 없음)·틀린 주소·세션 없음 → ''
   assert.equal(buildOpenUrl({ ...herdrCard('alpha', 'w1:p3'), caps: ['focus'] }, OVIS), '')
   assert.equal(buildOpenUrl(herdrCard('alpha', 'w1:p3'), 'http://127.0.0.1:7317/'), '')
   assert.equal(buildOpenUrl(null, OVIS), '')
 })
 
-test('줄별 주소: herdr 세션은 자기 주소가 먼저, 없으면 기본 주소 (세션마다 웹 터미널 포트가 다른 경우)', () => {
+test('데스크별 주소: herdr 데스크는 자기 주소가 먼저, 없으면 기본 주소 (데스크마다 웹 터미널 포트가 다른 경우)', () => {
   const get = store({ 'whosup-open-url': OVIS, 'whosup-open-url:beta': 'http://127.0.0.1:7400/?pane={pane}' })
   assert.equal(openUrlOf(herdrCard('alpha', 'w1:p3'), get), 'http://127.0.0.1:7317/?pane=w1%3Ap3')
   assert.equal(openUrlOf(herdrCard('beta', 'w1:p2'), get), 'http://127.0.0.1:7400/?pane=w1%3Ap2')
-  // 기본 주소 없이 줄별 주소만 있어도 그 줄은 열린다. 주소가 없는 줄은 열지 않는다(터미널 이동만)
+  // 기본 주소 없이 데스크별 주소만 있어도 그 데스크는 열린다. 주소가 없는 데스크는 열지 않는다(터미널 이동만)
   const only = store({ 'whosup-open-url:beta': 'http://127.0.0.1:7400/?pane={pane}' })
   assert.equal(openUrlOf(herdrCard('beta', 'w1:p2'), only), 'http://127.0.0.1:7400/?pane=w1%3Ap2')
   assert.equal(openUrlOf(herdrCard('alpha', 'w1:p3'), only), '')
-  // 줄에 적어 둔 주소의 꼴이 틀렸으면 그 줄은 웹으로 열지 않는다 — 기본 주소(다른 세션의 웹 터미널)로 넘어가지 않는다
+  // 데스크에 적어 둔 주소의 꼴이 틀렸으면 그 데스크는 웹으로 열지 않는다 — 기본 주소(다른 데스크의 웹 터미널)로 넘어가지 않는다
   const broken = store({ 'whosup-open-url': OVIS, 'whosup-open-url:beta': 'not a url' })
   assert.equal(openUrlOf(herdrCard('beta', 'w1:p2'), broken), '')
-  assert.equal(openUrlOf(herdrCard('alpha', 'w1:p3'), broken), 'http://127.0.0.1:7317/?pane=w1%3Ap3')   // 다른 줄은 그대로
-  assert.equal(openUrlOf(herdrCard('beta', 'w1:p2'), store({ 'whosup-open-url': OVIS, 'whosup-open-url:beta': '' })), 'http://127.0.0.1:7317/?pane=w1%3Ap2')   // 비워 둔 줄은 기본 주소
+  assert.equal(openUrlOf(herdrCard('alpha', 'w1:p3'), broken), 'http://127.0.0.1:7317/?pane=w1%3Ap3')   // 다른 데스크는 그대로
+  assert.equal(openUrlOf(herdrCard('beta', 'w1:p2'), store({ 'whosup-open-url': OVIS, 'whosup-open-url:beta': '' })), 'http://127.0.0.1:7317/?pane=w1%3Ap2')   // 비워 둔 데스크는 기본 주소
 })
 
-test('Herdr 앱 줄: 그 줄에 적은 주소가 있을 때만 웹으로 연다. 기본 주소(herdr용)는 쓰지 않는다', () => {
+test('Herdr 앱 데스크: 그 데스크에 적은 주소가 있을 때만 웹으로 연다. 기본 주소(herdr용)는 쓰지 않는다', () => {
   const get = store({ 'whosup-open-url': OVIS, 'whosup-open-url:core:spB': 'http://10.0.0.5:9000/t/{pane}' })
   assert.equal(openUrlOf(coreCard('spA', 'my project', 't4'), get), '')                     // → Herdr 앱 이동
   assert.equal(openUrlOf(coreCard('spB', 'other', 't7'), get), 'http://10.0.0.5:9000/t/t7')
@@ -80,32 +80,36 @@ test('누름 방식: 맞는 주소가 하나라도 있고 켜져 있으면 web(�
   assert.equal(mode({ 'whosup-open-url': OVIS, 'whosup-raise': 'off' }), 'web')
   assert.equal(mode({ 'whosup-open-url': OVIS, 'whosup-open-url-on': 'off' }), 'terminal')
   assert.equal(mode({ 'whosup-open-url': 'broken' }), 'terminal')
-  assert.equal(mode({ 'whosup-open-url:core:spB': 'http://h/{pane}' }), 'both')            // 줄별 주소만 있어도 웹 방식이 된다
+  assert.equal(mode({ 'whosup-open-url:core:spB': 'http://h/{pane}' }), 'both')            // 데스크별 주소만 있어도 웹 방식이 된다
 })
 
-test('한 번의 클릭이 할 일: 설정 패널이 보여 주는 방식과 실제 요청(창 올리기)이 같은 판정을 쓴다', () => {
+test('한 번의 클릭이 할 일: 설정이 보여 주는 방식과 실제 요청(창 올리기)이 같은 판정을 쓴다', () => {
   const plan = (c, o) => clickPlanOf(c, store(o), Object.keys(o))
   const A = herdrCard('alpha', 'w1:p3'), CORE = coreCard('spA', 'my project', 't4')
   const url = 'http://127.0.0.1:7317/?pane=w1%3Ap3'
   assert.deepEqual(plan(A, {}), { url: '', raise: true })                                                   // 터미널 창
   assert.deepEqual(plan(A, { 'whosup-open-url': OVIS }), { url, raise: true })                              // 둘 다
-  assert.deepEqual(plan(A, { 'whosup-open-url': OVIS, 'whosup-raise': 'off' }), { url, raise: false })      // 웹 주소만
-  // 패널이 '터미널 창'으로 보이는 저장 상태에서는 창을 올린다(예전 값 whosup-raise=off가 남아 있어도)
+  assert.deepEqual(plan(A, { 'whosup-open-url': OVIS, 'whosup-raise': 'off' }), { url, raise: false })      // 웹 터미널만
+  // 설정이 '터미널 창'으로 보이는 저장 상태에서는 창을 올린다(예전 값 whosup-raise=off가 남아 있어도)
   assert.deepEqual(plan(A, { 'whosup-raise': 'off' }), { url: '', raise: true })
   assert.deepEqual(plan(A, { 'whosup-open-url': OVIS, 'whosup-open-url-on': 'off', 'whosup-raise': 'off' }), { url: '', raise: true })
-  // 웹 주소만 고른 브라우저에서 주소가 없는 Herdr 앱 카드: 설정 안내대로 Herdr 앱으로 간다(창을 올린다)
+  // 웹 터미널만 고른 브라우저에서 주소가 없는 Herdr 앱 세션: 설정 안내대로 Herdr 앱으로 간다(창을 올린다)
   assert.deepEqual(plan(CORE, { 'whosup-open-url': OVIS, 'whosup-raise': 'off' }), { url: '', raise: true })
   assert.deepEqual(plan(CORE, { 'whosup-open-url:core:spA': 'http://h/{pane}', 'whosup-raise': 'off' }), { url: 'http://h/t4', raise: false })
-  // 화면은 이 계획대로 요청한다: 카드 클릭은 plan.raise를 싣고, 요청에 적은 값이 기본값을 이긴다
+  // 화면은 이 계획대로 요청한다: 세션 클릭은 plan.raise를 싣고, 요청에 적은 값이 기본값을 이긴다
   // 열쇠는 이 브라우저 저장값 + 서버 기본값(client_defaults). 브라우저 저장값이 먼저다(lsGet).
   assert.match(html, /const clickPlan = \(c\) => clickPlanOf\(c, lsGet, lsKeys\(\)\)/)
   assert.match(html, /const lsKeys = \(\) => \[\.\.\.new Set\(\[\.\.\.Object\.keys\(localStorage\), \.\.\.Object\.keys\(srvDefaults\)\]\)\]/)
-  assert.match(html, /const lsGet = \(k\) => localStorage\.getItem\(k\) \?\? /)
-  assert.match(html, /post\('\/api\/open', \{ id, seq, raise: plan\.raise \}\)/)
+  // 읽는 순서(저장값 → 서버 기본값)는 weburl 덩어리의 storedOf 가 정한다: 화면은 그 함수에 이 브라우저의 저장소와 서버 기본값을 넘긴다
+  assert.match(html, /const lsLocal = \(k\) => localStorage\.getItem\(k\)\n/)
+  assert.match(html, /const lsGet = \(k\) => storedOf\(lsLocal, srvDefaults, k\)/)
+  const { storedOf } = new Function(`${chunk}; return { storedOf }`)()
+  assert.deepEqual(['a', 'b', 'c'].map((k) => storedOf(store({ a: 'mine' }), { a: 'server', b: 'server' }, k)), ['mine', 'server', null])
+  assert.match(html, /post\('\/api\/open', \{ id, seq, raise: plan\.raise, web: Boolean\(tab\?\.ok\) \}\)/)   // web = 이 클릭이 웹 터미널 탭을 실제로 열었는가(R-2)
   assert.match(html, /JSON\.stringify\(\{ raise: raiseOn\(\), \.\.\.body \}\)/)
 })
 
-test('탭 열기: 줄마다 이름 붙인 탭 하나. 누를 때마다 그 주소로 보낸다(같은 주소여도). 막히면 그렇다고 돌려준다', () => {
+test('탭 열기: 데스크마다 이름 붙인 탭 하나. 누를 때마다 그 주소로 보낸다(같은 주소여도). 막히면 그렇다고 돌려준다', () => {
   // 가짜 브라우저: 이름이 같은 탭이 살아 있으면 그 탭을 그 주소로 보내고 돌려준다(브라우저의 이름 붙인 창 규칙)
   const named = new Map()
   const opens = []
@@ -120,13 +124,13 @@ test('탭 열기: 줄마다 이름 붙인 탭 하나. 누를 때마다 그 주�
   const a = openTab('alpha', 'http://h/?pane=t1')
   assert.deepEqual([a.ok, a.fresh, a.win.href, a.win.focused], [true, true, 'http://h/?pane=t1', 1])
   assert.deepEqual(opens[0], ['http://h/?pane=t1', 'whosup-alpha'])
-  // 그 탭 안에서 다른 칸으로 옮겨 간 뒤 같은 카드를 다시 누른다: 같은 탭을 그 주소로 다시 보낸다(건너뛰지 않는다)
+  // 그 탭 안에서 다른 세션으로 옮겨 간 뒤 같은 세션을 다시 누른다: 같은 탭을 그 주소로 다시 보낸다(건너뛰지 않는다)
   a.win.href = 'http://h/?pane=t2'
   const b = openTab('alpha', 'http://h/?pane=t1')
   assert.deepEqual([b.ok, b.fresh, b.win === a.win, b.win.href, b.win.focused, opens.length], [true, false, true, 'http://h/?pane=t1', 2, 2])
   openTab('alpha', 'http://h/?pane=t1')                                                                     // 탭이 이미 그 주소에 있어 보여도 다시 보낸다
   assert.equal(opens.length, 3)
-  // 다른 줄은 다른 탭, 닫은 탭은 새로 연 것으로 센다
+  // 다른 데스크는 다른 탭, 닫은 탭은 새로 연 것으로 센다
   const c = openTab('beta', 'http://h2/?pane=t1')
   assert.deepEqual([c.fresh, c.win === a.win, opens[3][1]], [true, false, 'whosup-beta'])
   a.win.closed = true
@@ -137,11 +141,11 @@ test('탭 열기: 줄마다 이름 붙인 탭 하나. 누를 때마다 그 주�
   const throws = tabs({ open: () => { throw new Error('blocked') } })
   assert.deepEqual(throws.openTab('alpha', 'http://h/?pane=t1'), { ok: false })
   // 화면은 막힌 탭을 서버 쪽 성공 문구로 덮지 않는다
-  assert.match(html, /if \(tab && !tab\.ok\) toast\(T\.popupBlocked, true\); else toast\(msgOf\(data\), !ok\)/)
+  assert.match(html, /if \(tab && !tab\.ok\) toast\(T\.popupBlocked, true\); else toast\(msgOf\(data\.url \? shownReply\(data, Boolean\(tab\?\.ok\)\) : data\), !ok\)/)
   for (const lang of ['브라우저가 새 탭을 막았습니다', 'The browser blocked the new tab']) assert.ok(html.includes(lang))
 })
 
-test('읽기 전용: 카드 누르기는 웹 주소 열기까지 포함해 전부 막힌다(README의 읽기 전용 설명과 같은 동작)', () => {
+test('읽기 전용: 세션 누르기는 웹 주소 열기까지 포함해 전부 막힌다(README의 읽기 전용 설명과 같은 동작)', () => {
   // openCard의 첫 줄이 읽기 전용 게이트이고, 주소 계산·탭 열기는 그 뒤에 있다
   const open = html.slice(html.indexOf('async function openCard(id) {'))
   const gate = open.indexOf('if (!can()) return denied()')
@@ -153,4 +157,46 @@ test('읽기 전용: 카드 누르기는 웹 주소 열기까지 포함해 전�
   const row = readme.split('\n').find((l) => l.startsWith('| Where a click goes'))
   assert.match(row, /read-only/i)                             // 다른 기기에서 쓸 때의 안내가 읽기 전용과 어긋나지 않게 적혀 있다
   assert.match(readme.split('\n').find((l) => l.startsWith('| Read-only mode')), /blocks clicks/)
+})
+
+test('세션 누르기 요청(/api/open)에 "웹 터미널 탭을 실제로 열었는가"(web)를 싣는다: 전체 주소·데스크별 주소로 연 탭은 true, 주소가 없거나 탭이 막혔으면 false', async () => {
+  // 화면의 openCard 를 그대로 읽어, 화면에 닿는 것(판·탭·알림·요청)만 가짜로 바꿔 돌린다
+  const src = html.slice(html.indexOf('async function openCard(id) {'), html.indexOf('async function doAct('))
+  assert.ok(src.startsWith('async function openCard(id) {') && src.length < 3000, 'openCard 본문')
+  const press = async (card, saved, { blocked = false, reply = { ok: true, data: { code: 'focused' } } } = {}) => {
+    const sent = [], opened = [], toasts = []
+    const env = {
+      can: () => true, denied: () => {}, cardById: () => card, refresh: () => {}, msgOf: (d) => d.code, T: { going: 'going', popupBlocked: 'blocked' }, board: { readonly: false }, openedTabs: new Map(),
+      toast: (t, bad) => toasts.push([t, Boolean(bad)]),
+      clickPlan: (c) => clickPlanOf(c, store(saved), Object.keys(saved)),
+      openTab: (desk, url) => { opened.push([desk, url]); return blocked ? { ok: false } : { ok: true, win: {}, fresh: true } },
+      post: async (path, body) => { sent.push([path, body]); return reply },
+    }
+    await new Function(...Object.keys(env), `let clickN = 0; ${src}; return openCard`)(...Object.values(env))(7)
+    assert.equal(sent.length, 1)
+    assert.equal(sent[0][0], '/api/open')
+    return { body: sent[0][1], opened, toasts }
+  }
+  const alpha = herdrCard('alpha', 'w1:p3'), space = coreCard('sp1', 'notes', 't4')
+  // 전체 주소(herdr 데스크용)로 탭을 열었다
+  let r = await press(alpha, { 'whosup-open-url': OVIS })
+  assert.deepEqual([r.body.id, r.body.web, r.body.raise, r.opened], [7, true, true, [['alpha', 'http://127.0.0.1:7317/?pane=w1%3Ap3']]])
+  // 이 브라우저에 저장한 데스크별 주소로 탭을 열었다(herdr 데스크·Herdr 앱 데스크). 웹 터미널만 고른 브라우저는 창을 올리지 않는다
+  r = await press(alpha, { 'whosup-open-url:alpha': 'http://127.0.0.1:7318/?pane={pane}', 'whosup-raise': 'off' })
+  assert.deepEqual([r.body.web, r.body.raise], [true, false])
+  r = await press(space, { 'whosup-open-url:core:sp1': 'http://127.0.0.1:7319/?pane={pane}', 'whosup-raise': 'off' })
+  assert.deepEqual([r.body.web, r.body.raise, r.opened], [true, false, [['core:sp1', 'http://127.0.0.1:7319/?pane=t4']]])
+  // 열 주소가 없다(주소 없음·웹 주소 끔·그 데스크의 주소 꼴이 틀림): 탭을 열지 않았다고 싣는다
+  for (const saved of [{}, { 'whosup-open-url': OVIS, 'whosup-open-url-on': 'off' }, { 'whosup-open-url': OVIS, 'whosup-open-url:alpha': 'nope' }]) {
+    r = await press(alpha, saved)
+    assert.deepEqual([r.body.web, r.body.raise, r.opened], [false, true, []], JSON.stringify(saved))
+  }
+  // Herdr 앱 데스크는 전체 주소(herdr용)로 열지 않는다: web 도 false
+  r = await press(space, { 'whosup-open-url': OVIS })
+  assert.deepEqual([r.body.web, r.opened], [false, []])
+  // 브라우저가 탭을 막았다: 열지 못했다고 싣고, 화면에는 막혔다고 알린다
+  r = await press(alpha, { 'whosup-open-url': OVIS }, { blocked: true })
+  assert.deepEqual([r.body.web, r.toasts.at(-1)], [false, ['blocked', true]])
+  // web 은 늘 true·false 다(서버는 boolean 만 받는다 — 다른 값은 "알려 주지 않았다"로 읽는다)
+  assert.match(html, /post\('\/api\/open', \{ id, seq, raise: plan\.raise, web: Boolean\(tab\?\.ok\) \}\)/)
 })

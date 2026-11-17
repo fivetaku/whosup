@@ -26,7 +26,13 @@ header{height:72px;display:flex;align-items:center;gap:40px;padding:0 32px;borde
 .nb.ghost:hover{color:var(--bg);border-color:var(--ink)}
 .setrow{display:grid;grid-template-columns:1fr 92px;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.setrow label{font-size:14px;font-weight:600}.setrow small{display:block;color:var(--muted);font-size:12px;margin-top:4px;line-height:1.5;font-weight:400}.setrow small .rg{display:block;color:var(--faint);margin-top:2px}.setrow .in{text-align:right;font-variant-numeric:tabular-nums}.seterr{color:var(--fail);font-size:13px;margin-top:12px;line-height:1.5}
 .stamp{font-variant-numeric:tabular-nums}.stamp.off{color:var(--fail)}
-main{position:absolute;top:56px;bottom:0;left:0;right:0;display:grid;grid-template-rows:auto 1fr;min-height:0}
+main{position:absolute;top:56px;bottom:0;left:0;right:0;display:grid;grid-template-rows:auto auto 1fr;min-height:0}
+/* 권한 안내(F6): 끊김 표시(머리줄의 빨간 글)와 자리도 모양도 다르다 — 고장이 아니라 안내라서 빨강을 쓰지 않는다.
+   <details>라 마우스·터치·키보드(Enter·Space)로 펼치면 방법이 보이고, 좁은 폭에서는 잘리지 않고 줄을 바꾼다. 없을 때는 줄 높이가 0이다. */
+.notice{grid-row:1;margin-top:16px;padding:10px 32px;border-bottom:1px solid var(--line);background:var(--wash);color:var(--ink2);font-size:13px;line-height:1.5}.notice[hidden]{display:none}
+.notice summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 12px}.notice summary::-webkit-details-marker{display:none}
+.notice summary .nt{color:var(--ink);font-weight:600}.notice .nbody{margin:6px 0 2px;max-width:88ch}.notice .nbody p{margin:4px 0 0}
+main>.hero{grid-row:2}main>.strip{grid-row:3}
 .hero{display:grid;grid-template-columns:1fr 460px;padding:22px 32px 0;gap:40px;border-bottom:1px solid var(--ink)}
 .stats{display:grid;grid-template-columns:repeat(6,1fr)}
 .stat{padding:4px 16px 18px 0;border-right:1px solid var(--line);margin-right:16px;cursor:pointer}.stat:last-child{border-right:0}
@@ -38,7 +44,7 @@ main{position:absolute;top:56px;bottom:0;left:0;right:0;display:grid;grid-templa
 .nextline.fail i{background:var(--fail)}.nextline.fail .lb,.nextline.fail .w{color:var(--fail)}
 .nextline .lb{font-weight:700;font-size:17px}.nextline .qq{font-size:17px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nextline .w{font-size:22px;font-weight:300;letter-spacing:-.04em;color:var(--accent);font-variant-numeric:tabular-nums}.nextline .w small{font-size:12px;letter-spacing:.04em;margin-left:.2em}
-.deskbtn{margin-left:auto;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line, currentColor);padding:1px 6px;background:none;cursor:pointer}.deskbtn:hover{color:var(--ink)}.nextline.quiet .deskbtn{margin-left:6px;cursor:pointer}.nextline.quiet{cursor:default}.nextline.quiet i{background:var(--faint)}.nextline.quiet .qq{color:var(--muted)}
+.deskbtn{margin-left:auto;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line, currentColor);padding:1px 6px;background:none;cursor:pointer}.deskbtn:hover{color:var(--ink)}.nextline.quiet .deskbtn{margin-left:6px;cursor:pointer}.nextline.todo .qq{white-space:normal}.nextline.quiet{cursor:default}.nextline.quiet i{background:var(--faint)}.nextline.quiet .qq{color:var(--muted)}
 .hero .r{border-left:1px solid var(--line);padding-left:32px;display:flex;flex-direction:column}
 .r .lab{display:flex;justify-content:space-between;border-bottom:1px solid var(--ink);padding-bottom:10px}
 .r .lab i{width:8px;height:8px;border-radius:50%;background:var(--accent-soft);display:inline-block}
@@ -56,16 +62,17 @@ main{position:absolute;top:56px;bottom:0;left:0;right:0;display:grid;grid-templa
 .desk{display:flex;align-items:center;gap:14px;padding:10px 18px 6px;border-bottom:1px solid var(--line)}.desk em{font-style:normal;font-weight:700;color:var(--ink)}
 .cell{min-height:clamp(132px,16vh,180px);border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:18px 18px 16px;display:grid;grid-template-rows:auto 1fr;align-content:start;min-width:0;position:relative;cursor:pointer;text-align:left}
 .cell:hover{background:var(--wash)}
-/* 칸 라벨이 상태보다 먼저 자리를 갖는다 — 라벨이 상태·시간 옆에 다 들어가지 않으면 상태·시간이 다음 줄로 내려간다.
+/* 세션 라벨이 상태보다 먼저 자리를 갖는다 — 라벨이 상태·시간 옆에 다 들어가지 않으면 상태·시간이 다음 줄로 내려간다.
    브랜치(.br)는 남는 폭만 쓰고(contain:inline-size) 줄바꿈 판단에 끼지 않는다. */
 .cell .top{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:500;white-space:nowrap;overflow:hidden}
 .cell .top em{font-style:normal;color:var(--ink);font-weight:700;font-size:13px}.cell .top .br{text-transform:none;letter-spacing:0}
 .cell .top .lb{flex:1 1 auto;min-width:0;overflow:hidden;display:flex;align-items:baseline;gap:.35em}.cell .top .lb em,.cell .top .lb .br{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cell .top .lb em{flex:0 1 auto;min-width:0}.cell .top .lb .br{flex:1 1 0;min-width:0;contain:inline-size}.cell .top .lb .br::before{content:'· '}.cell .top .sx{flex:none;display:flex;align-items:baseline;gap:inherit}
 .cell .sum{font-size:15px;line-height:1.45;align-self:start;margin-top:12px;color:var(--ink);word-break:keep-all;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-/* 경과 시간은 윗줄 상태 뒤에 둔다 — 카드가 좁아져도 본문과 겹치지 않는다 */
+/* 경과 시간은 윗줄 상태 뒤에 둔다 — 세션 상자가 좁아져도 본문과 겹치지 않는다 */
 .cell .t{font-size:22px;font-weight:300;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums;color:var(--ink);text-transform:none}
 .cell .t small{font-size:12px;letter-spacing:.04em;color:var(--muted);margin-left:.2em}
-.cell.next,.cell:has(.resume),.cell:has(.stale){padding-bottom:50px}
+/* 아래 50px 띠는 모든 세션 상자가 비워 둔다(F15): 마우스를 올리면 뜨는 고정·보관·닫기 단추와 오른쪽 아래 단추·꼬리표가 요약 글을 가리지 않게. */
+.cell,.cell.next,.cell:has(.resume),.cell:has(.stale){padding-bottom:50px}
 .cell.run .sum,.cell.idle .sum{color:var(--muted)}.cell.run .t,.cell.idle .t{color:var(--muted)}
 .cell.idle .sum,.cell.shell .sum{color:var(--muted)}.cell .path{color:var(--muted)}.cell.fail .path{color:#fff;opacity:.85}.cell.idle .t,.cell.shell .t,.cell.idle .st,.cell.shell .st{color:var(--faint)}
 .cell .resume{position:absolute;right:14px;bottom:18px;font-size:12px;font-weight:600;letter-spacing:.04em;border:1px solid var(--ink);padding:3px 8px;color:var(--ink);background:var(--bg)}.cell .resume:hover{background:var(--ink);color:var(--bg)}
@@ -106,30 +113,38 @@ main{position:absolute;top:56px;bottom:0;left:0;right:0;display:grid;grid-templa
 .seg{display:inline-flex;border:1px solid var(--ink)}.seg button{height:30px;padding:0 16px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}.seg button+button{border-left:1px solid var(--ink)}.seg button.on{background:var(--ink);color:var(--bg)}
 .hint{color:var(--muted);font-size:12px;margin-top:10px;line-height:1.5}
 .btn{margin-top:20px;height:36px;padding:0 16px;background:var(--ink);color:var(--bg);font-size:12px;letter-spacing:.17em;text-transform:uppercase}.btn[disabled]{opacity:.35;cursor:default}
-.toast{position:fixed;left:50%;bottom:240px;transform:translateX(-50%) translateY(12px);opacity:0;z-index:40;background:var(--ink);color:var(--bg);padding:10px 16px;font-size:13px;transition:all .18s;pointer-events:none;max-width:min(600px,92vw)}
-.toast.on{opacity:1;transform:translateX(-50%)}.toast.err{background:var(--fail);color:#fff}
+/* 알림 띠는 오른쪽 아래(F15): 세션을 누르면 앞으로 온 창이 보드의 가운데·왼쪽을 덮어 가운데 띠는 꼬리만 보였다(2026-11-13 실기기 녹화). */
+.toast{position:fixed;right:24px;bottom:24px;transform:translateY(12px);opacity:0;z-index:40;background:var(--ink);color:var(--bg);padding:10px 16px;font-size:13px;line-height:1.45;transition:all .18s;pointer-events:none;max-width:min(480px,calc(100vw - 48px))}
+.toast.on{opacity:1;transform:none}.toast.err{top:auto;left:auto;border-bottom:0;background:var(--fail);color:#fff}
 @media (max-width:1300px){.hero{grid-template-columns:1fr}.hero .r{display:none}.stats{grid-template-columns:repeat(3,1fr)}}
-/* 좁은 창(화면 나눠 쓰기로 보드를 한쪽에 붙였을 때): 헤더를 줄이고 칸은 두 줄로 */
-@media (max-width:760px){.stats{grid-template-columns:repeat(3,1fr)}.stat{padding:2px 8px 10px 0;margin-right:8px}.stat .n{font-size:30px;margin-top:4px}.stat .sub{display:none}.hero .caps{font-size:10px;letter-spacing:.08em}header{gap:10px;padding:0 12px}.tools{gap:4px}.ib{width:32px;height:32px}.ib svg{width:16px;height:16px}.nb{font-size:12px;padding:7px 10px;letter-spacing:.08em;white-space:nowrap}.counts{display:none}.hero{padding:14px 14px 0;gap:16px}.desk{padding:8px 12px 4px}.nextline{gap:10px}}
+/* 좁은 창(화면 나눠 쓰기로 보드를 한쪽에 붙였을 때): 헤더를 줄이고 상단 숫자는 두 줄로 */
+@media (max-width:760px){.notice{padding:8px 14px}.toast{right:12px;bottom:12px;max-width:calc(100vw - 24px)}.stats{grid-template-columns:repeat(3,1fr)}.stat{padding:2px 8px 10px 0;margin-right:8px}.stat .n{font-size:30px;margin-top:4px}.stat .sub{display:none}.hero .caps{font-size:10px;letter-spacing:.08em}header{gap:10px;padding:0 12px}.tools{gap:4px}.ib{width:32px;height:32px}.ib svg{width:16px;height:16px}.nb{font-size:12px;padding:7px 10px;letter-spacing:.08em;white-space:nowrap}.counts{display:none}.hero{padding:14px 14px 0;gap:16px}.desk{padding:8px 12px 4px}.nextline{gap:10px}}
 /* 아주 좁은 화면(폰·좁은 창): 아이콘을 줄이고 '+ 새 세션'은 '+'만 남긴다 — 위쪽 바가 화면 밖으로 넘치지 않게 */
 @media (max-width:480px){header{gap:6px;padding:0 8px}.tools{gap:2px}.ib{width:28px;height:28px}.ib svg{width:15px;height:15px}.nb{font-size:0;padding:6px 10px;letter-spacing:0}.nb::before{content:'+';font-size:16px;line-height:1}}
-/* 낮은 창(높이 640px 이하): 상단 띠를 한 줄 숫자로 줄여 칸에 자리를 내준다 */
+/* 낮은 창(높이 640px 이하): 상단 띠를 한 줄 숫자로 줄여 세션에 자리를 내준다 */
 @media (max-height:640px) and (min-width:761px){.hero{grid-template-columns:1fr;padding-top:12px}.hero .r{display:none}.stats{grid-template-columns:repeat(6,1fr)}.stat{padding:0 8px 8px 0;margin-right:8px}.stat .n{font-size:28px;margin-top:2px}.stat .sub{display:none}.nextline{padding:8px 0 9px}}
 /* 서버가 답하지 않으면 판을 흐리게 — 옛 숫자가 지금 상태처럼 보이지 않게 */
 body.offline main{opacity:.4}#stamp{max-width:46vw;overflow:hidden;text-overflow:ellipsis}
-/* 폭에 따라 다른 카드: 좁은 띠(화면 나눠 쓰기) = 한 줄 목록, 넓은 띠(27"·울트라와이드) = 칸 더 많이 + 요약 2줄 + 큰 시간 */
-@container strip (max-width:639px){.deskrow{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}.cell,.cell.next,.cell:has(.resume),.cell:has(.stale){min-height:0;padding:10px 12px 10px}.cell .top{gap:8px;letter-spacing:.06em}.cell .top .st::before,.cell.done .top .st::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:6px;vertical-align:middle}.cell.snooze .top .st::before{background:none}.cell .t{font-size:15px;font-weight:500;letter-spacing:0}.cell.wait .t{font-weight:700}.cell .sum{-webkit-line-clamp:1;margin-top:6px;font-size:14px}.cell .top{grid-column:1/-1}.cell .resume,.cell .stale,.cell.next::after{position:static;grid-column:1/-1;justify-self:end;margin-top:6px}.cell.wait .sum,.cell.fail .sum,.cell.done .sum{-webkit-line-clamp:2}.cell .acts{left:auto;bottom:auto;top:6px;right:6px}}
-@container strip (min-width:2200px){.deskrow{grid-template-columns:repeat(auto-fill,minmax(400px,1fr))}.cell{min-height:clamp(150px,15vh,200px);padding:20px 22px 18px}.cell .sum{-webkit-line-clamp:2;font-size:16px}.cell .t{font-size:30px}}
-/* 높이 맞춤: 칸이 화면 아래로 넘치면 ① 히어로를 줄이고(fit1) ② 그래도 넘치면 남은 높이를 카드 줄 수로 나눠 카드 높이를 맞춘다(--fit-h). 요약 글은 숨기지 않는다. render()마다 다시 잰다. */
+/* 폭에 따라 다른 세션 상자: 좁은 띠(화면 나눠 쓰기) = 한 줄 목록, 넓은 띠(27"·울트라와이드) = 세션 더 많이 + 요약 2줄 + 큰 시간 */
+@container strip (max-width:639px){.deskrow{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}.cell,.cell.next,.cell:has(.resume),.cell:has(.stale){min-height:0;padding:10px 12px 10px}.cell .top{gap:8px;letter-spacing:.06em}.cell .top .st::before,.cell.done .top .st::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:6px;vertical-align:middle}.cell.snooze .top .st::before{background:none}.cell .t{font-size:15px;font-weight:500;letter-spacing:0}.cell.wait .t{font-weight:700}.cell .sum{-webkit-line-clamp:1;margin-top:6px;font-size:14px}.cell .top{grid-column:1/-1}.cell .resume,.cell .stale,.cell.next::after{position:static;grid-column:1/-1;justify-self:end;margin-top:6px}.cell.wait .sum,.cell.fail .sum,.cell.done .sum{-webkit-line-clamp:2}}
+@container strip (min-width:2200px){.deskrow{grid-template-columns:repeat(auto-fill,minmax(400px,1fr))}.cell{min-height:clamp(150px,15vh,200px);padding:20px 22px 50px}.cell .sum{-webkit-line-clamp:2;font-size:16px}.cell .t{font-size:30px}}
+/* 높이 맞춤: 세션이 화면 아래로 넘치면 ① 히어로를 줄이고(fit1) ② 그래도 넘치면 남은 높이를 세션 줄 수로 나눠 세션 상자 높이를 맞춘다(--fit-h). 요약 글은 숨기지 않는다. render()마다 다시 잰다. */
 html.fit1 .stat .n{font-size:clamp(30px,4.2vh,46px);margin-top:6px}html.fit1 .stat .sub{margin-top:5px;font-size:12px}html.fit1 .stat{padding-bottom:12px}html.fit1 .hero .caps{font-size:10px}html.fit1 .spark{height:26px;margin-top:8px}html.fit1 .r .lab{padding-bottom:8px}html.fit1 .nextline{padding:10px 0 11px}html.fit1 .nextline .lb,html.fit1 .nextline .qq{font-size:15px}html.fit1 .nextline .w{font-size:19px}
 html.fit2 .cell,html.fit2 .cell.next,html.fit2 .cell:has(.resume),html.fit2 .cell:has(.stale){min-height:var(--fit-h);height:var(--fit-h);overflow:hidden;padding:14px 16px 12px}html.fit2 .cell .sum{margin-top:8px}html.fit2.tight .cell .sum{-webkit-line-clamp:2;font-size:14px}
-/* 눌러야 할 카드는 바탕색으로도 보이게: 입력 필요는 진한 회색, 답변 도착은 옅은 회색(흑백 디자인 유지). 깜빡임 한 번으로는 21칸 중에서 찾기 어려웠다(2026-11-09 데모 촬영). */
+/* 눌러야 할 세션은 바탕색으로도 보이게: 입력 필요는 진한 회색, 답변 도착은 옅은 회색(흑백 디자인 유지). 깜빡임 한 번으로는 세션 21개 중에서 찾기 어려웠다(2026-11-09 데모 촬영). */
 .cell.wait{background:#e4e4e4}.cell.done{background:#f2f2f2}:root[data-theme="dark"] .cell.wait{background:#3a3a3a}:root[data-theme="dark"] .cell.done{background:#2c2c2c}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .cell.wait{background:#3a3a3a}:root:not([data-theme="light"]) .cell.done{background:#2c2c2c}}.cell.wait:hover,.cell.done:hover{filter:brightness(.97)}
 /* header toggles: text + underline only (overrides .seg .on fill) */
 .seg.mini button.on{background:none;color:var(--ink);border-bottom:2px solid var(--ink)}
 .cell .acts{position:absolute;left:14px;bottom:14px;display:none;gap:4px;z-index:2}.cell:hover .acts,.cell:focus-within .acts{display:flex}
 .cell .acts button{font-size:12px;letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--line2);background:var(--bg);color:var(--ink2);padding:3px 7px}.cell .acts button:hover{border-color:var(--ink);color:var(--ink)}
 .cell.fail .acts button{background:transparent;border-color:#fff}
+/* 단추가 글자를 가리지 않게(F15). 보통 띠: 단추는 아래 50px 띠 안에만 뜬다. 오른쪽 아래 단추(이어서 열기·에이전트 시작)가 있는 상자에서는 그 자리를 남기고, 모자라면 위로 접힌다.
+   높이 맞춤(fit2): 띠를 비워 둘 높이가 없어 마우스를 올린 상자의 요약을 한 줄로 줄이고 그 아래에 띄운다.
+   좁은 띠(한 줄 목록): 상자 높이를 바꾸지 않는다 — 윗줄 오른쪽 끝(상태·시간 자리)에 띄운다. 흐름 안의 줄로 펼치면 마우스가 지나가는 상자마다 높이가 늘어 아래 목록이 출렁인다.
+   자리 값은 이 규칙이 위의 .cell .acts 보다 뒤에 있어야 이긴다(앞에 두면 left·bottom 이 져서 단추가 상자 가득 늘어난다). 색을 채운 실패 상자에서는 단추 바탕도 채워 밑의 글자가 비치지 않게 한다. */
+.cell:has(.resume) .acts{max-width:calc(100% - 126px);flex-wrap:wrap-reverse}
+html.fit2 .cell .acts{bottom:8px}html.fit2 .cell:has(.acts):hover .sum,html.fit2 .cell:has(.acts):focus-within .sum{-webkit-line-clamp:1}
+@container strip (max-width:639px){.cell .acts,.cell:has(.resume) .acts{top:6px;right:6px;left:auto;bottom:auto;max-width:calc(100% - 12px);flex-wrap:wrap;justify-content:flex-end}.cell.fail .acts button{background:var(--fail-fill)}}
 .cell .pinmark{color:var(--ink);margin-right:4px}.cell .tag{font-size:12px;letter-spacing:.04em;border:1px solid var(--line2);padding:1px 5px;margin-left:6px;color:var(--muted)}
 .cell.snooze .st{color:var(--accent)}.cell.snooze .sum{color:var(--ink2)}.cell.snooze .t{color:var(--muted)}
 .cell.snooze .top .st::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;border:1px solid var(--accent-soft);margin-right:6px;vertical-align:middle}
@@ -149,7 +164,7 @@ header *{white-space:nowrap}header{gap:16px}.stamp{font-size:13px;letter-spacing
 .envsum{border:1px solid var(--line);padding:12px 14px;margin:0 0 16px;font-size:13px;line-height:1.7;color:var(--ink2)}.envsum p{margin:6px 0 0;white-space:normal}.envsum b{font-weight:600;color:var(--ink)}.envsum .at{text-transform:none;letter-spacing:0}.envsum .link{margin-top:6px}
 .setrow small .rg.src{color:var(--muted);overflow-wrap:anywhere}
 .firstrun{position:fixed;top:84px;left:50%;transform:translateX(-50%);width:min(640px,94vw);z-index:35;background:var(--bg);border:1px solid var(--ink);padding:18px 24px 22px;box-shadow:0 10px 32px rgba(0,0,0,.14)}.firstrun[hidden]{display:none}
-.firstrun .frh{display:flex;align-items:center;margin-bottom:12px}.firstrun .frh .x{margin-left:auto;font-size:18px;color:var(--muted)}.firstrun .frq{font-size:15px;font-weight:600;margin:4px 0 10px}.firstrun .frc button{white-space:nowrap}
+.firstrun .frh{display:flex;align-items:center;gap:12px;margin-bottom:12px}.firstrun .frh .frlang{margin-left:auto;flex:none}.firstrun .frh .x{font-size:18px;color:var(--muted)}.firstrun .frq{font-size:15px;font-weight:600;margin:4px 0 10px}.firstrun .frc button{white-space:nowrap}.firstrun{max-height:calc(100vh - 110px);overflow:auto}.frrow{margin:14px 0 0}.frrow .frq{margin:0 0 8px}.frrow .hint{margin-top:6px}.presets button small{font-size:11px;color:var(--muted);font-weight:400}.chk{display:block;grid-column:1/-1;font-size:13px;font-weight:400!important;color:var(--ink2)}.chk input{margin-right:6px;vertical-align:-1px}
 .setrow .seg.mini{justify-self:end}.seg.mini{display:inline-flex;border:1px solid var(--line)}.seg.mini button{height:32px;padding:0 12px;font-size:14px;color:var(--muted)}.seg.mini button+button{border-left:1px solid var(--line)}
 </style>
 </head>
@@ -167,6 +182,7 @@ header *{white-space:nowrap}header{gap:16px}.stamp{font-size:13px;letter-spacing
   <button class="nb" data-new data-i18n="new">+ 새 세션</button>
 </header>
 <main>
+  <details class="notice" id="notice" hidden></details>
   <section class="hero" id="hero"></section>
   <section class="strip" id="strip"></section>
 </main>
@@ -176,12 +192,12 @@ header *{white-space:nowrap}header{gap:16px}.stamp{font-size:13px;letter-spacing
 <div class="toast" id="toast"></div>
 <script>
 const I18N = {
-  ko: { roSettings: '읽기 전용 화면입니다. 언어만 이 브라우저에서 바꿀 수 있고, 서버 설정은 바꿀 수 없습니다.', appLabel: '터미널 앱', appHint: (d) => `whosup이 도는 컴퓨터에서 칸을 누르면 앞으로 올릴 터미널 앱입니다. 자동이면 지금 herdr를 띄워 둔 앱을 찾아 씁니다${d ? ` (지금: ${d})` : ''}. 떠 있는 창이 없으면 새 창을 엽니다. 새 창 열기는 Ghostty와 Terminal에서 되고, 다른 앱은 이미 떠 있는 창만 앞으로 올립니다.`, appHintWin: '칸을 누르면 whosup이 도는 윈도우 PC 화면에서 그 세션을 보여 주는 터미널 창을 앞으로 올립니다. 떠 있는 창이 없으면 새 창을 엽니다. 자동이면 자동 세팅이 고른 터미널로 엽니다(Windows Terminal이 있으면 그것, 없으면 PowerShell). PowerShell을 고르면 늘 PowerShell 창으로 열고, Windows Terminal을 고르면 새 창을 Windows Terminal로 열고, 끔을 고르면 창을 건드리지 않습니다. whosup은 사용자의 바탕화면 세션에서 띄워야 창이 보입니다(SSH로 띄우면 보이지 않습니다).', appOff: '끔', appPhWin: 'PowerShell · Windows Terminal · off', appAuto: '자동', appPh: '앱 이름을 직접 적어도 됩니다 (예: iTerm)', clickLabel: '칸을 누르면 열 곳 (이 브라우저만)', clickHint: '터미널 창은 whosup이 도는 컴퓨터 화면에서 그 칸의 터미널을 앞으로 올립니다. 웹 주소는 브라우저에서 herdr를 보는 웹 터미널의 새 탭으로 그 칸을 엽니다. 다른 기기에서 접속해 쓴다면 웹 주소를 고르세요.', clickTerminal: '터미널 창', clickWeb: '웹 주소', clickBoth: '둘 다', openUrlPerDesk: 'herdr 세션마다 주소가 다르면 아래에 따로 적습니다. 비워 둔 세션은 위 주소를 씁니다. Herdr 앱 줄은 여기 적은 주소가 있을 때만 웹으로 엽니다. 위의 웹 터미널 단추는 마지막으로 누른 칸에 주소를 넣습니다.', openUrlSame: '위 주소와 같음', openUrlCore: '비우면 Herdr 앱으로 엽니다', openUrlLabel: '칸을 열 주소 (이 브라우저만)', openUrlHint: '칸을 누를 때 이 주소를 새 탭으로 엽니다. {session} 자리에 herdr 세션 이름, {pane} 자리에 칸 번호가 들어갑니다. 예: 웹 클라이언트 주소/?pane={pane}. 비워 두면 열지 않습니다. 이 설정은 지금 보고 있는 브라우저에만 저장됩니다. 웹 터미널 이름 버튼을 누르면 그 제품의 기본 주소가 채워집니다. 포트가 다르면 숫자만 고치세요.', openUrlBad: '주소는 http:// 또는 https://로 시작해야 하고 {pane}이 들어가야 합니다', approveQ: '승인할까요?', trustQ: '이 폴더를 신뢰할까요? (Yes, I trust this folder)', offTag: '꺼짐', offHint: 'herdr 세션이 꺼져 있습니다 · 펼쳐서 칸을 누르면 다시 띄웁니다', again: '다시', collected: (s) => `수집 ${s}초 전`, stale_collect: (t) => `연결 끊김 · 마지막 수집 ${t}`, unknownWait: '확인할 수 없습니다. herdr에 닿지 않아 손 든 칸을 알 수 없습니다', blindHerdr: 'whosup이 herdr를 읽지 못하고 있습니다', blindServer: 'whosup 서버가 답하지 않습니다', blindBody: '그동안 손 든 칸 알림이 멈춥니다. 다시 연결되면 이 알림은 사라집니다.', resumeWhat: (p, t) => `${t} 전 대화를 엽니다${p ? ` · 마지막 요청: ${p}` : ''}`, resumeFresh: '이어 갈 대화가 없어 새로 시작합니다', errKind: { no_herdr: 'herdr 실행 파일을 찾지 못함', no_reply: 'herdr가 답하지 않음', failed: 'herdr 읽기 실패' }, forN: (t) => `${t}째`, failKind: { rate_limit: '사용량 한도', authentication_failed: '인증 실패', invalid_request: '요청 오류', server_error: '서버 오류', unknown: '오류로 끝남' }, codes: { read_only: '읽기 전용 화면입니다. 이 화면에서는 칸을 조작할 수 없습니다', resume_changed: '이어서 열 대화가 그사이 바뀌었습니다. 판을 새로 고쳤으니 확인하고 다시 눌러 주세요', cwd_missing: '그 폴더가 더 이상 없습니다. 지워진 작업 폴더라면 새 세션으로 여세요', focused: '그 칸으로 옮겼습니다', focused_started: 'herdr 세션을 띄우고 그 칸으로 옮겼습니다', focused_opened: '이 세션을 보여 주는 창이 없어 새 터미널 창을 열었습니다', resumed: '대화를 이어서 열었습니다', started: '새 대화를 시작했습니다', busy: '이미 여는 중입니다. 잠시 기다려 주세요', has_agent: '그 칸에는 이미 에이전트가 있습니다', no_session: '그 칸 기록을 찾지 못했습니다', closed: '닫힌 칸입니다. 최근 닫힘에서 이어서 열기를 눌러 주세요', bad_request: '요청이 올바르지 않습니다', herdr_error: (d) => `herdr가 실패했습니다: ${(d.message || '').slice(0, 120)}`, opened_new: '새 세션을 열었습니다', no_folder: '그 폴더가 없습니다', bad_folder: '홈 폴더 아래의 폴더만 열 수 있습니다', pane_gone: '이미 닫힌 칸이라 최근 닫힘으로 옮겼습니다', pane_closed: '칸을 닫았습니다', desk_stopped: '데스크를 껐습니다', desk_started: '데스크를 켰습니다', superseded: '' }, settingsBtn: '설정', setTitle: '설정', setSave: '저장', setSaved: '설정을 저장했습니다', oPanel: '출처: 설정 패널에서 정함 (칸을 비우고 저장하면 환경변수·자동·기본값으로 돌아갑니다)', oEnv: (n, f) => `출처: 환경변수 ${n} — 파일 ${f} (바꾸면 whosup을 stop 뒤 start)`, oEnvShell: (n) => `출처: 환경변수 ${n} — whosup을 띄운 셸·서비스의 환경 (바꾸면 whosup을 stop 뒤 start)`, oAuto: (r) => `출처: 자동 감지 — ${r} (여기서 바꾸면 그 값이 먼저입니다)`, oDefault: '출처: 기본값', oCard: '출처: 사람이 정함(첫 실행 카드) — 위 단추로 바꾸면 이 브라우저에만 적용됩니다', oBrowser: '출처: 이 브라우저에서 정함', envTitle: '감지한 환경', envUnknown: '확인 못 함', envNone: '없음', envOs: 'OS', envTerm: '터미널 앱', envHerdr: 'herdr 세션', envApp: 'Herdr 앱', envOvis: 'ovis', envRemote: '실행 위치', envLocal: '이 컴퓨터의 데스크톱', envRemoteYes: '원격(SSH 등) — 창 올리기·브라우저 열기 끔', envTermDef: (os) => os === 'win32' ? 'PowerShell(기본)' : os === 'darwin' ? 'Terminal(기본)' : '창 올리기 없음', envOff: '끔', envSessions: (n, l) => `${n}개${l ? ` (${l})` : ''}`, envAppYes: (on) => `있음 · 코어 ${on ? '실행 중' : '꺼짐'}`, envOvisCheck: '세션 확인 필요', envAt: (t) => `감지 시각 ${t}`, frTitle: '감지한 환경을 확인해 주세요', frQ: '칸을 누르면 어디로 열까요?', frTerminal: '터미널 창 (지금)', frOvis: 'ovis', frBoth: '둘 다', frOk: '이대로 쓰기', frClose: '닫기', frHint: '고른 값은 사람이 정한 설정으로 저장되고, 그 뒤로 자동 세팅이 바꾸지 않습니다. 설정 패널에서 언제든 다시 볼 수 있습니다.', frHintNoAsk: '고를 것이 없어 감지한 환경 그대로 씁니다. 이대로 쓰기를 누르면 이 카드는 다시 뜨지 않고, 설정 패널에서 언제든 다시 볼 수 있습니다.', frRo: '읽기 전용 화면이라 저장하지 않고 닫기만 합니다.', frSaved: '감지한 환경으로 시작합니다', frReopen: '감지한 환경 다시 보기', openUrlAuto: '회색 주소는 자동 감지한 ovis 주소입니다(자동 감지 — L7). 직접 적으면 그 값이 먼저입니다.', setHint: '이 컴퓨터의 whosup에만 적용됩니다. 칸을 비워 두면 기본값을 씁니다.', setRange: (r, u) => `${r.min}~${r.max}${u} 사이, 기본 ${r.def}${u}`, setItems: { seen_snooze_min: ['확인한 칸 다시 띄우기', '확인을 눌렀는데도 그 칸이 계속 기다리고 있으면, 이 시간이 지난 뒤 다시 앞으로 올립니다.', '분'], renotify_min: ['다시 알리는 간격', '답하지 않은 칸을 몇 분마다 다시 알릴지 정합니다.', '분'], renotify_max: ['다시 알리는 횟수', '같은 칸을 최대 몇 번까지 다시 알릴지 정합니다. 0이면 처음 한 번만 알립니다.', '번'], gone_misses: ['닫힌 칸으로 보는 기준', '칸이 이 횟수만큼 연달아 보이지 않으면 닫힌 것으로 보고 최근 닫힘으로 옮깁니다.', '번'], stale_collect_sec: ['연결 끊김 알림', 'herdr에서 이 시간이 넘도록 소식이 없으면 화면 위에 연결이 끊겼다고 띄웁니다.', '초'], closed_keep_days: ['최근 닫힘에 남겨 두는 기간', '닫힌 칸을 이 기간 동안 최근 닫힘 목록에 남겨 둡니다. 보관한 칸은 되돌릴 때까지 남습니다.', '일'], stale_days: ['오래 멈춘 칸 표시', '이 기간 동안 아무 움직임이 없는 칸에 보관 후보 표시를 붙입니다.', '일'], os_notify: ['macOS 알림', '브라우저 탭을 닫아 둬도 macOS 알림으로 알려 줍니다. 1이면 켜고, 0이면 끕니다.', ''], unreachable_ttl_h: ['확인 불가 칸을 내리는 시간', 'herdr에서 이 시간 넘게 확인하지 못한 칸은 손 든 칸·순번·알림에서 내립니다. 칸은 판에 남습니다.', '시간'], split_pct: ['화면 나눠 쓰기', '칸을 누르면 이 보드 창을 화면 왼쪽에, 터미널 창을 오른쪽에 붙입니다. 보드가 차지할 폭(%)을 적습니다. 노트북처럼 화면이 작을 때 33(보드 1 : 터미널 2)을 권합니다. 0이면 끕니다.', '%'] }, seenBtn: '확인함', unseenBtn: '확인 취소', pinBtn: '고정', unpinBtn: '고정 해제', stashBtn: '보관', unstashBtn: '되돌리기', pinnedDesk: '고정', closedTitle: '최근 닫힘', closedHint: (d) => `지난 ${d}일 · 사라지거나 보관한 칸`, gone: '닫힘', stashedWhy: '보관함', reopen: '이어서 열기', snoozed: (m) => `확인함 · ${m}분 뒤 다시`, unreach: '확인 불가', lastOk: (t) => `마지막 확인 ${t} 전`, filterOn: (l) => `${l}만 보는 중 · 숫자를 다시 누르면 해제`, sortLabel: '정렬', sDesk: '자리순', sNeglect: '방치순', sortedToast: '데스크마다 오래 방치된 칸을 앞으로 모았습니다', sortedDeskToast: '창에 놓인 원래 자리 순서로 돌렸습니다', sortTip: (m, n) => `정렬: ${m} · 누르면 ${n}`, notifLabel: '알림', nOn: '켬', nOff: '끔', notifTip: (on) => on ? '알림 켜짐 · 누르면 끔' : '알림 꺼짐 · 누르면 켬', themeTip: (m, n) => `모드: ${m} · 누르면 ${n}`, themeToast: (m) => `모드: ${m}`, collectedTip: (s) => `마지막 수집 ${s}초 전`, nDenied: '브라우저에서 알림이 막혀 있습니다. 주소창 왼쪽 자물쇠에서 허용해 주세요', nOnToast: '알림을 켰습니다. 칸이 손을 들면 알려 드립니다', nTest: 'whosup 알림이 켜졌습니다', langLabel: '언어', langHint: '화면 글자 언어', themeLabel: '모드', thAuto: '자동', thLight: '라이트', thDark: '다크', wait: '입력 필요', fail: '실패', done: '답변 도착', run: '진행 중', idle: '유휴', shell: '빈 칸', panes: '세션', new: '+ 새 세션', next: '다음', quiet: '조용', noWait: '기다리는 칸이 없습니다', noWaitShort: '기다리는 칸 없음', none: '없음', stale: '보관 후보', staleN: (n) => `보관 후보 ${n}`, resume: '이어서 열기', noAgent: '에이전트 없음', recent: (t) => `최근: ${t}`, noPrompt: '요청 기록 없음', today: '오늘 주의 사건', raised: '발생', within: '3분 내 처리', seen: '확인함', waiting: '승인 대기', needsInput: '입력 필요', over: (m) => `${m}분 넘김`, overLong: '한참 넘김', under: '3분 안', min: '분', hour: '시간', day: '일', cnt: '건', going: '그 칸으로 가는 중…', loading: '판을 불러오는 중입니다. 잠시 뒤 다시 해 주세요.', popupBlocked: '브라우저가 새 탭을 막았습니다. 이 페이지의 팝업을 허용해 주세요', opening: '새 세션을 여는 중…', resuming: '이어서 여는 중…', noReply: '응답 없음', off: '끊김', connErr: (m) => `whosup 서버에 연결하지 못했습니다: ${m}`, newTitle: '폴더를 골라 새 세션 열기', folder: '폴더', folderPh: '경로를 직접 붙여 넣어도 됩니다', recentFolders: '최근 폴더', browse: '폴더 찾아보기', up: '상위 폴더', pickHere: '이 폴더로', emptyDir: '하위 폴더가 없습니다', chosen: '고른 폴더', which: '어느 herdr 세션에', hint: (c) => `고른 세션에 새 탭을 열고 ${c} 를 실행합니다.`, changeCmd: '실행 명령 바꾸기', open: '열기 ↵', noFolders: '최근 폴더가 없습니다', cmdLabel: '세션을 열 때 실행할 명령', cmdHint: '새 세션과 이어서 열기에 씁니다. 자주 쓰는 것을 고르거나 직접 입력하세요. 이어서 열기는 이 명령 뒤에 --resume 을 붙입니다.', cmdPresets: [['Claude Code', 'claude'], ['권한 확인 건너뛰기', 'claude --dangerously-skip-permissions'], ['Codex', 'codex']], failNoSay: '실패 감지 · 마지막 말 없음', paneN: (n) => `${n}칸`, locale: 'ko-KR', raiseWarn: '손쉬운 사용 권한 필요 · 최소화한 창을 펼치지 못합니다', raiseWarnTip: '시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서 whosup을 실행하는 node(또는 osascript)를 켠 뒤 whosup을 다시 시작해 주세요(이미 떠 있던 whosup은 권한을 새로 받지 못합니다). 권한이 없으면 터미널 앱만 앞으로 오고, 최소화한 창은 Dock에 남으며, 화면 나눠 쓰기도 되지 않습니다.', offDesks: (d) => `꺼진 데스크: ${d}`, deskOn: '켜기', deskOff: '끄기', closeBtn: '닫기', closeConfirm: (n) => `${n} 칸을 닫을까요? 그 칸에서 돌던 대화도 끝납니다(대화 기록은 남아 최근 닫힘에서 이어서 열 수 있습니다).`, deskOffConfirm: (d) => `${d} 데스크를 끌까요? 칸 안의 에이전트가 모두 끝나고 붙어 있던 터미널 창도 닫힙니다. 켜기를 누르면 칸 배치가 돌아옵니다.` },
-  en: { roSettings: 'Read-only view. You can change the language for this browser only; server settings cannot be changed.', appLabel: 'Terminal app', appHint: (d) => `The terminal app to bring forward on the computer running whosup when you click a pane. Auto uses the app that is showing herdr right now${d ? ` (now: ${d})` : ''}. If no window is open, a new one is opened. New windows work with Ghostty and Terminal; other apps only raise a window that is already open.`, appHintWin: 'Clicking a pane brings forward the terminal window that shows its session on the Windows PC running whosup. If none is open, a new one opens. Auto uses the terminal picked by auto setup (Windows Terminal if installed, otherwise PowerShell); PowerShell always opens a PowerShell window; Windows Terminal opens new windows there; off leaves windows alone. Start whosup from your desktop session for windows to show (not over SSH).', appOff: 'off', appPhWin: 'PowerShell · Windows Terminal · off', appAuto: 'auto', appPh: 'or type an app name (e.g. iTerm)', clickLabel: 'Clicking a pane opens (this browser only)', clickHint: 'Terminal window raises that pane in the terminal on the computer running whosup. Web address opens the pane in a browser tab of a web terminal for herdr. Pick web address when you use the board from another device.', clickTerminal: 'terminal window', clickWeb: 'web address', clickBoth: 'both', openUrlPerDesk: 'If each herdr session has its own address, set it below. A blank one uses the address above. A Herdr app row opens on the web only when it has an address here. The web terminal button above fills the field you clicked last.', openUrlSame: 'same as above', openUrlCore: 'blank = open in the Herdr app', openUrlLabel: 'Address to open a pane (this browser only)', openUrlHint: 'Clicking a pane opens this address in a tab. {session} becomes the herdr session name and {pane} the pane id. Example: your web client address/?pane={pane}. Leave blank to open nothing. Saved in this browser only. A web terminal button fills in the default address of that product. Change the port number if yours differs.', openUrlBad: 'The address must start with http:// or https:// and contain {pane}', approveQ: 'approve?', trustQ: 'Trust this folder? (Yes, I trust this folder)', offTag: 'off', offHint: 'herdr session is off · expand and click a pane to start it again', again: 'again', collected: (s) => `collected ${s}s ago`, stale_collect: (t) => `disconnected · last collect ${t}`, unknownWait: 'unknown. whosup cannot reach herdr', blindHerdr: 'whosup cannot read herdr', blindServer: 'the whosup server is not answering', blindBody: 'Pane alerts are paused until it reconnects. This alert closes when it does.', resumeWhat: (p, t) => `opens the conversation from ${t} ago${p ? ` · last request: ${p}` : ''}`, resumeFresh: 'no conversation to continue — starts fresh', errKind: { no_herdr: 'herdr executable not found', no_reply: 'herdr is not answering', failed: 'reading herdr failed' }, forN: (t) => `for ${t}`, failKind: { rate_limit: 'usage limit', authentication_failed: 'auth failed', invalid_request: 'bad request', server_error: 'server error', unknown: 'ended in error' }, codes: { read_only: 'this is a read-only view. Panes cannot be changed from here', resume_changed: 'the conversation to resume changed in the meantime. The board is refreshed — check it and click again', cwd_missing: 'that folder no longer exists. If the worktree was removed, open a new session instead', focused: 'moved to that pane', focused_started: 'started the herdr session and moved there', focused_opened: 'no window was showing that session, so a terminal window was opened', resumed: 'resumed the conversation', started: 'started a new conversation', busy: 'already opening. Give it a moment', has_agent: 'that pane already has an agent', no_session: 'no record of that pane', closed: 'that pane is closed. Use resume under recently closed', bad_request: 'bad request', herdr_error: (d) => `herdr failed: ${(d.message || '').slice(0, 120)}`, opened_new: 'opened a new pane', no_folder: 'that folder does not exist', bad_folder: 'only folders under home can be opened', pane_gone: 'that pane was already closed, moved to recently closed', pane_closed: 'pane closed', desk_stopped: 'desk stopped', desk_started: 'desk started', superseded: '' }, settingsBtn: 'settings', setTitle: 'settings', setSave: 'save', setSaved: 'settings saved', oPanel: 'source: set in this panel (clear the field and save to fall back to environment, auto or default)', oEnv: (n, f) => `source: environment variable ${n} — file ${f} (after changing it, stop then start whosup)`, oEnvShell: (n) => `source: environment variable ${n} — from the shell or service that started whosup (after changing it, stop then start whosup)`, oAuto: (r) => `source: auto-detected — ${r} (a value set here wins)`, oDefault: 'source: default', oCard: 'source: chosen by you (first-run card) — the buttons above change this browser only', oBrowser: 'source: set in this browser', envTitle: 'Detected environment', envUnknown: 'not detected', envNone: 'none', envOs: 'OS', envTerm: 'terminal app', envHerdr: 'herdr sessions', envApp: 'Herdr app', envOvis: 'ovis', envRemote: 'running on', envLocal: 'this computer’s desktop', envRemoteYes: 'remote (SSH etc.) — window raising and browser opening off', envTermDef: (os) => os === 'win32' ? 'PowerShell (default)' : os === 'darwin' ? 'Terminal (default)' : 'no window raising', envOff: 'off', envSessions: (n, l) => `${n}${l ? ` (${l})` : ''}`, envAppYes: (on) => `found · core ${on ? 'running' : 'stopped'}`, envOvisCheck: 'session needs checking', envAt: (t) => `detected at ${t}`, frTitle: 'Check the detected environment', frQ: 'Where should clicking a pane open it?', frTerminal: 'terminal window (now)', frOvis: 'ovis', frBoth: 'both', frOk: 'use as is', frClose: 'close', frHint: 'What you pick is saved as your own setting, and auto setup will not change it afterwards. You can see this again from settings.', frHintNoAsk: 'Nothing to choose here: whosup uses the detected environment as is. After use as is, this card will not show again; you can see it again from settings.', frRo: 'Read-only view: closing only, nothing is saved.', frSaved: 'Starting with the detected environment', frReopen: 'show detected environment again', openUrlAuto: 'Grey addresses are ovis addresses found by auto setup (auto-detected — L7). An address you type wins.', setHint: 'Applies to whosup on this computer only. Leave a field blank to use the default.', setRange: (r, u) => `${r.min} to ${r.max}${u}, default ${r.def}${u}`, setItems: { seen_snooze_min: ['Bring seen panes back', 'If a pane you marked as seen is still waiting, it moves back to the front after this long.', ' min'], renotify_min: ['Remind every', 'How often to remind you about a pane you have not answered.', ' min'], renotify_max: ['Reminders per pane', 'The most times one pane is reminded. 0 means only the first alert.', ''], gone_misses: ['Treat a pane as closed after', 'When a pane is missing this many checks in a row, it moves to recently closed.', ' checks'], stale_collect_sec: ['Disconnect warning', 'If nothing arrives from herdr for this long, the top of the board says the connection is lost.', ' s'], closed_keep_days: ['Keep recently closed for', 'Closed panes stay in the recently closed list this long. Stashed panes stay until you restore them.', ' days'], stale_days: ['Mark idle panes after', 'Panes with no activity for this long get a stale tag.', ' days'], os_notify: ['macOS alerts', 'Alert through macOS even when the browser tab is closed. 1 turns it on, 0 turns it off.', ''], unreachable_ttl_h: ['Drop unreachable panes after', 'Panes herdr could not confirm for this long leave the waiting count, order and alerts. They stay on the board.', ' h'], split_pct: ['Split screen', 'When you click a pane, this board snaps to the left of the screen and the terminal fills the rest. Board width in percent; 33 (board 1 : terminal 2) suits a laptop. 0 turns it off.', '%'] }, seenBtn: 'seen', unseenBtn: 'unsee', pinBtn: 'pin', unpinBtn: 'unpin', stashBtn: 'stash', unstashBtn: 'restore', pinnedDesk: 'pinned', closedTitle: 'recently closed', closedHint: (d) => `last ${d} days · closed or stashed panes`, gone: 'closed', stashedWhy: 'stashed', reopen: 'resume', snoozed: (m) => `seen · back in ${m} min`, unreach: 'unreachable', lastOk: (t) => `last checked ${t} ago`, filterOn: (l) => `showing ${l} only · click the number again to clear`, sortLabel: 'sort', sDesk: 'by desk', sNeglect: 'neglected first', sortedToast: 'Longest-neglected panes moved to the front of each desk', sortedDeskToast: 'Back to the order panes sit in their windows', sortTip: (m, n) => `sort: ${m} · click for ${n}`, notifLabel: 'alerts', nOn: 'on', nOff: 'off', notifTip: (on) => on ? 'alerts on · click to turn off' : 'alerts off · click to turn on', themeTip: (m, n) => `mode: ${m} · click for ${n}`, themeToast: (m) => `mode: ${m}`, collectedTip: (s) => `last collected ${s}s ago`, nDenied: 'Notifications are blocked. Allow them from the lock icon in the address bar', nOnToast: 'Alerts on. You will hear from any pane that raises its hand', nTest: 'whosup alerts are on', langLabel: 'language', langHint: 'interface language', themeLabel: 'mode', thAuto: 'auto', thLight: 'light', thDark: 'dark', wait: 'needs input', fail: 'failed', done: 'finished', run: 'running', idle: 'idle', shell: 'empty', panes: 'panes', new: '+ new pane', next: 'next', quiet: 'quiet', noWait: 'nothing is waiting on you', noWaitShort: 'nothing waiting', none: 'none', stale: 'stale', staleN: (n) => `stale ${n}`, resume: 'resume', noAgent: 'no agent', recent: (t) => `last: ${t}`, noPrompt: 'no history', today: 'attention today', raised: 'raised', within: 'handled in 3 min', seen: 'seen', waiting: 'waiting', needsInput: 'needs input', over: (m) => `${m} min over`, overLong: 'long over', under: 'under 3 min', min: 'min', hour: 'h', day: 'd', cnt: '', going: 'jumping to that pane…', loading: 'The board is still loading. Try again in a moment.', popupBlocked: 'The browser blocked the new tab. Allow pop-ups for this page', opening: 'opening a new pane…', resuming: 'resuming…', noReply: 'no reply', off: 'offline', connErr: (m) => `cannot reach the whosup server: ${m}`, newTitle: 'Open a new pane in a folder', folder: 'folder', folderPh: 'or paste a path', recentFolders: 'recent folders', browse: 'browse folders', up: 'up', pickHere: 'use this folder', emptyDir: 'no subfolders', chosen: 'chosen folder', which: 'in which herdr session', hint: (c) => `Opens a new tab in that session and runs ${c}.`, changeCmd: 'change the command', open: 'open ↵', noFolders: 'no recent folders', cmdLabel: 'Command to start a session', cmdHint: 'Used for new panes and resume. Pick a common one or type your own. Resume adds --resume after it.', cmdPresets: [['Claude Code', 'claude'], ['Skip permission prompts', 'claude --dangerously-skip-permissions'], ['Codex', 'codex']], failNoSay: 'failure detected · no last message', paneN: (n) => `${n} panes`, locale: 'en-US', raiseWarn: 'Accessibility permission needed · minimized windows cannot be restored', raiseWarnTip: 'System Settings → Privacy & Security → Accessibility: turn on the node (or osascript) that runs whosup, then restart whosup (a whosup that was already running does not pick up the new permission). Without it only the terminal app comes forward, minimized windows stay in the Dock, and split screen does not work.', offDesks: (d) => `desk off: ${d}`, deskOn: 'start', deskOff: 'stop', closeBtn: 'close', closeConfirm: (n) => `Close pane ${n}? The conversation running there ends (its history stays; resume it from recently closed).`, deskOffConfirm: (d) => `Stop desk ${d}? Every agent in it ends and its terminal windows close. Start brings the layout back.` },
+  ko: { roSettings: '읽기 전용 화면입니다. 언어만 이 브라우저에서 바꿀 수 있고, 서버 설정은 바꿀 수 없습니다.', appLabel: '터미널 앱', appHint: (d) => `세션을 여는 곳이 터미널 창일 때 앞으로 올릴 터미널 앱입니다. 자동이면 지금 herdr를 띄워 둔 앱을 찾아 씁니다${d ? ` (지금: ${d})` : ''}. 떠 있는 창이 없으면 새 창을 엽니다. 새 창 열기는 Ghostty와 Terminal에서 되고, 다른 앱은 이미 떠 있는 창만 앞으로 올립니다.`, appHintWin: '세션을 누르면 whosup이 도는 윈도우 PC 화면에서 그 데스크를 보여 주는 터미널 창을 앞으로 올립니다. 떠 있는 창이 없으면 새 창을 엽니다. 자동이면 자동 감지한 터미널로 엽니다(Windows Terminal이 있으면 그것, 없으면 PowerShell). PowerShell을 고르면 늘 PowerShell 창으로 열고, Windows Terminal을 고르면 새 창을 Windows Terminal로 열고, 끔을 고르면 창을 건드리지 않습니다. whosup은 바탕화면에 로그인한 상태에서 띄워야 창이 보입니다(SSH로 띄우면 보이지 않습니다).', appOff: '끔', appPhWin: 'PowerShell · Windows Terminal · off', appAuto: '자동', appPh: '앱 이름을 직접 적어도 됩니다 (예: iTerm)', clickLabel: '세션을 여는 곳', clickHint: '세션을 누르면 어디서 열지 정합니다. 터미널 창은 whosup이 도는 컴퓨터 화면에서 그 세션을 보여 주는 터미널 앱 창을 앞으로 올립니다. 웹 터미널은 브라우저의 새 탭에서 그 세션을 엽니다(ovis 등). 다른 기기에서 접속해 쓴다면 웹 터미널을 고르세요.', clickTerminal: '터미널 창', clickWeb: '웹 터미널', clickBoth: '둘 다', clickLocal: '이 브라우저에서만 다르게', clickLocalHint: '끄면 위에서 고른 것이 모든 브라우저의 기본값으로 저장됩니다. 켜면 이 브라우저에만 적용됩니다(다른 기기에서 접속해 쓸 때).', chClickOnly: '웹 터미널(ovis 등)을 감지하면 여기에 선택지가 더 생깁니다.', chClickWeb: (l) => `감지한 웹 터미널: ${l}`, chShowing: '지금 herdr를 띄운 앱', chRaiseOnly: '떠 있는 창만 올림', chAutoNote: '그때그때 herdr를 띄운 앱', chNotFound: '감지되지 않음', chCore: 'Herdr 앱 세션을 여는 곳', chCoreApp: 'Herdr 앱', chCoreHint: 'Herdr 앱에 있는 세션을 누르면 어디서 열지 정합니다. Herdr 앱을 골라도 앱 창이 없으면 터미널 창에서 엽니다.', chCoreOther: '자기 코어를 띄우는 다른 앱의 세션에도 적용됩니다: Herdr 앱을 고르면 그 앱의 창을 앞으로 올리고(창 안에서 세션을 골라 줄 수 없는 앱은 그 세션을 브라우저 탭으로 엽니다), 터미널 창을 고르면 터미널 창에서 엽니다.', redetect: '다시 감지', redetecting: '실행 환경을 다시 감지하는 중…', redetected: '다시 감지했습니다', redetectFail: '다시 감지하지 못했습니다', openUrlPerDesk: '데스크마다 주소가 다르면 아래에 따로 적습니다. 비워 둔 데스크는 위 주소를 씁니다. Herdr 앱 데스크는 여기 적은 주소가 있을 때만 웹 터미널로 엽니다. 위의 웹 터미널 단추는 마지막으로 누른 입력란에 주소를 넣습니다.', openUrlSame: '위 주소와 같음', openUrlCore: '비우면 Herdr 앱으로 엽니다', openUrlLabel: '웹 터미널 주소 (이 브라우저만)', openUrlHint: '세션을 누를 때 이 주소를 새 탭으로 엽니다. {session} 자리에 데스크 이름, {pane} 자리에 herdr pane 번호가 들어갑니다. 예: 웹 클라이언트 주소/?pane={pane}. 비워 두면 열지 않습니다. 이 설정은 지금 보고 있는 브라우저에만 저장됩니다. 웹 터미널 이름 버튼을 누르면 그 제품의 기본 주소가 채워집니다. 포트가 다르면 숫자만 고치세요.', openUrlBad: '주소는 http:// 또는 https://로 시작해야 하고 {pane}이 들어가야 합니다', approveQ: '승인할까요?', trustQ: '이 폴더를 신뢰할까요? (Yes, I trust this folder)', offTag: '꺼짐', offHint: '데스크가 꺼져 있습니다 · 펼쳐서 세션을 누르면 다시 켭니다', again: '다시', collected: (s) => `수집 ${s}초 전`, stale_collect: (t) => `연결 끊김 · 마지막 수집 ${t}`, unknownWait: '확인할 수 없습니다. herdr에 닿지 않아 손 든 세션을 알 수 없습니다', blindHerdr: 'whosup이 herdr를 읽지 못하고 있습니다', blindServer: 'whosup 서버가 답하지 않습니다', blindBody: '그동안 손 든 세션 알림이 멈춥니다. 다시 연결되면 이 알림은 사라집니다.', resumeWhat: (p, t) => `${t} 전 대화를 엽니다${p ? ` · 마지막 요청: ${p}` : ''}`, resumeFresh: '이어 갈 대화가 없어 새로 시작합니다', errKind: { no_herdr: 'herdr 실행 파일을 찾지 못함', no_reply: 'herdr가 답하지 않음', failed: 'herdr 읽기 실패' }, forN: (t) => `${t}째`, failKind: { rate_limit: '사용량 한도', authentication_failed: '인증 실패', invalid_request: '요청 오류', server_error: '서버 오류', unknown: '오류로 끝남' }, codes: { read_only: '읽기 전용 화면입니다. 이 화면에서는 세션을 조작할 수 없습니다', resume_changed: '이어서 열 대화가 그사이 바뀌었습니다. 판을 새로 고쳤으니 확인하고 다시 눌러 주세요', cwd_missing: '그 폴더가 더 이상 없습니다. 지워진 작업 폴더라면 새 세션으로 여세요', focused: '그 세션으로 옮겼습니다', focused_started: '데스크를 켜고 그 세션으로 옮겼습니다', focused_opened: '이 데스크를 보여 주는 창이 없어 새 터미널 창을 열었습니다', focused_app_only: (d) => `${d.app || '앱'} 창만 앞으로 올렸습니다. 이 앱은 밖에서 세션을 골라 줄 수 없어, 그 세션은 앱 안에서 골라 주세요`, app_closed: (d) => d.app ? `${d.app} 앱이 꺼져 있어 창을 올리지 않았습니다. 앱을 켠 뒤 다시 눌러 주세요` : '이 세션의 herdr-core 코어가 꺼져 있어 창을 올리지 않았습니다. 코어를 켠 뒤 다시 눌러 주세요', app_raise_unsupported: (d) => `${d.app || '앱'} 창을 올리지 못했습니다. 창 올리기를 꺼 두었거나 이 운영체제에서는 지원하지 않습니다`, app_raise_failed: (d) => `${d.app || '앱'} 창을 앞으로 올리지 못했습니다. 앱은 떠 있으니 그 앱으로 직접 넘어가 주세요`, core_unavailable: '이 세션의 herdr-core 코어를 지금 확인할 수 없어 열지 못했습니다. 세션은 그대로 둡니다', focused_app_tab: (d) => `${d.app || '앱'} 창을 앞으로 올리고, 그 세션은 브라우저 탭으로 열었습니다. 이 앱은 밖에서 세션을 골라 줄 수 없어 탭으로 엽니다`, focused_tab: (d) => `그 세션을 브라우저 탭으로 열었습니다. ${d.app || '앱'} 창은 앞으로 올리지 못했습니다`, focused_tab_only: '그 세션을 브라우저 탭으로 열었습니다. 이 앱은 밖에서 세션을 골라 줄 수 없어 탭으로 엽니다', opened_new_tab: '새 세션을 열었습니다. 이 앱은 밖에서 세션을 골라 줄 수 없어 그 세션을 브라우저 탭으로 열었습니다', resumed_tab: '대화를 이어서 열었습니다. 이 앱은 밖에서 세션을 골라 줄 수 없어 그 세션을 브라우저 탭으로 열었습니다', started_tab: '새 대화를 시작했습니다. 이 앱은 밖에서 세션을 골라 줄 수 없어 그 세션을 브라우저 탭으로 열었습니다', app_required: (d) => d.app ? `${d.app} 앱이 꺼져 있어 하지 못했습니다. 앱을 켠 뒤 다시 눌러 주세요` : '이 세션의 앱이 꺼져 있어 하지 못했습니다. 앱을 켠 뒤 다시 눌러 주세요', token_required: (d) => `${d.app || '이 세션의 앱'} 쪽에서 로그인(토큰) 없이는 조작을 받지 않아 하지 못했습니다. 그 앱에서 직접 해 주세요`, app_no_answer: (d) => `${d.app || '이 세션의 앱'}에서 제때 답이 오지 않았습니다. 됐는지 알 수 없으니 다시 누르기 전에 그 앱에서 먼저 확인해 주세요`, not_supported: '이 세션이 속한 앱에서는 보드로 그 일을 할 수 없습니다. 그 앱에서 직접 해 주세요', resumed: '대화를 이어서 열었습니다', started: '새 대화를 시작했습니다', busy: '이미 여는 중입니다. 잠시 기다려 주세요', has_agent: '그 세션에는 이미 에이전트가 있습니다', no_session: '그 세션 기록을 찾지 못했습니다', closed: '닫힌 세션입니다. 최근 닫힘에서 이어서 열기를 눌러 주세요', bad_request: '요청이 올바르지 않습니다', herdr_error: (d) => `herdr가 실패했습니다: ${(d.message || '').slice(0, 120)}`, opened_new: '새 세션을 열었습니다', no_folder: '그 폴더가 없습니다', bad_folder: '홈 폴더 아래의 폴더만 열 수 있습니다', pane_gone: '이미 닫힌 세션이라 최근 닫힘으로 옮겼습니다', pane_closed: '세션을 닫았습니다', desk_stopped: '데스크를 껐습니다', desk_started: '데스크를 켰습니다', superseded: '' }, settingsBtn: '설정', setTitle: '설정', setSave: '저장', setSaved: '설정을 저장했습니다', oPanel: '출처: 설정에서 정함 (입력란을 비우고 저장하면 환경변수·자동 감지·기본값으로 돌아갑니다)', oEnv: (n, f) => `출처: 환경변수 ${n} — 파일 ${f} (바꾸면 whosup을 stop 뒤 start)`, oEnvShell: (n) => `출처: 환경변수 ${n} — whosup을 띄운 셸·서비스의 환경 (바꾸면 whosup을 stop 뒤 start)`, oAuto: (r) => `출처: 자동 감지 — ${r} (설정에서 바꾸면 그 값이 먼저입니다)`, oDefault: '출처: 기본값', oCard: '출처: 직접 고름 (첫 실행 안내·설정)', oBrowser: '출처: 이 브라우저에서 정함', envTitle: '감지한 환경', envUnknown: '확인 못 함', envNone: '없음', envOs: 'OS', envTerm: '터미널 앱', envHerdr: 'herdr 데스크', envApp: 'Herdr 앱', envOvis: 'ovis', envRemote: '실행 위치', envLocal: '이 컴퓨터의 데스크톱', envRemoteYes: '원격(SSH 등) — 창 올리기·브라우저 열기 끔', envTermDef: (os) => os === 'win32' ? 'PowerShell(기본)' : os === 'darwin' ? 'Terminal(기본)' : '창 올리기 없음', envOff: '끔', envSessions: (n, l) => `${n}개${l ? ` (${l})` : ''}`, envAppYes: (on) => `있음 · 코어 ${on ? '실행 중' : '꺼짐'}`, envCoreSeen: (name, app, show) => app ? (show === 'tab' ? `${app}의 세션도 보드에 보입니다. 누르면 그 세션이 브라우저 탭으로 열립니다.` : show === 'unknown' ? `${app}의 세션도 보드에 보입니다.` : `${app}의 세션도 보드에 보입니다. 누르면 ${app} 창이 앞으로 옵니다.`) : `herdr-core "${name}"의 세션도 보드에 보입니다.`, envAppOf: (a) => `${a} 앱`, envAppFound: (on) => on ? '있음 · 실행 중' : '있음', envOvisCheck: '데스크 확인 필요', envAt: (t) => `감지 시각 ${t}`, frTitle: '첫 실행 안내 · 감지한 것 중에서 골라 주세요', frTitleNone: '첫 실행 안내 · 감지한 환경', frOk: '이대로 시작', frClose: '닫기', frHint: '직접 고른 줄만 설정에 저장되어 계속 쓰입니다. 손대지 않은 줄은 저장하지 않으므로 자동 감지 결과가 바뀌면 그 값을 따라갑니다. 설정에서 언제든 바꿀 수 있습니다.', frRo: '읽기 전용 화면이라 저장하지 않고 닫기만 합니다.', frNone: '지금은 고를 것이 없습니다. 감지한 값으로 시작합니다. 설정에서 언제든 바꿀 수 있습니다.', frSaved: '고른 값을 설정에 저장했습니다', frKept: '첫 실행 안내를 마쳤습니다. 자동 감지한 값을 그대로 씁니다', frReopen: '첫 실행 안내 다시 보기', openUrlAuto: '회색 주소는 자동 감지한 ovis 주소입니다(자동 감지 — L7). 직접 적으면 그 값이 먼저입니다.', setHint: '이 컴퓨터의 whosup에만 적용됩니다. 입력란을 비워 두면 기본값을 씁니다.', setRange: (r, u) => `${r.min}~${r.max}${u} 사이, 기본 ${r.def}${u}`, setItems: { seen_snooze_min: ['확인한 세션 다시 띄우기', '확인을 눌렀는데도 그 세션이 계속 기다리고 있으면, 이 시간이 지난 뒤 다시 앞으로 올립니다.', '분'], renotify_min: ['다시 알리는 간격', '답하지 않은 세션을 몇 분마다 다시 알릴지 정합니다.', '분'], renotify_max: ['다시 알리는 횟수', '같은 세션을 최대 몇 번까지 다시 알릴지 정합니다. 0이면 처음 한 번만 알립니다.', '번'], gone_misses: ['닫힌 세션으로 보는 기준', '세션이 이 횟수만큼 연달아 보이지 않으면 닫힌 것으로 보고 최근 닫힘으로 옮깁니다.', '번'], stale_collect_sec: ['연결 끊김 알림', 'herdr에서 이 시간이 넘도록 소식이 없으면 화면 위에 연결이 끊겼다고 띄웁니다.', '초'], closed_keep_days: ['최근 닫힘에 남겨 두는 기간', '닫힌 세션을 이 기간 동안 최근 닫힘 목록에 남겨 둡니다. 보관한 세션은 되돌릴 때까지 남습니다.', '일'], stale_days: ['오래 멈춘 세션 표시', '이 기간 동안 아무 움직임이 없는 세션에 보관 후보 표시를 붙입니다.', '일'], os_notify: ['macOS 알림', '브라우저 탭을 닫아 둬도 macOS 알림으로 알려 줍니다. 1이면 켜고, 0이면 끕니다.', ''], unreachable_ttl_h: ['확인 불가 세션을 내리는 시간', 'herdr에서 이 시간 넘게 확인하지 못한 세션은 손 든 세션·순번·알림에서 내립니다. 세션은 판에 남습니다.', '시간'], split_pct: ['화면 나눠 쓰기', '세션을 누르면 이 보드 창을 화면 왼쪽에, 터미널 창을 오른쪽에 붙입니다. 보드가 차지할 폭(%)을 적습니다. 노트북처럼 화면이 작을 때 33(보드 1 : 터미널 2)을 권합니다. 0이면 끕니다.', '%'] }, seenBtn: '확인함', unseenBtn: '확인 취소', pinBtn: '고정', unpinBtn: '고정 해제', stashBtn: '보관', unstashBtn: '되돌리기', pinnedDesk: '고정', closedTitle: '최근 닫힘', closedHint: (d) => `지난 ${d}일 · 사라지거나 보관한 세션`, gone: '닫힘', stashedWhy: '보관함', reopen: '이어서 열기', snoozed: (m) => `확인함 · ${m}분 뒤 다시`, unreach: '확인 불가', lastOk: (t) => `마지막 확인 ${t} 전`, filterOn: (l) => `${l}만 보는 중 · 숫자를 다시 누르면 해제`, sortLabel: '정렬', sDesk: '자리순', sNeglect: '방치순', sortedToast: '데스크마다 오래 방치된 세션을 앞으로 모았습니다', sortedDeskToast: '창에 놓인 원래 자리 순서로 돌렸습니다', sortTip: (m, n) => `정렬: ${m} · 누르면 ${n}`, notifLabel: '알림', nOn: '켬', nOff: '끔', notifTip: (on) => on ? '알림 켜짐 · 누르면 끔' : '알림 꺼짐 · 누르면 켬', themeTip: (m, n) => `모드: ${m} · 누르면 ${n}`, themeToast: (m) => `모드: ${m}`, collectedTip: (s) => `마지막 수집 ${s}초 전`, nDenied: '브라우저에서 알림이 막혀 있습니다. 주소창 왼쪽 자물쇠에서 허용해 주세요', nOnToast: '알림을 켰습니다. 세션이 손을 들면 알려 드립니다', nTest: 'whosup 알림이 켜졌습니다', langLabel: '언어', langHint: '화면 글자 언어', themeLabel: '모드', thAuto: '자동', thLight: '라이트', thDark: '다크', wait: '입력 필요', fail: '실패', done: '답변 도착', run: '진행 중', idle: '유휴', shell: '빈 세션', panes: '세션', new: '+ 새 세션', next: '다음', quiet: '조용', noWait: '기다리는 세션이 없습니다', noWaitShort: '기다리는 세션 없음', todoLabel: '다음에 할 일', todoNew: '새 세션을 여세요', todoNewHint: (btn) => `오른쪽 위의 “${btn}” 단추(또는 이 줄, N 키)를 누르고 폴더를 고르면 그 폴더에서 에이전트가 시작됩니다.`, none: '없음', stale: '보관 후보', staleN: (n) => `보관 후보 ${n}`, resume: '이어서 열기', agentStart: '에이전트 시작', agentStarting: '에이전트를 시작하는 중…', noAgent: '에이전트 없음', recent: (t) => `최근: ${t}`, noPrompt: '요청 기록 없음', today: '오늘 주의 사건', raised: '발생', within: '3분 내 처리', seen: '확인함', waiting: '승인 대기', needsInput: '입력 필요', over: (m) => `${m}분 넘김`, overLong: '한참 넘김', under: '3분 안', min: '분', hour: '시간', day: '일', cnt: '건', going: '그 세션으로 가는 중…', loading: '판을 불러오는 중입니다. 잠시 뒤 다시 해 주세요.', popupBlocked: '브라우저가 새 탭을 막았습니다. 이 페이지의 팝업을 허용해 주세요', linkTab: (a) => `${a || '앱'} 링크로 앱 창에서 열지 못해 그 세션을 브라우저 탭으로 열었습니다`, opening: '새 세션을 여는 중…', resuming: '이어서 여는 중…', noReply: '응답 없음', off: '끊김', connErr: (m) => `whosup 서버에 연결하지 못했습니다: ${m}`, newTitle: '폴더를 골라 새 세션 열기', folder: '폴더', folderPh: '경로를 직접 붙여 넣어도 됩니다', recentFolders: '최근 폴더', browse: '폴더 찾아보기', up: '상위 폴더', pickHere: '이 폴더로', emptyDir: '하위 폴더가 없습니다', chosen: '고른 폴더', which: '어느 데스크에', newDeskIn: (a) => `${a} · 새 데스크`, newDeskTip: (a) => `${a}에 새 데스크를 만들어 그 안에 세션을 엽니다`, newAppOff: (a) => `${a} 앱이 꺼져 있어 거기에는 새 세션을 열 수 없습니다. 앱을 켜면 위 목록에 나옵니다.`, newNoDesk: '지금 새 세션을 열 수 있는 데스크가 없습니다.', newNoDeskHow: '쓰는 앱을 열어 첫 화면을 마치거나 herdr를 시작한 뒤 이 창을 다시 열면 여기에 나옵니다.', tabOnlyTip: '이 앱은 창 안에서 세션을 골라 줄 수 없어, 누르면 그 세션을 브라우저 탭으로 엽니다', hint: (c) => `고른 데스크에 새 세션을 열고 ${c} 를 실행합니다.`, changeCmd: '실행 명령 바꾸기', open: '열기 ↵', noFolders: '최근 폴더가 없습니다', cmdLabel: '세션을 열 때 실행할 명령', cmdHint: '새 세션과 이어서 열기에 씁니다. 자주 쓰는 것을 고르거나 직접 입력하세요. 이어서 열기는 이 명령 뒤에 --resume 을 붙입니다.', cmdPresets: [['Claude Code', 'claude'], ['권한 확인 건너뛰기', 'claude --dangerously-skip-permissions'], ['Codex', 'codex']], failNoSay: '실패 감지 · 마지막 말 없음', paneN: (n) => `${n}개`, locale: 'ko-KR', rwTag: '안내', rwSum: { mac_accessibility: '최소화한 창을 펼치려면 macOS 손쉬운 사용 권한이 필요합니다', mac_automation: '최소화한 창을 펼치려면 macOS 자동화 권한이 필요합니다' }, rwHow: '방법 보기', rwWhat: '고장이 아닙니다. 세션을 누르면 앱은 지금처럼 앞으로 옵니다. 다만 최소화해 둔 창은 Dock에 남고, 화면 나눠 쓰기는 되지 않습니다. 이 두 가지를 쓰지 않으면 그대로 두어도 됩니다.', rwWhere: { mac_accessibility: (app) => `켜는 곳: 시스템 설정 > 개인정보 보호 및 보안 > 손쉬운 사용에서 ${app ? `“${app}” 항목` : 'whosup을 띄운 앱(macOS 권한 창에 나온 이름)'}을 켭니다.`, mac_automation: (app) => `켜는 곳: 시스템 설정 > 개인정보 보호 및 보안 > 자동화에서 ${app ? `“${app}” 항목` : 'whosup을 띄운 앱(macOS 권한 창에 나온 이름)'} 아래의 System Events를 켭니다.` }, rwRestart: '켠 뒤에는 whosup을 다시 켜야 반영됩니다(이미 떠 있던 whosup은 새 권한을 받지 못합니다).', offDesks: (d) => `꺼진 데스크: ${d}`, deskOn: '켜기', deskOff: '끄기', closeBtn: '닫기', closeConfirm: (n) => `${n} 세션을 닫을까요? 그 세션에서 돌던 대화도 끝납니다(대화 기록은 남아 최근 닫힘에서 이어서 열 수 있습니다).`, deskOffConfirm: (d) => `${d} 데스크를 끌까요? 데스크 안의 에이전트가 모두 끝나고 붙어 있던 터미널 창도 닫힙니다. 켜기를 누르면 세션 배치가 돌아옵니다.` },
+  en: { roSettings: 'Read-only view. You can change the language for this browser only; server settings cannot be changed.', appLabel: 'Terminal app', appHint: (d) => `The terminal app to bring forward when sessions open in a terminal window. Auto uses the app that is showing herdr right now${d ? ` (now: ${d})` : ''}. If no window is open, a new one is opened. New windows work with Ghostty and Terminal; other apps only raise a window that is already open.`, appHintWin: 'Clicking a session brings forward the terminal window that shows its desk on the Windows PC running whosup. If none is open, a new one opens. Auto uses the auto-detected terminal (Windows Terminal if installed, otherwise PowerShell); PowerShell always opens a PowerShell window; Windows Terminal opens new windows there; off leaves windows alone. Start whosup from your logged-in desktop for windows to show (not over SSH).', appOff: 'off', appPhWin: 'PowerShell · Windows Terminal · off', appAuto: 'auto', appPh: 'or type an app name (e.g. iTerm)', clickLabel: 'Sessions open in', clickHint: 'Where a click on a session opens it. Terminal window raises the terminal app window that shows the session, on the computer running whosup. Web terminal opens the session in a browser tab (ovis and the like). Pick web terminal when you use the board from another device.', clickTerminal: 'terminal window', clickWeb: 'web terminal', clickBoth: 'both', clickLocal: 'only in this browser', clickLocalHint: 'Off: the choice above is saved as the default for every browser. On: it applies to this browser only (for when you use the board from another device).', chClickOnly: 'More choices show up here once a web terminal (ovis and the like) is detected.', chClickWeb: (l) => `Detected web terminal: ${l}`, chShowing: 'showing herdr now', chRaiseOnly: 'raises open windows only', chAutoNote: 'whichever app shows herdr', chNotFound: 'not detected', chCore: 'Herdr app sessions open in', chCoreApp: 'Herdr app', chCoreHint: 'Where a click on a session of the Herdr app opens it. With Herdr app chosen and no app window open, it opens in a terminal window.', chCoreOther: 'It also applies to sessions of other apps that run a core of their own: with Herdr app chosen a click brings that app’s window forward (an app that cannot be told which session to show opens the session in a browser tab instead), with terminal window it opens the session in a terminal window.', redetect: 're-detect', redetecting: 'Detecting the environment again…', redetected: 'Detected again', redetectFail: 'Could not detect again', openUrlPerDesk: 'If each desk has its own address, set it below. A blank one uses the address above. A Herdr app desk opens in a web terminal only when it has an address here. The web terminal button above fills the field you clicked last.', openUrlSame: 'same as above', openUrlCore: 'blank = open in the Herdr app', openUrlLabel: 'Web terminal address (this browser only)', openUrlHint: 'Clicking a session opens this address in a tab. {session} becomes the desk name and {pane} the herdr pane id. Example: your web client address/?pane={pane}. Leave blank to open nothing. Saved in this browser only. A web terminal button fills in the default address of that product. Change the port number if yours differs.', openUrlBad: 'The address must start with http:// or https:// and contain {pane}', approveQ: 'approve?', trustQ: 'Trust this folder? (Yes, I trust this folder)', offTag: 'off', offHint: 'desk is off · expand and click a session to start it again', again: 'again', collected: (s) => `collected ${s}s ago`, stale_collect: (t) => `disconnected · last collect ${t}`, unknownWait: 'unknown. whosup cannot reach herdr', blindHerdr: 'whosup cannot read herdr', blindServer: 'the whosup server is not answering', blindBody: 'Session alerts are paused until it reconnects. This alert closes when it does.', resumeWhat: (p, t) => `opens the conversation from ${t} ago${p ? ` · last request: ${p}` : ''}`, resumeFresh: 'no conversation to continue — starts fresh', errKind: { no_herdr: 'herdr executable not found', no_reply: 'herdr is not answering', failed: 'reading herdr failed' }, forN: (t) => `for ${t}`, failKind: { rate_limit: 'usage limit', authentication_failed: 'auth failed', invalid_request: 'bad request', server_error: 'server error', unknown: 'ended in error' }, codes: { read_only: 'this is a read-only view. Sessions cannot be changed from here', resume_changed: 'the conversation to resume changed in the meantime. The board is refreshed — check it and click again', cwd_missing: 'that folder no longer exists. If the worktree was removed, open a new session instead', focused: 'moved to that session', focused_started: 'started the desk and moved to that session', focused_opened: 'no window was showing that desk, so a terminal window was opened', focused_app_only: (d) => `brought the ${d.app || 'app'} window forward. This app cannot be told which session to show, so pick the session inside the app`, app_closed: (d) => d.app ? `${d.app} is not running, so no window was brought forward. Start the app and click again` : 'the herdr-core core of this session is not running, so no window was brought forward. Start the core and click again', app_raise_unsupported: (d) => `could not bring the ${d.app || 'app'} window forward: window raising is off or not supported on this system`, app_raise_failed: (d) => `${d.app || 'the app'} is running, but its window could not be brought forward. Switch to the app yourself`, core_unavailable: 'the herdr-core core of this session cannot be checked right now, so it was not opened. The session is left as it is', focused_app_tab: (d) => `brought the ${d.app || 'app'} window forward and opened the session in a browser tab. This app cannot be told which session to show, so it opens in a tab`, focused_tab: (d) => `opened the session in a browser tab. The ${d.app || 'app'} window could not be brought forward`, focused_tab_only: 'opened the session in a browser tab. This app cannot be told from outside which session to show, so it opens in a tab', opened_new_tab: 'opened a new session. This app cannot be told from outside which session to show, so the session was opened in a browser tab', resumed_tab: 'resumed the conversation. This app cannot be told from outside which session to show, so the session was opened in a browser tab', started_tab: 'started a new conversation. This app cannot be told from outside which session to show, so the session was opened in a browser tab', app_required: (d) => d.app ? `${d.app} is not running, so that was not done. Start the app and click again` : 'the app of this session is not running, so that was not done. Start the app and click again', token_required: (d) => `${d.app || 'the app of this session'} does not take that from here without signing in (a token). Do it in the app itself`, app_no_answer: (d) => `${d.app || 'the app of this session'} did not answer in time. It may or may not have been done: look at the app before clicking again`, not_supported: 'the board cannot do that for sessions of this app. Do it in the app itself', resumed: 'resumed the conversation', started: 'started a new conversation', busy: 'already opening. Give it a moment', has_agent: 'that session already has an agent', no_session: 'no record of that session', closed: 'that session is closed. Use resume under recently closed', bad_request: 'bad request', herdr_error: (d) => `herdr failed: ${(d.message || '').slice(0, 120)}`, opened_new: 'opened a new session', no_folder: 'that folder does not exist', bad_folder: 'only folders under home can be opened', pane_gone: 'that session was already closed, moved to recently closed', pane_closed: 'session closed', desk_stopped: 'desk stopped', desk_started: 'desk started', superseded: '' }, settingsBtn: 'settings', setTitle: 'settings', setSave: 'save', setSaved: 'settings saved', oPanel: 'source: set in settings (clear the field and save to fall back to environment, auto-detect or default)', oEnv: (n, f) => `source: environment variable ${n} — file ${f} (after changing it, stop then start whosup)`, oEnvShell: (n) => `source: environment variable ${n} — from the shell or service that started whosup (after changing it, stop then start whosup)`, oAuto: (r) => `source: auto-detected — ${r} (a value set in settings wins)`, oDefault: 'source: default', oCard: 'source: chosen by you (first-run setup or settings)', oBrowser: 'source: set in this browser', envTitle: 'Detected environment', envUnknown: 'not detected', envNone: 'none', envOs: 'OS', envTerm: 'terminal app', envHerdr: 'herdr desks', envApp: 'Herdr app', envOvis: 'ovis', envRemote: 'running on', envLocal: 'this computer’s desktop', envRemoteYes: 'remote (SSH etc.) — window raising and browser opening off', envTermDef: (os) => os === 'win32' ? 'PowerShell (default)' : os === 'darwin' ? 'Terminal (default)' : 'no window raising', envOff: 'off', envSessions: (n, l) => `${n}${l ? ` (${l})` : ''}`, envAppYes: (on) => `found · core ${on ? 'running' : 'stopped'}`, envCoreSeen: (name, app, show) => app ? (show === 'tab' ? `Sessions of ${app} show on the board too. A click opens the session in a browser tab.` : show === 'unknown' ? `Sessions of ${app} show on the board too.` : `Sessions of ${app} show on the board too. A click brings the ${app} window to the front.`) : `Sessions of herdr-core "${name}" show on the board too.`, envAppOf: (a) => `${a} app`, envAppFound: (on) => on ? 'found · running' : 'found', envOvisCheck: 'desk needs checking', envAt: (t) => `detected at ${t}`, frTitle: 'First-run setup · pick from what was detected', frTitleNone: 'First-run setup · what was detected', frOk: 'start with these', frClose: 'close', frHint: 'Only the rows you pick yourself are saved in settings and stay. Rows you leave alone are not saved, so they follow auto-detect when it changes. You can change them in settings any time.', frRo: 'Read-only view: closing only, nothing is saved.', frNone: 'Nothing to choose right now: whosup starts with what it detected. You can change it in settings any time.', frSaved: 'Saved your choices to settings', frKept: 'Setup done. Using the auto-detected values as they are', frReopen: 'open first-run setup again', openUrlAuto: 'Grey addresses are ovis addresses that were auto-detected (L7). An address you type wins.', setHint: 'Applies to whosup on this computer only. Leave a field blank to use the default.', setRange: (r, u) => `${r.min} to ${r.max}${u}, default ${r.def}${u}`, setItems: { seen_snooze_min: ['Bring seen sessions back', 'If a session you marked as seen is still waiting, it moves back to the front after this long.', ' min'], renotify_min: ['Remind every', 'How often to remind you about a session you have not answered.', ' min'], renotify_max: ['Reminders per session', 'The most times one session is reminded. 0 means only the first alert.', ''], gone_misses: ['Treat a session as closed after', 'When a session is missing this many checks in a row, it moves to recently closed.', ' checks'], stale_collect_sec: ['Disconnect warning', 'If nothing arrives from herdr for this long, the top of the board says the connection is lost.', ' s'], closed_keep_days: ['Keep recently closed for', 'Closed sessions stay in the recently closed list this long. Stashed sessions stay until you restore them.', ' days'], stale_days: ['Mark idle sessions after', 'Sessions with no activity for this long get a stale tag.', ' days'], os_notify: ['macOS alerts', 'Alert through macOS even when the browser tab is closed. 1 turns it on, 0 turns it off.', ''], unreachable_ttl_h: ['Drop unreachable sessions after', 'Sessions herdr could not confirm for this long leave the waiting count, order and alerts. They stay on the board.', ' h'], split_pct: ['Split screen', 'When you click a session, this board snaps to the left of the screen and the terminal fills the rest. Board width in percent; 33 (board 1 : terminal 2) suits a laptop. 0 turns it off.', '%'] }, seenBtn: 'seen', unseenBtn: 'unsee', pinBtn: 'pin', unpinBtn: 'unpin', stashBtn: 'stash', unstashBtn: 'restore', pinnedDesk: 'pinned', closedTitle: 'recently closed', closedHint: (d) => `last ${d} days · closed or stashed sessions`, gone: 'closed', stashedWhy: 'stashed', reopen: 'resume', snoozed: (m) => `seen · back in ${m} min`, unreach: 'unreachable', lastOk: (t) => `last checked ${t} ago`, filterOn: (l) => `showing ${l} only · click the number again to clear`, sortLabel: 'sort', sDesk: 'by desk', sNeglect: 'neglected first', sortedToast: 'Longest-neglected sessions moved to the front of each desk', sortedDeskToast: 'Back to the order sessions sit in their windows', sortTip: (m, n) => `sort: ${m} · click for ${n}`, notifLabel: 'alerts', nOn: 'on', nOff: 'off', notifTip: (on) => on ? 'alerts on · click to turn off' : 'alerts off · click to turn on', themeTip: (m, n) => `mode: ${m} · click for ${n}`, themeToast: (m) => `mode: ${m}`, collectedTip: (s) => `last collected ${s}s ago`, nDenied: 'Notifications are blocked. Allow them from the lock icon in the address bar', nOnToast: 'Alerts on. You will hear from any session that raises its hand', nTest: 'whosup alerts are on', langLabel: 'language', langHint: 'interface language', themeLabel: 'mode', thAuto: 'auto', thLight: 'light', thDark: 'dark', wait: 'needs input', fail: 'failed', done: 'finished', run: 'running', idle: 'idle', shell: 'empty', panes: 'sessions', new: '+ new session', next: 'next', quiet: 'quiet', noWait: 'nothing is waiting on you', noWaitShort: 'nothing waiting', todoLabel: 'next step', todoNew: 'open a new session', todoNewHint: (btn) => `Press “${btn}” at the top right (or this line, or the N key) and pick a folder. An agent starts there.`, none: 'none', stale: 'stale', staleN: (n) => `stale ${n}`, resume: 'resume', agentStart: 'start agent', agentStarting: 'starting the agent…', noAgent: 'no agent', recent: (t) => `last: ${t}`, noPrompt: 'no history', today: 'attention today', raised: 'raised', within: 'handled in 3 min', seen: 'seen', waiting: 'waiting', needsInput: 'needs input', over: (m) => `${m} min over`, overLong: 'long over', under: 'under 3 min', min: 'min', hour: 'h', day: 'd', cnt: '', going: 'jumping to that session…', loading: 'The board is still loading. Try again in a moment.', popupBlocked: 'The browser blocked the new tab. Allow pop-ups for this page', linkTab: (a) => `the ${a || 'app'} link did not open the app window, so the session opened in a browser tab`, opening: 'opening a new session…', resuming: 'resuming…', noReply: 'no reply', off: 'offline', connErr: (m) => `cannot reach the whosup server: ${m}`, newTitle: 'Open a new session in a folder', folder: 'folder', folderPh: 'or paste a path', recentFolders: 'recent folders', browse: 'browse folders', up: 'up', pickHere: 'use this folder', emptyDir: 'no subfolders', chosen: 'chosen folder', which: 'in which desk', newDeskIn: (a) => `${a} · new desk`, newDeskTip: (a) => `Makes a new desk in ${a} and opens the session there`, newAppOff: (a) => `${a} is not running, so a new session cannot be opened there. Start the app and it shows up in the list above.`, newNoDesk: 'There is no desk that can take a new session right now.', newNoDeskHow: 'Open the app you use and finish its first screen, or start herdr, then open New session again and it shows up here.', tabOnlyTip: 'This app cannot be told which session to show, so a click opens the session in a browser tab', hint: (c) => `Opens a new session in that desk and runs ${c}.`, changeCmd: 'change the command', open: 'open ↵', noFolders: 'no recent folders', cmdLabel: 'Command to run in a new session', cmdHint: 'Used for new sessions and resume. Pick a common one or type your own. Resume adds --resume after it.', cmdPresets: [['Claude Code', 'claude'], ['Skip permission prompts', 'claude --dangerously-skip-permissions'], ['Codex', 'codex']], failNoSay: 'failure detected · no last message', paneN: (n) => `${n} sessions`, locale: 'en-US', rwTag: 'note', rwSum: { mac_accessibility: 'Restoring minimized windows needs the macOS Accessibility permission', mac_automation: 'Restoring minimized windows needs the macOS Automation permission' }, rwHow: 'how to turn it on', rwWhat: 'Nothing is broken. Clicking a session still brings the app forward. Minimized windows stay in the Dock, and split screen does not work. If you do not use those two, you can leave this as it is.', rwWhere: { mac_accessibility: (app) => `Where: System Settings > Privacy & Security > Accessibility — turn on ${app ? `“${app}”` : 'the app that started whosup (the name macOS showed in its permission dialog)'}.`, mac_automation: (app) => `Where: System Settings > Privacy & Security > Automation — under ${app ? `“${app}”` : 'the app that started whosup (the name macOS showed in its permission dialog)'}, turn on System Events.` }, rwRestart: 'After turning it on, restart whosup. A whosup that was already running does not pick up the new permission.', offDesks: (d) => `desk off: ${d}`, deskOn: 'start', deskOff: 'stop', closeBtn: 'close', closeConfirm: (n) => `Close session ${n}? The conversation running there ends (its history stays; resume it from recently closed).`, deskOffConfirm: (d) => `Stop desk ${d}? Every agent in it ends and its terminal windows close. Start brings the layout back.` },
 }
 // 화면 언어는 I18N에 있는 것(ko·en)만 받는다. 외부 링크의 ?lang=x 나 저장된 엉뚱한 값으로 판이 깨지지 않게 한다.
 const okLang = (v) => (v && Object.hasOwn(I18N, v) ? v : null)
-// 기본은 영어. 한국어는 설정 패널(또는 ?lang=ko)에서 고르면 이 브라우저에 저장된다 — 브라우저 언어로 추측하지 않는다.
+// 기본은 영어. 한국어는 설정(또는 ?lang=ko)에서 고르면 이 브라우저에 저장된다 — 브라우저 언어로 추측하지 않는다.
 let lang = okLang(localStorage.getItem('whosup-lang')) || 'en'
 const T = new Proxy({}, { get: (_, k) => I18N[lang][k] ?? I18N.en[k] ?? k })
 const ST = { get snooze() { return T.seenBtn }, get wait() { return T.wait }, get fail() { return T.fail }, get done() { return T.done }, get run() { return T.run }, get idle() { return T.idle }, get shell() { return T.shell } }
@@ -228,7 +244,7 @@ function ago(iso, now) {
 }
 const tnum = (iso, now) => { const a = ago(iso, now); return a ? `${a[0]}<small>${a[1]}</small>` : '<small>—</small>' }
 
-// 세션판 카드 → 띠 셀 상태
+// 세션판의 세션 → 띠 세션 상태
 function stateOf(c, b) {
   if (b.columns.red.some((x) => x.id === c.id)) return c.failed ? 'fail' : 'wait'
   if (b.columns.yellow.some((x) => x.id === c.id)) return 'done'
@@ -256,8 +272,8 @@ const summaryOf = (c, st) => st === 'wait' || st === 'fail' || st === 'snooze' ?
 const deskRank = (c) => c.ref.localeCompare
 
 let board = null
-const drawn = { hero: null, skeleton: null, heads: [], cells: new Map(), closed: null } // 마지막으로 그린 글자(바뀐 곳만 고치려고)
-let filter = null // 상단 숫자 칸으로 고른 상태(null = 전부)
+const drawn = { hero: null, notice: null, skeleton: null, heads: [], cells: new Map(), closed: null } // 마지막으로 그린 글자(바뀐 곳만 고치려고)
+let filter = null // 상단 숫자로 고른 상태(null = 전부)
 let closedOpen = false
 let order = []
 let busy = false
@@ -268,7 +284,7 @@ function allCards(b) {
   const seen = new Set()
   const out = []
   for (const k of ['red', 'yellow', 'snoozed', 'green', 'carry', 'grey']) for (const c of b.columns[k]) {
-    // 서버를 끈 herdr 세션·꺼 둔 Herdr 앱 줄(off)의 칸은 판에 올리지 않는다. 기록은 DB에 남아 세션을 다시 켜면 그대로 돌아온다.
+    // 서버를 끈 herdr 데스크·꺼 둔 Herdr 앱 데스크(off)의 세션은 판에 올리지 않는다. 기록은 DB에 남아 데스크를 다시 켜면 그대로 돌아온다.
     if (c.kind === 'lane' || seen.has(c.id) || !c.caps || c.off) continue
     seen.add(c.id); out.push(c)
   }
@@ -285,9 +301,9 @@ function applyPendingOff(b) {
   for (const k of ['red', 'yellow', 'snoozed', 'green', 'carry', 'grey']) for (const c of b.columns[k] || []) if (pendingOff.has(c.desk)) c.off = true
   return b
 }
-// 칸이 있던 데스크 중 서버가 꺼진 것(원래 안 쓰는 default처럼 칸이 없던 세션은 빼고)
+// 세션이 있던 데스크 중 서버가 꺼진 것(원래 안 쓰는 default처럼 세션이 없던 데스크는 빼고)
 function offDesksOf(b) {
-  const d = new Map()   // 줄 열쇠 → 보일 이름
+  const d = new Map()   // 데스크 열쇠 → 보일 이름
   for (const k of ['red', 'yellow', 'snoozed', 'green', 'carry', 'grey']) for (const c of b.columns[k] || []) if (c.off && c.caps?.includes('toggle')) d.set(c.desk, c.desk_label || c.desk)
   return [...d]
 }
@@ -312,8 +328,11 @@ function render(b) {
   const stale = cards.filter((c) => c.stale).length
   // 헤더 글자는 연결이 끊겼을 때만 보인다. 날짜·시각은 OS 시계, 세션 수는 아래 큰 숫자와 겹쳐서 뺐다. 수집 경과는 로고 툴팁.
   const el = document.getElementById('stamp'); const hl = b.health
-  el.hidden = !hl?.stale && !b.raise_warning
-  if (!hl?.stale && b.raise_warning) { el.title = T.raiseWarnTip; el.textContent = T.raiseWarn }
+  el.hidden = !hl?.stale
+  // 권한 안내(F6)는 끊김 표시와 다른 자리(판 맨 윗줄)에 따로 그린다. 글자가 그대로면 건드리지 않는다 — 펼쳐 둔 안내가 3초마다 접히지 않게.
+  const ne = document.getElementById('notice'), nHtml = raiseNoticeHtml(raiseNotice(b.raise_warning, b.raise_warning_app, T), T, esc)
+  if (nHtml !== drawn.notice) { ne.innerHTML = nHtml; drawn.notice = nHtml }
+  ne.hidden = !nHtml; if (!nHtml) ne.open = false
   if (hl?.stale) {
     // 끊긴 이유(#15)와 끊긴 지 얼마나 됐는지를 툴팁 밖에 보인다. 원문 오류는 툴팁.
     const ag = hl.ok_at ? ago(hl.ok_at, now) : null
@@ -336,24 +355,27 @@ function render(b) {
   const statCell = (k, label, n) => `<div class="stat ${k}${n ? ' on' : ''}${filter === k ? ' sel' : ''}" data-filter="${k}" title="${filter === k ? esc(T.filterOn(label)) : ''}"><span class="caps">${label}</span><span class="n">${n}</span><span class="sub">${esc(SUB[k]())}</span></div>`
   hero.className = 'hero'
   const a = nx ? (ago(nx.attention_since, now) || [0, T.min]) : null
+  // 다음에 할 일(F11): 에이전트가 도는 세션이 하나도 없고 첫 실행 안내가 닫혀 있으면 '새 세션을 여세요'. 강조(주황 점)는 이 줄 한 곳이다.
+  const step = nx ? null : nextStepOf({ agents: cards.filter((c) => states.get(c.id) !== 'shell').length, readonly: Boolean(b.readonly), stale: Boolean(b.health?.stale), offDesks: offDesksOf(b).length, guide: !acView ? 'unknown' : document.getElementById('firstrun').hidden ? 'closed' : 'open' })
   const heroHtml = `<div class="stats">${statCell('wait', T.wait, count('wait'))}${statCell('fail', T.fail, count('fail'))}${statCell('done', T.done, count('done'))}${statCell('run', T.run, count('run'))}${statCell('idle', T.idle, count('idle'))}${statCell('all', T.panes, cards.length)}</div>
     <div class="r"><div class="lab caps"><span>${T.today}</span><i></i></div>
       <div class="kpi caps"><div class="hi">${T.raised}<span class="n">${s.raised ?? 0}<small>${T.cnt}</small></span></div><div>${T.within}<span class="n">${rate}</span></div></div>
       <div class="spark">${sparkline(s.hourly)}</div><div class="axis">${axis}</div></div>
     ${nx
       ? `<div class="nextline ${nst === 'fail' ? 'fail' : ''}" data-open="${nx.id}"><span class="caps"><i></i>${T.next}</span><span class="lb" title="${esc(labelOf(nx))}">${esc(clip(labelOf(nx), 24))}</span><span class="qq">${esc(nextSummary(nx, nst))} <span class="caps" style="text-transform:none">· ${[nx.desk_label || nx.desk, nx.branch].filter(Boolean).map((x) => esc(clip(x, 18))).join(' · ')}</span></span><span class="w">${a[0]}<small>${a[1]}</small> ${b.readonly ? '' : `<button class="chip ghost" data-seen="${nx.id}">${T.seen}</button>`}</span></div>`
+      : step === 'new' ? `<div class="nextline todo" data-new><span class="caps"><i></i>${T.todoLabel}</span><span class="lb">${T.todoNew}</span><span class="qq">${esc(T.todoNewHint(newBtnShown(matchMedia('(max-width:480px)').matches, T)))}</span><span></span></div>`
       : `<div class="nextline quiet"><span class="caps"><i></i>${T.next}</span><span class="lb" style="color:var(--muted)">${T.quiet}</span><span class="qq">${b.health?.stale ? T.unknownWait : offDesksOf(b).length ? T.offDesks(offDesksOf(b).map(([, l]) => esc(l)).join(', ')) + (b.readonly ? '' : ' ' + offDesksOf(b).map(([d, l]) => `<button class="deskbtn" data-desk-start="${esc(d)}">${T.deskOn} ${esc(l)}</button>`).join(' ')) : T.noWait}</span><span></span></div>`}`
   // 글자가 그대로면 다시 그리지 않는다(3초마다 통째로 갈아 끼우면 포커스·글자 선택이 풀린다).
   if (heroHtml !== drawn.hero) { hero.innerHTML = heroHtml; drawn.hero = heroHtml }
 
-  // 띠: 고정 줄 + 데스크별 칸 + 최근 닫힘
+  // 띠: 고정 줄 + 데스크별 세션 + 최근 닫힘
   const strip = document.getElementById('strip')
   const DESK_NAME = {}
   const groups = []
-  // 핀 고정 칸은 정렬과 무관하게 맨 위 고정 줄에 둔다(고정한 순서대로).
+  // 핀 고정 세션은 정렬과 무관하게 맨 위 고정 줄에 둔다(고정한 순서대로).
   const pinned = cards.filter((c) => c.pinned_at).sort((x, y) => x.pinned_at.localeCompare(y.pinned_at))
   for (const c of cards) { if (c.pinned_at) continue; const g = groups.find((x) => x.desk === c.desk); g ? g.cards.push(c) : groups.push({ desk: c.desk, label: c.desk_label || c.desk, toggle: c.caps.includes('toggle'), cards: [c] }) }
-  // 칸이 많은 세션이 위로(사용자가 주로 보는 데스크), 같으면 이름순
+  // 세션이 많은 데스크가 위로(사용자가 주로 보는 데스크), 같으면 이름순
   const ordered = orderDesks(groups, deskOrder); groups.length = 0; groups.push(...ordered)
   if (sortMode() === 'neglect') for (const g of groups) g.cards.sort((x, y) => neglectKey(x, states, now) - neglectKey(y, states, now))
   if (pinned.length) groups.unshift({ desk: T.pinnedDesk, label: T.pinnedDesk, cards: pinned, pinned: true })
@@ -370,20 +392,20 @@ function render(b) {
   const cellHtml = (c) => {
       const st = states.get(c.id)
       const idx = order.findIndex((o) => o.id === c.id)
-      return `<div role="button" tabindex="0" class="cell ${st}${nx && c.id === nx.id ? ' next' : ''}${matches(st) ? '' : ' dim'}" data-next="${T.next}" data-open="${c.id}" title="${esc(c.title)} · ${esc(c.ref)}${c.branch ? ' · ' + esc(c.branch) : ''}${c.cwd ? ' · ' + esc(c.cwd) : ''}">${acts(c, st)}
+      return `<div role="button" tabindex="0" class="cell ${st}${nx && c.id === nx.id ? ' next' : ''}${matches(st) ? '' : ' dim'}" data-next="${T.next}" data-open="${c.id}" title="${esc(c.title)} · ${esc(c.ref)}${c.branch ? ' · ' + esc(c.branch) : ''}${c.cwd ? ' · ' + esc(c.cwd) : ''}${!ro && tabOnly(c) && clickPlan(c).url ? ' · ' + esc(T.tabOnlyTip) : ''}">${acts(c, st)}
         <div class="top"><span class="lb">${c.pinned_at ? '<span class="pinmark">◆</span>' : ''}<em>${esc(clip(labelOf(c), 20))}</em><span class="br">${esc(clip(c.branch || c.desk_label || c.desk, 18))}</span>${c.fail_kind ? `<span class="tag" title="${esc(c.fail_kind)}">${esc(T.failKind[c.fail_kind] || c.fail_kind)}</span>` : ''}${c.unreachable ? `<span class="tag" title="${c.last_ok_at ? esc(T.lastOk(ago(c.last_ok_at, now).join(''))) : ''}">${T.unreach}${c.last_ok_at ? ` · ${ago(c.last_ok_at, now).join('')}` : ''}</span>` : ''}</span><span class="sx"><span class="st">${st === 'fail' ? '× ' : ''}${stLabel(c, st)}${idx >= 0 && idx < 9 ? ` ${idx + 1}` : ''}</span>${sinceOf(c, st) ? `<span class="t">${tnum(sinceOf(c, st), now)}</span>` : ''}</span></div>
         <div class="sum">${summaryOf(c, st) === labelOf(c) || summaryOf(c, st) === c.project ? `<span class="path">${esc(c.cwd ? clipPath(c.cwd.replace(/^\/Users\/[^/]+/, '~'), 40) : T.noPrompt)}</span>` : esc(summaryOf(c, st))}</div>
-        ${st === 'shell' && !ro && c.caps.includes('resume') ? `<button class="resume" data-resume="${c.id}" data-sid="${esc(c.resume?.sid || '')}" title="${esc(c.resume ? T.resumeWhat(c.resume.prompt, (ago(c.resume.at, now) || []).join('')) : T.resumeFresh)}">${T.resume}</button>` : c.stale && !(nx && c.id === nx.id) ? `<span class="stale">${T.stale}</span>` : ''}</div>`
+        ${st === 'shell' && !ro && c.caps.includes('resume') ? `<button class="resume" data-resume="${c.id}" data-sid="${esc(c.resume?.sid || '')}" title="${esc(c.resume ? T.resumeWhat(c.resume.prompt, (ago(c.resume.at, now) || []).join('')) : T.resumeFresh)}">${T[resumeLabelKey(c, false)]}</button>` : c.stale && !(nx && c.id === nx.id) ? `<span class="stale">${T.stale}</span>` : ''}</div>`
   }
-  const closedHtml = (closed.length ? `<details class="closedrow"${closedOpen ? ' open' : ''}><summary class="caps"><em>${T.closedTitle}</em><span>${closed.length}</span><span>${T.closedHint(keep)}</span></summary><div class="closed">${closed.map((c) => `<div class="c"><span class="lb" title="${esc(c.pane_label || c.project)}">${esc(clip(c.pane_label || c.project, 28))}</span><span class="why">${esc(c.desk_label || c.desk)} · ${c.reason === 'stashed' ? T.stashedWhy : T.gone} · ${(ago(c.closed_at, now) || ['', ''])[0]}${(ago(c.closed_at, now) || ['', ''])[1]}</span>${ro ? '' : c.reason === 'stashed' ? `<button data-act="unstash" data-id="${c.id}">${T.unstashBtn}</button>` : `<button data-resume="${c.id}" data-sid="${esc(c.resume?.sid || '')}" title="${esc(c.resume ? T.resumeWhat(c.resume.prompt, (ago(c.resume.at, now) || []).join('')) : T.resumeFresh)}">${T.reopen}</button>`}</div>`).join('')}</div></details>` : '')
-  // 포커스가 있던 칸(또는 그 안의 버튼)을 기억했다가, 그 칸을 갈아 끼웠으면 돌려준다.
+  const closedHtml = (closed.length ? `<details class="closedrow"${closedOpen ? ' open' : ''}><summary class="caps"><em>${T.closedTitle}</em><span>${closed.length}</span><span>${T.closedHint(keep)}</span></summary><div class="closed">${closed.map((c) => `<div class="c"><span class="lb" title="${esc(c.pane_label || c.project)}">${esc(clip(c.pane_label || c.project, 28))}</span><span class="why">${esc(c.desk_label || c.desk)} · ${c.reason === 'stashed' ? T.stashedWhy : T.gone} · ${(ago(c.closed_at, now) || ['', ''])[0]}${(ago(c.closed_at, now) || ['', ''])[1]}</span>${ro ? '' : c.reason === 'stashed' ? `<button data-act="unstash" data-id="${c.id}">${T.unstashBtn}</button>` : c.caps && !c.caps.includes('resume') ? '' : `<button data-resume="${c.id}" data-sid="${esc(c.resume?.sid || '')}" title="${esc(c.resume ? T.resumeWhat(c.resume.prompt, (ago(c.resume.at, now) || []).join('')) : T.resumeFresh)}">${T[resumeLabelKey(c, true)]}</button>`}</div>`).join('')}</div></details>` : '')
+  // 포커스가 있던 세션(또는 그 안의 버튼)을 기억했다가, 그 세션 상자를 갈아 끼웠으면 돌려준다.
   const ae = document.activeElement, fcell = ae?.closest?.('.cell[data-open]')
   const fkey = fcell ? { id: fcell.dataset.open, sub: ae === fcell ? null : ae.dataset.act ? `[data-act="${ae.dataset.act}"]` : ae.dataset.resume ? '[data-resume]' : ae.dataset.closepane ? '[data-closepane]' : null } : null
   const cellsNow = new Map(groups.flatMap((g) => g.cards.map((c) => [String(c.id), cellHtml(c)])))
   const heads = groups.map(headHtml)
   const skeleton = JSON.stringify(groups.map((g) => [g.desk, g.label, Boolean(g.pinned), g.cards.map((c) => c.id)]))
   if (skeleton === drawn.skeleton && strip.querySelector('#closedwrap')) {
-    // 칸 배치가 그대로면 글자가 바뀐 칸·머리줄만 갈아 끼운다.
+    // 세션 배치가 그대로면 글자가 바뀐 세션·머리줄만 갈아 끼운다.
     strip.querySelectorAll('.desk').forEach((el, i) => { if (heads[i] !== drawn.heads[i]) el.outerHTML = heads[i] })
     for (const [id, html] of cellsNow) if (drawn.cells.get(id) !== html) { const el = strip.querySelector(`.cell[data-open="${id}"]`); if (el) el.outerHTML = html }
     if (closedHtml !== drawn.closed) strip.querySelector('#closedwrap').innerHTML = closedHtml
@@ -400,7 +422,7 @@ function render(b) {
   signal(cards, states)
 }
 
-// 칸이 보드 아래로 넘쳐 스크롤이 생기면 히어로를 줄이고, 그래도 넘치면 카드 높이를 남은 높이에 맞춘다. 좁은 화면(760px 이하)은 목록형이라 건드리지 않는다.
+// 세션이 보드 아래로 넘쳐 스크롤이 생기면 히어로를 줄이고, 그래도 넘치면 세션 상자 높이를 남은 높이에 맞춘다. 좁은 화면(760px 이하)은 목록형이라 건드리지 않는다.
 function fitHeight() {
   const root = document.documentElement, strip = document.getElementById('strip')
   root.classList.remove('fit1', 'fit2', 'tight'); root.style.removeProperty('--fit-h')
@@ -413,7 +435,7 @@ function fitHeight() {
   const cellsH = [...new Set(cells.map((c) => c.offsetTop))].reduce((sum, top) => sum + Math.max(...cells.filter((c) => c.offsetTop === top).map((c) => c.offsetHeight)), 0)
   const other = strip.scrollHeight - cellsH
   const h = Math.floor((strip.clientHeight - other) / rows) - 1
-  // 카드가 글자를 담지 못할 만큼 낮아지면(96px 미만) 누르지 않고 스크롤하게 둔다 — 눌린 카드는 요약과 버튼이 겹쳤다.
+  // 세션 상자가 글자를 담지 못할 만큼 낮아지면(96px 미만) 누르지 않고 스크롤하게 둔다 — 눌린 세션 상자는 요약과 버튼이 겹쳤다.
   if (h < 96) return
   root.style.setProperty('--fit-h', Math.max(h, 76) + 'px')
   root.classList.add('fit2')
@@ -421,10 +443,10 @@ function fitHeight() {
 }
 
 /* 방치순 정렬 + FLIP 모션 */
-// 기기별 설정(이 브라우저의 localStorage): 서버 화면 창 올리기, 칸을 열 주소 템플릿. 서버는 누가 어느 기기 앞에 있는지 모른다.
-// 설정 패널이 보여 주는 방식과 같은 판정을 쓴다: '웹 주소'만 고른 브라우저는 서버 화면의 창을 올리지 않는다.
+// 기기별 설정(이 브라우저의 localStorage): 서버 화면 창 올리기, 세션을 열 주소 템플릿. 서버는 누가 어느 기기 앞에 있는지 모른다.
+// 설정이 보여 주는 방식과 같은 판정을 쓴다: '웹 터미널'만 고른 브라우저는 서버 화면의 창을 올리지 않는다.
 function raiseOn() { return clickMode() !== 'web' }
-// 칸을 누르면 열 주소(웹 터미널 등). 이 덩어리는 화면·저장소에 닿지 않는 순수 함수다 — test/weburl.test.mjs가 그대로 읽어 시험한다.
+// 세션을 누르면 열 주소(웹 터미널 등). 이 덩어리는 화면·저장소에 닿지 않는 순수 함수다 — test/weburl.test.mjs가 그대로 읽어 시험한다.
 // get = 저장소 읽기(key → 값 또는 null). 화면에서는 localStorage.getItem.
 /*weburl*/
 // 주소 꼴: http(s)로 시작하고, 공백이 없고, {pane}이 들어 있고, 자리를 채웠을 때 실제 주소로 읽혀야 한다(포트에 글자가 섞인 주소 등을 거른다).
@@ -432,17 +454,20 @@ function validOpenUrl(t) {
   if (typeof t !== 'string' || !/^https?:\/\/\S+$/i.test(t) || !t.includes('{pane}')) return false
   try { const u = new URL(t.replace(/\{(?:session|pane)\}/g, 'x')); return (u.protocol === 'http:' || u.protocol === 'https:') && Boolean(u.hostname) } catch { return false }
 }
-// 주소는 기본 하나 + 줄(herdr 세션·Herdr 앱 공간)별 덮어쓰기(웹 터미널이 세션마다 따로 떠서 주소·포트가 다른 경우).
-// 기본 주소는 herdr 세션용이다. Herdr 앱 줄은 그 줄에 적어 둔 주소가 있을 때만 웹으로 연다(없으면 Herdr 앱으로 간다).
-// 줄에 적어 둔 주소의 꼴이 틀렸으면 그 줄은 웹으로 열지 않는다 — 기본 주소로 넘어가면 다른 세션의 웹 터미널에서
-// 번호만 같은 엉뚱한 칸이 열린다.
+// 주소는 기본 하나 + 데스크(herdr session·Herdr 앱 공간)별 덮어쓰기(웹 터미널이 데스크마다 따로 떠서 주소·포트가 다른 경우).
+// 기본 주소는 herdr 데스크용이다. Herdr 앱 데스크는 그 데스크에 적어 둔 주소가 있을 때만 웹으로 연다(없으면 Herdr 앱으로 간다).
+// 데스크에 적어 둔 주소의 꼴이 틀렸으면 그 데스크는 웹으로 열지 않는다 — 기본 주소로 넘어가면 다른 데스크의 웹 터미널에서
+// 번호만 같은 엉뚱한 세션이 열린다.
+// herdr-core 세션은 데스크에 적어 둔 주소가 없으면 그 코어를 보여 주는 웹 주소(whosup-open-url-core:<코어 이름> — 자동 감지한
+// 코어 프로필의 주소, 세션 ref의 '/' 앞이 코어 이름)를 쓴다. 코어마다 주소가 다르므로 다른 코어의 주소로 넘어가지 않는다.
 function openUrlTemplateFor(c, get) {
   const own = get(`whosup-open-url:${c.desk}`)
   if (own) return validOpenUrl(own) ? own : ''
-  const base = c.runtime === 'herdr' ? get('whosup-open-url') : ''
+  const i = c.runtime === 'herdr-core' ? String(c.ref || '').indexOf('/') : -1
+  const base = c.runtime === 'herdr' ? get('whosup-open-url') : i > 0 ? get(`whosup-open-url-core:${c.ref.slice(0, i)}`) : ''
   return validOpenUrl(base) ? base : ''
 }
-// {session} = 줄 이름(herdr 세션 이름, Herdr 앱 공간 이름), {pane} = 칸 id(herdr 칸, herdr-core 터미널 주소). 주소로 못 여는 카드면 ''.
+// {session} = 데스크 이름(herdr session 이름, Herdr 앱 공간 이름), {pane} = 세션 id(herdr pane id, herdr-core 터미널 주소). 주소로 못 여는 세션이면 ''.
 function buildOpenUrl(c, template) {
   if (!c || !c.caps?.includes('web') || !validOpenUrl(template)) return ''
   const i = c.ref.indexOf('/'), pane = c.ref.slice(i + 1)
@@ -450,26 +475,149 @@ function buildOpenUrl(c, template) {
   try { new URL(url) } catch { return '' }   // 자리를 채운 결과가 주소가 아니면 열지 않는다
   return url
 }
-// 이 카드를 누르면 열 주소. 웹 주소를 꺼 두었거나 맞는 주소가 없으면 '' — 그때는 터미널(또는 Herdr 앱) 이동만 한다.
+// 앱 창 안에서 그 세션을 고르게 할 수단이 없어, 그 세션 자체는 브라우저 탭으로만 보여 줄 수 있는 세션인가.
+// 카드의 features(서버가 코어 프로필에서 계산한 "되는 기능")가 이동의 수단을 open_url 이라고 적은 세션이다 — 자기 서버로 코어를 보여 주는
+// 앱의 세션이고 그 앱이 켜져 있다. 런타임 이름·앱 이름으로 가리지 않는다.
+function tabOnly(c) { return c?.features?.focus?.means === 'open_url' }
+// 이 세션을 누르면 열 주소. 웹 주소를 꺼 두었거나 맞는 주소가 없으면 '' — 그때는 터미널(또는 Herdr 앱) 이동만 한다.
+// 다만 탭으로만 보여 줄 수 있는 세션(tabOnly)은, 아무도 '세션을 여는 곳'을 고르지 않았을 때(whosup-open-url-app 이 'on' — 서버가
+// 그렇게 알려 준다) 웹 주소가 꺼져 있어도 연다: 앱 창만 올려서는 그 세션에 닿지 못한다. 설정·첫 실행 안내·환경변수로 여는 곳을 정했거나
+// 이 브라우저에서 따로 골랐으면(그때 'off' 가 된다) 그 값 그대로다.
 function openUrlOf(c, get) {
-  if (!c || get('whosup-open-url-on') === 'off') return ''
+  if (!c) return ''
+  if (get('whosup-open-url-on') === 'off' && !(tabOnly(c) && get('whosup-open-url-app') === 'on')) return ''
   return buildOpenUrl(c, openUrlTemplateFor(c, get))
 }
-// 칸을 누르면 열 곳: terminal(서버 화면의 터미널 창·Herdr 앱) | web(주소를 새 탭으로) | both. keys = 저장된 열쇠 목록.
+// 이 브라우저에서 '세션을 여는 곳'을 따로 골라 두었는가(local = 이 브라우저에 저장한 값만 읽는 함수 — 서버 기본값은 보지 않는다).
+function localClickOf(local) { return local('whosup-open-url-on') != null || local('whosup-raise') != null }
+// 값 하나를 읽는다: 이 브라우저에 저장한 값이 먼저이고, 없을 때만 서버가 알려 준 기본값(defaults)이다.
+// 다만 whosup-open-url-app 은 이 브라우저에서 여는 곳을 따로 골라 두었으면 서버 값을 쓰지 않고 'off' 다. 그 열쇠가 생기기 전에 골라 둔
+// 브라우저에는 그 열쇠가 저장돼 있지 않다: 서버 값('on' — 서버 쪽에서는 아무도 정하지 않았다)이 끼어들면, 여기서 터미널 창을 골라 둔
+// 사람이 탭으로만 보여 줄 수 있는 세션을 눌렀을 때 고르지 않은 탭이 열린다(openUrlOf).
+function storedOf(local, defaults, k) {
+  const v = local(k)
+  if (v != null) return v
+  if (k === 'whosup-open-url-app' && localClickOf(local)) return 'off'
+  return Object.hasOwn(defaults, k) ? defaults[k] : null
+}
+// 세션을 여는 곳: terminal(서버 화면의 터미널 창·Herdr 앱) | web(주소를 새 탭으로) | both. keys = 저장된 열쇠 목록.
 function clickModeOf(get, keys) {
-  const any = keys.some((k) => (k === 'whosup-open-url' || k.startsWith('whosup-open-url:')) && validOpenUrl(get(k)))
+  const any = keys.some((k) => (k === 'whosup-open-url' || k.startsWith('whosup-open-url:') || k.startsWith('whosup-open-url-core:')) && validOpenUrl(get(k)))
   const web = get('whosup-open-url-on') !== 'off' && any
   return web ? (get('whosup-raise') !== 'off' ? 'both' : 'web') : 'terminal'
 }
 // 한 번의 클릭이 할 일: url = 새 탭으로 열 주소(없으면 ''), raise = 서버 화면의 창(터미널·Herdr 앱)을 올릴지.
-// 웹 주소만(web) 고른 브라우저는 창을 올리지 않는다. 다만 이 카드에 열 주소가 없으면 올린다(주소 없는 줄은 터미널·Herdr 앱으로 간다).
+// 웹 터미널만(web) 고른 브라우저는 창을 올리지 않는다. 다만 이 세션에 열 주소가 없으면 올린다(주소 없는 데스크는 터미널·Herdr 앱으로 간다).
+// 탭으로만 보여 줄 수 있는 세션(tabOnly)을 탭으로 여는 클릭도 창을 올리지 않는다: 그 앱은 밖에서 세션을 골라 줄 수 없어, 창을 올리면
+// 다른 세션을 보인 채 방금 연 탭을 덮는다(실기기 — 세션이 둘 이상일 때). 열 주소가 없으면(이 브라우저에서 터미널 창만 골랐다) 예전 그대로 앱 창을 올린다.
 function clickPlanOf(c, get, keys) {
   const url = openUrlOf(c, get)
-  return { url, raise: !url || clickModeOf(get, keys) !== 'web' }
+  return { url, raise: !url || (!tabOnly(c) && clickModeOf(get, keys) !== 'web') }
+}
+// 방금 연 탭의 주소(opened)와 서버가 답에 실어 준 그 세션의 주소(told — 그 앱의 서버를 이번에 찾은 포트로 만든 것)가 포트만 다르면 told, 아니면 ''.
+// 자기 코어를 띄우는 앱은 다시 켤 때 포트가 바뀔 수 있다: 자동 감지가 아직 옛 포트를 알고 있으면 방금 연 탭은 빈 주소다 — 그 탭을 맞는
+// 주소로 다시 보낸다. 호스트·경로·질의가 다르면 사람이 적어 둔 주소이므로(터널 주소 등) 건드리지 않는다.
+function portFixedUrl(opened, told) {
+  try {
+    const a = new URL(opened), b = new URL(told)
+    return a.port !== b.port && a.protocol === b.protocol && a.hostname === b.hostname && a.pathname === b.pathname && a.search === b.search && a.hash === b.hash ? b.href : ''
+  } catch { return '' }
+}
+// 세션을 누른 결과로 보여 줄 답: 이 클릭이 그 세션의 탭을 실제로 열었고(tabOk) 서버가 그 세션의 주소를 알려 줬으면(data.url — 그 앱의
+// 서버가 살아 있다) 그 세션은 탭에서 보인다. "앱 창만 올렸으니 앱 안에서 고르라"·"앱 창을 올리지 못했다"는 답을 그 사실에 맞는 답으로 바꾼다.
+function shownReply(data, tabOk) {
+  if (!tabOk || !data?.ok || !data.url) return data
+  if (data.code === 'focused_app_only') return { ...data, code: 'focused_app_tab' }
+  if (['app_raise_unsupported', 'app_raise_failed', 'app_closed'].includes(data.code)) return { ...data, code: 'focused_tab' }
+  // 창을 올리지 말라고 보낸 클릭(raise:false — 탭으로만 보여 줄 수 있는 세션, clickPlanOf): 서버는 아무 창도 건드리지 않고(window 'skipped')
+  // 'focused' 로 답한다. 그 세션은 방금 연 탭에서 보인다 — "옮겼습니다"가 아니라 탭으로 열었다는 것과 그 까닭을 말한다.
+  if (data.code === 'focused' && data.window === 'skipped') return { ...data, code: 'focused_tab_only' }
+  return data
 }
 /*/weburl*/
+/*latertab*/
+// 주소를 나중에 아는 탭: 새 세션·닫힌 세션 다시 열기·에이전트 시작은 서버의 답이 와야 그 세션의 주소를 안다. 답은 await 뒤에 오므로
+// 그때 탭을 열면 브라우저가 팝업으로 막는다 — 누르는 순간에 탭을 잡아 두고(holdTab), 답이 오면 그 탭을 그 주소로 보낸다.
+// 이 덩어리는 화면·저장소에 닿지 않는 순수 함수다(위 weburl 덩어리의 함수를 쓴다) — test/air-findings-ui.test.mjs가 그대로 읽어 시험한다.
+// 그 데스크에 열릴 세션을 대신할 카드(주소·수단 판단용). 같은 데스크의 카드가 판에 있으면 그것, 없으면 데스크 열쇠에 적힌 코어
+// (core:<코어 이름>@<공간>)를 판 응답의 cores(코어마다 되는 기능)에서 찾아 만든다. 못 찾으면 null — 예전 그대로 한다.
+function deskProbe(desk, cores, cards) {
+  const card = (Array.isArray(cards) ? cards : []).find((c) => c && c.desk === desk && c.features && typeof c.ref === 'string')
+  if (card) return card
+  const name = /^core:([A-Za-z0-9._-]+)@/.exec(String(desk || ''))?.[1]
+  const core = name ? (Array.isArray(cores) ? cores : []).find((x) => x && x.name === name && x.features) : null
+  return core ? { desk, runtime: 'herdr-core', ref: `${core.name}/-`, caps: ['web'], features: core.features } : null
+}
+// 누르는 순간의 계획. tab = 탭을 잡아 둘지(탭으로만 보여 줄 수 있는 세션이고 이 브라우저가 그 세션을 탭으로 연다 — 세션을 누를 때와 같은 조건),
+// raise = 서버에 보낼 값(tab 이면 false: 앱 창을 올리지 않는다. 아니면 undefined — 이 브라우저의 설정대로, 예전 그대로).
+function laterTabPlan(probe, get) {
+  const tab = tabOnly(probe) && Boolean(openUrlOf(probe, get))
+  return { tab, raise: tab ? false : undefined }
+}
+// 잡아 둔 탭을 보낼 주소. told = 서버가 답에 실어 준 그 세션의 주소(이번에 찾은 포트로 만든 것), template = 이 브라우저가 그 데스크의 세션을 여는 주소 틀.
+// 틀의 호스트가 told 와 같으면 told 그대로다(포트가 가장 새 것). 호스트가 다르면 사람이 적어 둔 주소다(터널 등 — 이 브라우저는 told 에 닿지
+// 못할 수 있다): 틀에서 {pane} 을 값으로 받는 질의 이름으로 told 에서 세션 id 를 읽어 그 틀에 채운다. 읽지 못하면 ''(탭을 보내지 않는다 —
+// 그 세션은 판에 생기고, 누르면 그 틀로 열린다).
+function laterTabUrl(told, template) {
+  if (!validOpenUrl(template)) return ''
+  try {
+    const t = new URL(told), m = new URL(template.replace(/\{(?:session|pane)\}/g, 'x'))
+    if (t.protocol !== 'http:' && t.protocol !== 'https:') return ''
+    if (t.protocol === m.protocol && t.hostname === m.hostname) return t.href
+    if (template.includes('{session}')) return ''
+    const MARK = 'whosup-pane-here'
+    const key = [...new URL(template.replaceAll('{pane}', MARK)).searchParams].find(([, v]) => v === MARK)?.[0]
+    const pane = key ? t.searchParams.get(key) : ''
+    return pane ? new URL(template.replaceAll('{pane}', encodeURIComponent(pane))).href : ''
+  } catch { return '' }
+}
+// 답이 온 뒤 잡아 둔 탭으로 할 일. want = 탭을 잡으려 했는가, held = 잡았는가(false 면 브라우저가 막았다), fresh = 이번에 새로 연 빈 탭인가,
+// ok = 요청이 됐는가, url = 보낼 주소(laterTabUrl). act: 'go' 그 주소로 보낸다 · 'close' 새로 연 빈 탭을 닫는다 · 'leave' 전부터 있던 탭은 그대로 둔다 · 'none'.
+// shown = 그 세션을 탭으로 보여 줬다(알림 문구가 그렇게 말한다), blocked = 탭이 막혔다(막혔다고 알린다).
+function laterTabEnd({ want, held, fresh, ok, url } = {}) {
+  if (!want) return { act: 'none', url: '', shown: false, blocked: false }
+  if (!held) return { act: 'none', url: '', shown: false, blocked: true }
+  if (ok && url) return { act: 'go', url, shown: true, blocked: false }
+  return { act: fresh ? 'close' : 'leave', url: '', shown: false, blocked: false }
+}
+// 탭으로 보여 준 결과의 답: 새 세션·이어서 열기·에이전트 시작의 성공 문구를 "브라우저 탭으로 열었다"는 문구로 바꾼다. 그 밖의 답은 그대로.
+function tabReply(data) {
+  const to = { opened_new: 'opened_new_tab', resumed: 'resumed_tab', started: 'started_tab' }
+  return data?.ok && Object.hasOwn(to, data.code) ? { ...data, code: to[data.code] } : data
+}
+// 그 코어(판 응답의 cores 한 항목)의 세션을 누르면 무엇이 보이는가 — 되는 기능(features)으로만 가린다(앱 이름·런타임 이름으로 가리지 않는다).
+// 'tab' 그 세션이 브라우저 탭으로 열린다 · 'app' 그 앱의 창이 앞으로 온다 · 'unknown' 되는 기능을 모른다(판이 그 코어를 읽고 있지 않다).
+function coreShowOf(core, get) {
+  if (!core?.features?.focus?.means || typeof core.name !== 'string') return 'unknown'
+  const probe = { desk: `core:${core.name}@`, runtime: 'herdr-core', ref: `${core.name}/-`, caps: ['web'], features: core.features }
+  return tabOnly(probe) && openUrlOf(probe, get) ? 'tab' : 'app'
+}
+// "감지한 환경" 요약(summary)의 앱 코어마다 show(coreShowOf)를 적어 돌려준다 — 그 아래 한 줄(envCoreLines)이 이 값으로 문구를 고른다.
+function withCoreShow(s, cores, get) {
+  if (!s || !Array.isArray(s.cores)) return s
+  const live = Array.isArray(cores) ? cores : []
+  return { ...s, cores: s.cores.map((c) => (c && typeof c.name === 'string' ? { ...c, show: coreShowOf(live.find((x) => x && x.name === c.name), get) } : c)) }
+}
+/*/latertab*/
+/*appcore*/
+// 새 세션 창의 대상 단추에 적을 이름과 설명. kind 'new_desk' = 그 앱에 새 데스크를 만들어 여는 자리(이름은 그 앱 이름이다).
+function targetLabel(t, T) { return t?.kind === 'new_desk' ? T.newDeskIn(t.label) : t.label }
+function targetTip(t, T) { return t?.kind === 'new_desk' ? T.newDeskTip(t.label) : t.label }
+// 새 세션 창에 덧붙일 줄: 앱이 꺼져 있어 새 세션을 열 수 없는 코어(판 응답의 cores — 코어마다 되는 기능)마다 한 줄. 앱 이름을 아는 것만.
+function newOffLines(cores, T) {
+  const apps = (Array.isArray(cores) ? cores : []).filter((c) => c && typeof c.app === 'string' && c.app && c.features?.new?.means === 'none' && c.features.new.reason === 'app_required').map((c) => c.app)
+  return [...new Set(apps)].map((a) => T.newAppOff(a))
+}
+// 새 세션 창의 "어느 데스크에" 줄: 열 수 있는 데스크가 하나도 없으면(targets 가 비었다 — 쓰는 앱의 첫 화면을 아직 마치지 않았거나, 앱·herdr 가
+// 꺼져 있다) 단추 줄이 비고 열기 단추가 꺼진다. 그 까닭과 할 일을 한 줄로 말한다. 꺼져 있는 앱을 알면 그 앱의 줄(newOffLines)이 할 일을
+// 말하므로 까닭만 적고, 모르면 할 일까지 적는다. 데스크가 하나라도 있으면 아무것도 적지 않는다.
+function newNoDeskLines(targets, cores, T) {
+  if (Array.isArray(targets) && targets.length) return []
+  return [newOffLines(cores, T).length ? T.newNoDesk : `${T.newNoDesk} ${T.newNoDeskHow}`]
+}
+/*/appcore*/
 /*origin*/
-// 설정 값의 출처 한 줄과 "감지한 환경" 요약, 첫 실행 카드의 단추. 화면·저장소에 닿지 않는 순수 함수다 — test/firstrun.test.mjs가 그대로 읽어 시험한다.
+// 설정 값의 출처 한 줄과 "감지한 환경" 요약, 첫 실행 안내의 단추. 화면·저장소에 닿지 않는 순수 함수다 — test/firstrun.test.mjs가 그대로 읽어 시험한다.
 // o = 서버 settingOrigins의 한 항목: { source: 'panel' } | { source: 'env', name, file } | { source: 'auto', reason } | { source: 'default' }.
 function originText(o, T) {
   if (!o) return ''
@@ -480,66 +628,186 @@ function originText(o, T) {
   if (o.source === 'card') return T.oCard
   return T.oDefault
 }
+// 켜져 있는 herdr 데스크가 있는가 / herdr-app 으로 보낼 수 있는 코어(Herdr 앱 코어)가 있는가 — 보기 전용 앱의 코어뿐이면 아니다.
+const deskOn = (s) => Boolean(s.herdr?.sessions?.length)
+const appCoreOn = (s) => Boolean(s.herdr_app?.found || (s.herdr_core?.running && !s.herdr_core?.view_only))
+// 감지한 앱 코어(자기 herdr-core 코어를 띄우는 앱 — summary.cores)마다 한 줄. 앱 이름을 못 찾았으면 코어 이름으로 말한다.
+// c.show = 그 코어의 세션을 누르면 무엇이 보이는가('tab' · 'app' · 'unknown' — 화면이 판의 "되는 기능"으로 적어 넣는다: withCoreShow).
+// 'tab' 이면 "브라우저 탭으로 열린다", 'unknown' 이면 누르면 어떻게 되는지는 말하지 않는다. 값이 없으면(요약 그대로) 예전 문구다.
+function envCoreLines(s, T) {
+  return (Array.isArray(s?.cores) ? s.cores : []).filter((c) => c && typeof c.name === 'string').map((c) => T.envCoreSeen(c.name, c.app || '', c.show))
+}
+// 요약 항목에 실을 감지한 앱 코어: 앱 이름을 아는 것마다 [앱 이름 + '앱', 있음(·실행 중)] — 같은 앱은 한 번. web = 그 앱의 서버가 답했다(실행 중).
+// 아래 줄(envCoreLines)이 "그 앱의 세션도 보드에 보입니다"라고 말하는데 항목에 그 앱이 없으면 서로 어긋난다(ovis 항목은 웹 터미널을 뜻한다).
+// 앱 이름은 감지한 값 그대로다. taken = 이미 있는 항목 이름(같은 이름으로 두 번 적지 않는다).
+function envAppParts(s, T, taken = []) {
+  const apps = new Map()
+  for (const c of Array.isArray(s?.cores) ? s.cores : []) {
+    const app = c && typeof c.app === 'string' ? c.app.trim() : ''
+    if (app) apps.set(app, Boolean(apps.get(app) || c.web))
+  }
+  return [...apps].map(([app, on]) => [T.envAppOf(app), T.envAppFound(on)]).filter(([k]) => !taken.includes(k))
+}
 // 요약 항목 [이름, 값]. 감지하지 못한 항목(값 없음)은 '확인 못 함'.
-function envSummaryParts(s, T) {
+// firstRun = 첫 실행 안내의 요약: 세션을 띄울 곳(herdr · Herdr 앱이나 그 코어 · 자기 코어를 띄우는 앱 · ovis 웹 터미널)을 하나라도 찾았으면
+// 값이 '없음'인 항목은 싣지 않는다 — 오비스 앱만 쓰는 기계에서 "herdr 데스크 없음 · Herdr 앱 없음 · ovis 없음"이 빠진 것·설치할 것처럼 읽혔다.
+// 하나도 찾지 못했으면 지금처럼 다 싣는다('없음'이 그대로 할 말이다). '확인 못 함'은 언제나 싣는다. 설정 화면은 firstRun 없이 다 싣는다.
+function envSummaryParts(s, T, { firstRun = false } = {}) {
   const U = T.envUnknown
   if (!s) return [[T.envOs, U], [T.envTerm, U], [T.envHerdr, U], [T.envApp, U], [T.envOvis, U], [T.envRemote, U]]
   const OS = { darwin: 'macOS', win32: 'Windows', linux: 'Linux' }
   const os = s.os ? (OS[s.os] || s.os) : U
   const term = s.terminal === 'off' ? T.envOff : s.terminal ? s.terminal : s.os ? T.envTermDef(s.os) : U
   const herdr = !s.herdr ? U : !s.herdr.found ? T.envNone : T.envSessions((s.herdr.sessions || []).length, (s.herdr.sessions || []).join(', '))
-  const app = !s.herdr_app && !s.herdr_core ? U : s.herdr_app?.found || s.herdr_core?.running ? T.envAppYes(Boolean(s.herdr_core?.running)) : T.envNone
+  const app = !s.herdr_app && !s.herdr_core ? U : appCoreOn(s) ? T.envAppYes(Boolean(s.herdr_core?.running)) : T.envNone
   const ovis = !Array.isArray(s.ovis) ? U : !s.ovis.length ? T.envNone : s.ovis.map((o) => `${o.port} ↔ ${o.confirmed && o.session ? o.session : T.envOvisCheck}`).join(', ')
   const remote = s.desktop === true ? T.envLocal : s.desktop === false ? T.envRemoteYes : U
-  return [[T.envOs, os], [T.envTerm, term], [T.envHerdr, herdr], [T.envApp, app], [T.envOvis, ovis], [T.envRemote, remote]]
+  const parts = [[T.envOs, os], [T.envTerm, term], [T.envHerdr, herdr], [T.envApp, app], ...envAppParts(s, T, [T.envOs, T.envTerm, T.envHerdr, T.envApp, T.envOvis, T.envRemote]), [T.envOvis, ovis], [T.envRemote, remote]]
+  const placeFound = Boolean(s.herdr?.found || appCoreOn(s) || (Array.isArray(s.cores) && s.cores.some((c) => c && typeof c.name === 'string')) || (Array.isArray(s.ovis) && s.ovis.length))
+  return firstRun && placeFound ? parts.filter(([, v]) => v !== T.envNone) : parts
 }
-// 첫 실행 카드: 띄울지와 단추. force = 설정 패널에서 다시 보기. 읽기 전용이면 닫기만(저장 없음).
-// ovis를 세션과 맞췄을 때만(ask_click) 칸을 누르면 열 곳을 묻는다. 'web'은 화면에서 "ovis"로 보인다.
+// 첫 실행 안내: 띄울지와 단추. force = 설정에서 다시 보기. 읽기 전용이면 닫기만(고를 줄도 저장도 없음).
 function firstRunPlan(view, { readonly, force } = {}) {
   const fr = view?.first_run
   const show = Boolean(force || (fr?.show && !readonly))
-  if (!show) return { show: false, ask: false, actions: [] }
-  if (readonly) return { show, ask: false, actions: ['close'] }
-  const ask = Boolean(fr?.ask_click)
-  return { show, ask, actions: ask ? ['terminal', 'web', 'both', 'ok'] : ['ok'] }
+  if (!show) return { show: false, rows: false, actions: [] }
+  if (readonly) return { show, rows: false, actions: ['close'] }
+  return { show, rows: true, actions: ['ok'] }
 }
-// 카드 아래 안내 문장의 I18N 키. 읽기 전용=저장하지 않음, 고를 것이 있을 때만 '고른 값은 사람이 정한 설정으로 저장…',
-// ovis가 없어 고를 것이 없으면 그 문장을 내지 않고 '감지한 환경 그대로 씁니다'만(LOOP 2회차 회차 1 후보).
-function firstRunHintKey(plan) {
+// 안내 아래 문장의 I18N 키. 읽기 전용=저장하지 않음. rows = 안내에 실은 고를 줄(choiceRows firstRun):
+// 한 줄도 없으면(웹 터미널이 없고 에이전트가 하나 — 오비스 앱만 있는 기계 등) '고른 값은 설정에 저장…' 대신 '지금은 고를 것이 없습니다…'.
+function firstRunHintKey(plan, rows) {
   if (plan.actions.includes('close')) return 'frRo'
-  return plan.ask ? 'frHint' : 'frHintNoAsk'
+  return plan.rows && Array.isArray(rows) && !rows.length ? 'frNone' : 'frHint'
+}
+// 안내 머리 제목의 I18N 키: 고를 줄이 하나도 없으면(오비스 앱만 있는 기계 · 읽기 전용 보기) '감지한 것 중에서 골라 주세요' 대신 '감지한 환경'.
+function firstRunTitleKey(plan, rows) {
+  if (!plan.rows) return 'frTitleNone'
+  return Array.isArray(rows) && !rows.length ? 'frTitleNone' : 'frTitle'
+}
+// 고를 줄: 감지한 선택지(view.summary.options·ovis·herdr_app)만 싣고, 지금 값(view.chosen)을 미리 골라 둔다.
+// 첫 실행 안내와 설정이 같은 목록을 쓴다. 줄 = { key, label, hint, options: [{ value, label, note }], value }.
+//   click_target 세션을 여는 곳: 터미널 창 (+ 웹 터미널·둘 다 — 데스크와 맞춘 웹 터미널을 감지했을 때)
+//   front_app    터미널 앱: 감지한 앱들 + 자동('')            — 감지한 앱이 있고 켜져 있는 herdr 데스크가 있을 때(없으면 올릴 창이 아직 없다)
+//   core_target  Herdr 앱 세션을 여는 곳: Herdr 앱 | 터미널 창   — Herdr 앱이나 그 코어를 감지했을 때(보기 전용 앱의 코어뿐이면 묻지 않는다)
+//   agent_cmd    세션을 열 때 실행할 명령: 감지한 에이전트(+ 지금 값)
+// firstRun = 첫 실행 안내의 줄: 선택지가 하나뿐인 줄(고를 것이 없다 — 웹 터미널이 없을 때의 세션을 여는 곳 = 터미널 창 하나)은 싣지 않는다.
+//   '자동'(값 '')은 고를 것으로 세지 않는다(터미널의 questionsOf와 같은 규칙) — 터미널 앱이 하나뿐이면 자동과 같은 뜻이다.
+//   설정 화면은 firstRun 없이 다 싣는다. 싣지 않은 줄은 저장하지도 않는다(choicePatch는 이 목록의 줄만 본다).
+function choiceRows(view, T, { firstRun = false } = {}) {
+  const s = view?.summary || {}, o = s.options || {}, ch = view?.chosen || {}
+  const cur = (k) => String(ch[k]?.value ?? '')
+  const rows = []
+  const web = (Array.isArray(s.ovis) ? s.ovis : []).filter((x) => x.confirmed && x.session)
+  const click = [{ value: 'terminal', label: T.clickTerminal }]
+  if (web.length) click.push({ value: 'web', label: T.clickWeb }, { value: 'both', label: T.clickBoth })
+  rows.push({ key: 'click_target', label: T.clickLabel, hint: web.length ? T.chClickWeb(web.map((x) => `ovis ${x.port} ↔ ${x.session}`).join(', ')) : T.chClickOnly, options: click, value: click.some((x) => x.value === cur('click_target')) ? cur('click_target') : 'terminal' })
+  const apps = Array.isArray(o.terminal_apps) ? o.terminal_apps : []
+  if (apps.length && deskOn(s)) {
+    const opts = apps.map((a) => ({ value: a.name, label: a.name, note: a.showing ? T.chShowing : a.opens_new ? '' : T.chRaiseOnly }))
+    const v = cur('front_app')
+    const same = (x) => x.value.toLowerCase() === v.toLowerCase()
+    if (v && v.toLowerCase() !== 'off' && !opts.some(same)) opts.push({ value: v, label: v })
+    opts.push({ value: '', label: T.appAuto, note: T.chAutoNote })
+    rows.push({ key: 'front_app', label: T.appLabel, hint: '', options: opts, value: (v && opts.find(same)?.value) || '' })
+  }
+  if (appCoreOn(s)) rows.push({ key: 'core_target', label: T.chCore, hint: T.chCoreHint, options: [{ value: 'app', label: T.chCoreApp }, { value: 'terminal', label: T.clickTerminal }], value: cur('core_target') === 'terminal' ? 'terminal' : 'app' })
+  const agents = Array.isArray(o.agents) ? o.agents : []
+  const cmd = cur('agent_cmd')
+  const cmds = agents.map((a) => ({ value: a, label: a }))
+  if (cmd && !cmds.some((x) => x.value === cmd)) cmds.unshift({ value: cmd, label: cmd, note: ch.agent_cmd?.origin?.source === 'default' ? T.chNotFound : '' })
+  if (cmds.length) rows.push({ key: 'agent_cmd', label: T.cmdLabel, hint: '', options: cmds, value: cmd || cmds[0].value })
+  return firstRun ? rows.filter((r) => r.options.filter((o) => o.value !== '').length >= 2) : rows
+}
+// 저장할 값: 사람이 손댄 줄만 고른 값으로 보낸다(F14). 손대지 않은 줄은 출처가 자동 감지든 기본값이든 사람이 이미 정한 값이든 보내지 않는다 —
+// 미리 골라 둔 자동 감지 값을 사람이 고른 값으로 굳히면 감지 결과가 나중에 바뀌어도 따라가지 못한다. '자동'('')은 저장한 값이 있을 때만 지운다(null).
+function choicePatch(rows, picks, chosen) {
+  const out = {}
+  for (const r of rows) {
+    if (!Object.hasOwn(picks || {}, r.key)) continue
+    const v = picks[r.key]
+    const src = chosen?.[r.key]?.origin?.source || 'default'
+    if (v === '') { if (src === 'panel') out[r.key] = null; continue }
+    out[r.key] = v
+  }
+  return out
 }
 /*/origin*/
-// 서버가 알려 준 브라우저 기본값(GET /api/autoconf client_defaults: 칸 열기 방식, 자동 감지한 ovis 주소).
+/*firstview*/
+// 첫 화면의 판단들(F6·F10~F15). 화면·저장소에 닿지 않는 순수 함수다 — test/board-firstview.test.mjs가 그대로 읽어 시험한다.
+// 권한 안내: kind = 서버 /api/board 의 raise_warning('mac_accessibility' | 'mac_automation' | null), app = raise_warning_app(권한 대상 앱 이름, 비어 있을 수 있다).
+// 종류마다 켜는 곳이 다르다(손쉬운 사용 / 자동화). 모르는 종류·값 없음이면 null — 아무것도 그리지 않는다. 앱 이름은 서버가 준 것만 끼워 넣고, 비면 이름 없이 말한다.
+const RAISE_KINDS = ['mac_accessibility', 'mac_automation']
+function raiseNotice(kind, app, T) {
+  if (!RAISE_KINDS.includes(kind)) return null
+  const name = typeof app === 'string' ? [...app.trim()].slice(0, 60).join('') : ''
+  return { kind, app: name, summary: T.rwSum[kind], lines: [T.rwWhat, T.rwWhere[kind](name), T.rwRestart] }
+}
+// 안내의 HTML(<details id="notice"> 안): 요약 줄은 늘 보이고, 누르면 무엇이 안 되는지·켜는 곳·다시 켜야 반영된다는 세 줄이 펼쳐진다(툴팁이 아니다).
+function raiseNoticeHtml(n, T, esc) {
+  if (!n) return ''
+  return `<summary><span class="caps">${esc(T.rwTag)}</span><span class="nt">${esc(n.summary)}</span><span class="link">${esc(T.rwHow)}</span></summary><div class="nbody">${n.lines.map((l) => `<p>${esc(l)}</p>`).join('')}</div>`
+}
+// 다음에 할 일: 에이전트가 도는 세션이 하나도 없으면 'new'(새 세션을 여세요), 아니면 null.
+// 읽기 전용(열 수 없다)·끊김(알 수 없다)·꺼진 데스크가 있음(켜기가 먼저)·첫 실행 안내가 떠 있거나 아직 모름(guide가 'closed'가 아님)이면 말하지 않는다.
+function nextStepOf({ agents, readonly, stale, offDesks, guide } = {}) {
+  return !readonly && !stale && !offDesks && !agents && guide === 'closed' ? 'new' : null
+}
+// 빈 세션·닫힌 세션의 단추 이름(I18N 키): 이어 갈 대화(c.resume)가 있을 때만 '이어서 열기', 없으면 하는 일대로 '에이전트 시작'.
+function resumeLabelKey(c, closed) {
+  return c?.resume ? (closed ? 'reopen' : 'resume') : 'agentStart'
+}
+// 새 세션의 폴더 고르기: 폴더에 들어가면(목록 읽기 성공) 그 폴더가 고른 폴더다. 들어가지 못했으면 고른 폴더는 그대로.
+function chosenAfterBrowse(cwd, res) {
+  return res && res.ok && typeof res.path === 'string' && res.path ? res.path : cwd
+}
+// 첫 실행 안내를 닫을 때: 저절로 뜬 안내면 "마침"으로 적는다(다시 뜨지 않는다). 설정에서 다시 연 안내(force)·읽기 전용은 닫기만.
+function firstRunClosePlan({ force, readonly } = {}) {
+  return { markDone: !force && !readonly }
+}
+// 언어 단추(EN / 한): 설정과 첫 실행 안내가 같은 단추를 쓴다 — 누르면 같은 저장 값(whosup-lang)이 바뀐다.
+function langSegHtml(lang) {
+  return [['en', 'EN'], ['ko', '한']].map(([v, l]) => `<button data-lang="${v}" class="${lang === v ? 'on' : ''}">${l}</button>`).join('')
+}
+// 알림 띠를 내릴 때인가: 보드가 화면에 보이지 않으면(다른 탭·최소화·창이 다 가려짐) 'hold' — 다시 보일 때까지 둔다.
+// 보이기만 하면 포커스가 없어도 내린다. 화면 나눠 쓰기에서는 세션을 누르면 포커스가 터미널로 가고 보드는 옆에 계속 보인다 —
+// 포커스를 기준으로 붙잡으면 띠가 보드를 다시 누를 때까지 맨 아래 세션을 덮고 있다.
+function toastPlan({ hidden } = {}) { return hidden ? 'hold' : 'hide' }
+// '다음에 할 일'이 가리키는 머리줄 단추의 글자: 아주 좁은 화면(480px 이하)에서는 그 단추가 '+'만 보인다(CSS .nb::before) — 보이는 글자대로 말한다.
+function newBtnShown(tiny, T) { return tiny ? '+' : T.new }
+/*/firstview*/
+// 서버가 알려 준 브라우저 기본값(GET /api/autoconf client_defaults: 세션 열기 방식, 자동 감지한 ovis 주소).
 // 이 브라우저에 사람이 저장한 값이 있으면 그게 먼저이고, 없을 때만 이 값을 쓴다. 이 값을 브라우저에 옮겨 적지 않는다(자동 값을 사람 값으로 굳히지 않는다).
 let srvDefaults = {}
-const lsGet = (k) => localStorage.getItem(k) ?? (Object.hasOwn(srvDefaults, k) ? srvDefaults[k] : null)
+const lsLocal = (k) => localStorage.getItem(k)
+const lsGet = (k) => storedOf(lsLocal, srvDefaults, k)   // 읽는 순서와 예외 하나는 storedOf 에
 const lsKeys = () => [...new Set([...Object.keys(localStorage), ...Object.keys(srvDefaults)])]
 function clickMode() { return clickModeOf(lsGet, lsKeys()) }
 function setClickMode(m) {
+  localStorage.setItem('whosup-open-url-app', 'off')   // 이 브라우저에서 여는 곳을 골랐다: 탭으로만 보여 줄 수 있는 세션도 고른 값 그대로(openUrlOf)
   localStorage.setItem('whosup-open-url-on', m === 'terminal' ? 'off' : 'on')
   localStorage.setItem('whosup-raise', m === 'web' ? 'off' : 'on')
 }
 const clickPlan = (c) => clickPlanOf(c, lsGet, lsKeys())
-// 설정 패널에 줄별 주소 칸을 보일 줄: 줄이 둘 이상이면 전부. 하나뿐이면 Herdr 앱 줄(기본 주소를 쓰지 않아 여기 말고는 적을 곳이 없다)과
-// 이미 주소를 적어 둔 줄(칸이 없으면 고치거나 지울 수 없다).
-// 판에 지금 없는 줄(꺼 둔 줄, 닫은 공간)에 주소가 저장돼 있으면 그 칸도 보인다 — 그래야 고치거나 지울 수 있고, 그 주소 하나만 남았을 때도 설정을 저장할 수 있다.
+// 설정에 데스크별 주소 입력란을 보일 데스크: 데스크가 둘 이상이면 전부. 하나뿐이면 Herdr 앱 데스크(기본 주소를 쓰지 않아 여기 말고는 적을 곳이 없다)와
+// 이미 주소를 적어 둔 데스크(입력란이 없으면 고치거나 지울 수 없다).
+// 판에 지금 없는 데스크(꺼 둔 데스크, 닫은 공간)에 주소가 저장돼 있으면 그 입력란도 보인다 — 그래야 고치거나 지울 수 있고, 그 주소 하나만 남았을 때도 설정을 저장할 수 있다.
 const urlDeskRows = () => {
   const desks = desksOnBoard(), on = new Set(desks.map(([d]) => d))
   const saved = lsKeys().filter((k) => k.startsWith('whosup-open-url:') && lsGet(k)).map((k) => k.slice('whosup-open-url:'.length)).filter((d) => !on.has(d)).sort()
   return [...(desks.length > 1 ? desks : desks.filter(([d]) => d.startsWith('core:') || lsGet(`whosup-open-url:${d}`))), ...saved.map((d) => [d, d])]
 }
-// 판에 있는 줄: [열쇠, 보일 이름]
+// 판에 있는 데스크: [열쇠, 보일 이름]
 const desksOnBoard = () => board ? [...new Map(allCards(board).map((c) => [c.desk, c.desk_label || c.desk]))].sort((a, b) => a[1].localeCompare(b[1])) : []
 function cardById(id) {
   for (const k of ['red', 'yellow', 'snoozed', 'green', 'carry', 'grey']) for (const c of board?.columns?.[k] || []) if (c.id === id) return c
   return null
 }
 function sortMode() { return localStorage.getItem('whosup-sort') === 'neglect' ? 'neglect' : 'desk' }
-// 손 든 칸(입력 필요·실패·답변 도착)이 먼저, 그 안에서 오래 기다린 순. 나머지는 마지막 활동이 오래된 순. 시각 없는 칸은 맨 뒤.
+// 손 든 세션(입력 필요·실패·답변 도착)이 먼저, 그 안에서 오래 기다린 순. 나머지는 마지막 활동이 오래된 순. 시각 없는 세션은 맨 뒤.
 function neglectKey(c, states, now) {
   const st = states.get(c.id)
-  // 손 든 칸은 서버 순번(order) 그대로 — 방치순에서도 다음 1건과 숫자키 순서가 어긋나지 않는다(약속 2).
+  // 손 든 세션은 서버 순번(order) 그대로 — 방치순에서도 다음 1건과 숫자키 순서가 어긋나지 않는다(약속 2).
   if (ATTN.includes(st)) { const i = order.findIndex((o) => o.id === c.id); return i < 0 ? 1e14 : i }
   const t = Date.parse(sinceOf(c, st) || '') || now
   return (st === 'snooze' ? 1e15 : 2e15) + t
@@ -555,13 +823,13 @@ function flipPlay(first) {
   })
 }
 
-/* 알림: 탭 제목·파비콘·새로 손 든 칸 강조·브라우저 알림(선택) */
+/* 알림: 탭 제목·파비콘·새로 손 든 세션 강조·브라우저 알림(선택) */
 const ATTN = ['wait', 'fail', 'done']
 let prevAttn = null
 const pinged = new Map()
 function notifyOn() { return localStorage.getItem('whosup-notify') === 'on' && 'Notification' in window && Notification.permission === 'granted' }
 /*fav*/const FAV_W = 97.1, FAV_O = 'M41.26 1.87L44.48 0.56L47.60 0.03L50.76 0.16L54.12 1.06L93.41 22.48L95.57 24.31L96.84 26.83L97.03 29.65L96.26 32.05L95.16 33.59L93.68 34.78L55.84 55.55L52.31 56.94L48.87 57.41L45.09 57.02L41.54 55.70L3.69 34.94L1.53 33.11L0.25 30.58L0.06 27.76L0.84 25.36L2.64 23.18Z', FAV_K = 'M8.71 45.48L6.65 44.82L4.48 44.96L2.63 45.78L1.08 47.29L0.18 49.26L0.04 51.43L0.70 53.49L2.05 55.18L41.54 76.99L44.48 78.15L47.60 78.68L51.38 78.44L55.28 77.13L94.02 55.89L96.18 53.87L97.08 51.14L96.59 48.30L94.93 46.12L92.33 44.89L89.60 44.99L54.99 63.76L51.38 64.93L47.60 65.17L44.48 64.65L41.82 63.63ZM8.71 66.77L6.65 66.12L4.48 66.25L2.63 67.07L1.08 68.58L0.18 70.55L0.04 72.72L0.70 74.78L2.05 76.48L41.54 98.28L44.48 99.44L47.60 99.97L51.38 99.73L55.28 98.42L94.02 77.18L96.18 75.16L97.08 72.43L96.59 69.59L94.93 67.42L92.33 66.19L89.60 66.29L54.99 85.06L51.38 86.23L47.60 86.46L44.48 85.94L41.82 84.92Z'/*/fav*/
-// 파비콘은 평소에도 브랜드 색(맨 위 주황). lit=손 든 칸 있음 → 오른쪽 위에 점, off=연결 끊김 → 전부 회색.
+// 파비콘은 평소에도 브랜드 색(맨 위 주황). lit=손 든 세션 있음 → 오른쪽 위에 점, off=연결 끊김 → 전부 회색.
 const FAV = (lit) => { const off = lit === 'off'; lit = lit === true
   const ink = off ? '#9a9a9a' : '#111', top = off ? '#9a9a9a' : '#F97703', cls = off ? '' : "class='i' "
   const pad = lit ? 18 : 0, W = FAV_W + pad
@@ -572,7 +840,7 @@ const FAV = (lit) => { const off = lit === 'off'; lit = lit === true
 // 사건 키는 herdr 상태와 대기 시작 시각이다(#3·I-1). 화면 판독(wait/fail)은 10초 문맥 캐시가 풀릴 때 흔들리므로 키에 넣지 않는다.
 function attnKey(c) { return `${c.status}:${c.attention_since || ''}` }
 // prev: 직전 관측 Map(id→키, null이면 첫 관측), attn: 지금 관측, alerts: id→{n 보낸 횟수, at, key}.
-// 돌려주는 값: send [{id, again}], drop(풀린 칸 id), 새 alerts.
+// 돌려주는 값: send [{id, again}], drop(풀린 세션 id), 새 alerts.
 function planAlerts(prev, attn, alerts, { now, away, on, off, cfg }) {
   const send = [], drop = [], next = new Map()
   const can = on && away && !off // 수집이 끊긴 동안(off)에는 보내지 않는다(#7)
@@ -583,7 +851,7 @@ function planAlerts(prev, attn, alerts, { now, away, on, off, cfg }) {
       if (can) send.push({ id, again: false })
       next.set(id, { n: can ? 1 : 0, at: now, key, fresh: true })
     } else if (can && rec.n <= cfg.renotify_max && now - rec.at >= cfg.renotify_min * 60000) {
-      // 오래 방치된 손 든 칸은 다시 알린다(약속 4). "다시"는 실제로 한 번 보낸 뒤에만(#21).
+      // 오래 방치된 손 든 세션은 다시 알린다(약속 4). "다시"는 실제로 한 번 보낸 뒤에만(#21).
       send.push({ id, again: rec.n > 0 })
       next.set(id, { n: rec.n + 1, at: now, key })
     } else next.set(id, rec)
@@ -600,7 +868,7 @@ function planBlind(b, key, { errored }) {
   const sent = same && Boolean(b.sent)
   return { key, streak, sent, due: !sent && (streak >= 2 || Boolean(errored)) }
 }
-// 데스크 줄 순서는 처음 본 순서로 고정한다(#4). 처음 한꺼번에 보인 데스크는 칸 많은 순·이름순, 그 뒤 새 데스크는 끝에.
+// 데스크 줄 순서는 처음 본 순서로 고정한다(#4). 처음 한꺼번에 보인 데스크는 세션 많은 순·이름순, 그 뒤 새 데스크는 끝에.
 function orderDesks(groups, seen) {
   const fresh = groups.filter((g) => !seen.includes(g.desk)).sort((a, b) => b.cards.length - a.cards.length || a.desk.localeCompare(b.desk))
   for (const g of fresh) seen.push(g.desk)
@@ -646,12 +914,12 @@ function signal(cards, states) {
     openNt.get(id)?.close()
     openNt.set(id, sendAlert(c, states.get(id), again))
   }
-  // 손 든 상태가 풀린 칸의 알림은 걷어 낸다(F13).
+  // 손 든 상태가 풀린 세션의 알림은 걷어 낸다(F13).
   for (const id of r.drop) { openNt.get(id)?.close(); openNt.delete(id) }
   alerts = r.alerts
   prevAttn = attn
   for (const [id, t] of pinged) if (Date.now() - t > 1600) pinged.delete(id)
-  // 칸을 통째로 다시 그리지 않으므로 강조 표시는 여기서 붙이고 뗀다.
+  // 세션을 통째로 다시 그리지 않으므로 강조 표시는 여기서 붙이고 뗀다.
   document.querySelectorAll('.cell[data-open]').forEach((el) => el.classList.toggle('ping', pinged.has(Number(el.dataset.open))))
 }
 async function setNotify(v) {
@@ -684,6 +952,10 @@ async function refresh() {
     render(applyPendingOff(data))
     document.body.classList.remove('offline')
     if (!acLoaded) loadAutoconf()
+    // 서버의 '세션을 여는 곳'이 바뀌었다(터미널에서 다시 고름·다른 탭의 설정): 클릭이 쓰는 기본값(client_defaults)을 다시 받는다.
+    const ct = data.settings?.click_target
+    if (acLoaded && lastClickTarget && ct && ct !== lastClickTarget) reloadClientDefaults()
+    lastClickTarget = ct || lastClickTarget
   } catch (e) {
     // 안내는 머리줄 한곳에(통계 라벨을 덮던 띠를 없앴다), 판은 흐리게.
     const st = document.getElementById('stamp'); st.hidden = false; st.textContent = `${T.off} · ${T.connErr(e.message)}`; st.title = T.connErr(e.message)
@@ -697,16 +969,16 @@ const post = async (path, body) => {
   const data = await r.json().catch(() => ({ message: `HTTP ${r.status}` }))
   return { ok: r.ok, data }
 }
-// 읽기 전용 게이트는 하나(I-10). 화면의 모든 동작(칸 클릭·Enter·숫자키·알림 클릭·버튼)은 아래 함수들을 거치고, 함수마다 이것부터 본다.
+// 읽기 전용 게이트는 하나(I-10). 화면의 모든 동작(세션 클릭·Enter·숫자키·알림 클릭·버튼)은 아래 함수들을 거치고, 함수마다 이것부터 본다.
 // 판을 아직 못 받았으면(읽기 전용인지 모른다) 막는다.
 const can = () => board?.readonly === false
 // 막힌 이유를 그대로 말한다: 판을 아직 못 받은 것과 읽기 전용은 다르다.
 const denied = () => toast(board ? T.codes.read_only : T.loading, true)
-let settingsWaiting = false // 판을 받기 전에 연 설정 패널(언어만 보인다) — 판이 오면 다시 그린다
+let settingsWaiting = false // 판을 받기 전에 연 설정(언어만 보인다) — 판이 오면 다시 그린다
 // 클릭 순번: 서버가 도착 순서가 아니라 클릭 순서로 마지막 클릭을 고르게 한다(터널·네트워크에서 순서가 바뀜)
 let clickN = 0
 /*webtab*/
-// 줄마다 탭 하나(이름 붙인 탭). 누를 때마다 그 탭을 그 주소로 다시 보낸다 — 탭 안에서 다른 칸으로 옮겨 가 있을 수 있어서,
+// 데스크마다 탭 하나(이름 붙인 탭). 누를 때마다 그 탭을 그 주소로 다시 보낸다 — 탭 안에서 다른 세션으로 옮겨 가 있을 수 있어서,
 // 마지막으로 보낸 주소가 같다고 건너뛰지 않는다.
 // 탭은 이 보드와 연결된 채로(opener) 연다. 연결을 끊으면 브라우저가 그 탭을 다시 보내지 못하게 막는다(다른 출처로 넘어간
 // 탭은 연 쪽만 옮길 수 있다 — 실제 브라우저에서 확인). 그래서 주소에는 자신이 믿는 웹 터미널만 적는다(README).
@@ -723,7 +995,37 @@ function openTab(desk, url) {
     return { ok: true, win, fresh }
   } catch { return { ok: false } }
 }
+// 주소를 아직 모르는 탭을 누르는 순간에 잡아 둔다(위 latertab 덩어리의 설명). 그 데스크의 탭이 이미 있으면 그 탭을 그대로 쓰고(건드리지 않는다),
+// 없으면 빈 탭을 연다 — 주소 없이 열면 같은 이름의 탭이 남아 있을 때 그 탭을 다른 데로 보내지 않고 돌려받는다.
+// 돌려주는 값 { ok, win, fresh }: ok=false면 브라우저가 탭을 막았다. fresh=이번에 새로 연 빈 탭(요청이 실패하면 닫는다).
+function holdTab(desk, note) {
+  try {
+    const prev = openedTabs.get(desk)
+    if (prev && !prev.closed) return { ok: true, win: prev, fresh: false }
+    const win = window.open('', `whosup-${desk}`)
+    if (!win) return { ok: false }
+    let fresh = false
+    try { fresh = win.location.href === 'about:blank' } catch {}   // 읽을 수 없으면 다른 출처로 가 있는 탭이다: 전부터 있던 탭
+    if (fresh && note) { try { win.document.title = note; win.document.body.textContent = note } catch {} }
+    openedTabs.set(desk, win)
+    return { ok: true, win, fresh }
+  } catch { return { ok: false } }
+}
 /*/webtab*/
+// 새 세션이 생기는 요청(새 세션·이어서 열기·에이전트 시작)을 보낸다. probe = 그 세션을 대신할 카드(deskProbe 또는 그 카드 자체, 없으면 null).
+// 탭으로만 보여 줄 수 있는 세션이면 앱 창을 올리지 않게 보내고(raise:false), 누르는 순간 잡아 둔 탭을 서버가 알려 준 주소로 보낸다.
+// 아니면 예전 그대로 보낸다. 반드시 클릭·키 처리 안에서 await 없이 불러야 한다(탭을 잡는 일이 첫 await 앞에 있다).
+async function postWithTab(path, body, probe, note) {
+  const plan = laterTabPlan(probe, lsGet)
+  const tab = plan.tab ? holdTab(probe.desk, note) : null
+  const { ok, data } = await post(path, plan.tab ? { ...body, raise: plan.raise } : body)
+  const end = laterTabEnd({ want: plan.tab, held: Boolean(tab?.ok), fresh: Boolean(tab?.fresh), ok: ok && data?.ok !== false, url: plan.tab && ok ? laterTabUrl(data?.url, openUrlTemplateFor(probe, lsGet)) : '' })
+  if (end.act === 'go') { try { tab.win.location.replace(end.url); tab.win.focus() } catch {} }
+  if (end.act === 'close') { try { tab.win.close() } catch {} openedTabs.delete(probe.desk) }
+  // 탭이 막혔으면 한 일 뒤에 막혔다고 덧붙인다(세션은 생겼다). 탭으로 보여 줬으면 그렇게 말한다(tabReply).
+  const shown = end.shown ? tabReply(data) : data
+  return { ok, data: shown, text: end.blocked && ok ? `${msgOf(shown)} · ${T.popupBlocked}` : msgOf(shown), bad: !ok || end.blocked }
+}
 async function openCard(id) {
   if (!can()) return denied()
   // 열 주소가 있으면 클릭 처리 안에서 바로 연다(await 뒤에 열면 브라우저가 팝업으로 막는다).
@@ -731,12 +1033,17 @@ async function openCard(id) {
   const tab = plan.url ? openTab(c.desk, plan.url) : null
   toast(T.going)
   const seq = Date.now() * 1000 + (++clickN % 1000)
-  const { ok, data } = await post('/api/open', { id, seq, raise: plan.raise })
+  // web = 이 클릭이 그 세션의 웹 터미널 탭을 실제로 열었는가(주소가 없었거나 브라우저가 탭을 막았으면 false). 서버는 이것으로
+  // 창을 올리지 않은 클릭에서도 그 세션을 본 것으로 적을지 가린다 — 이 브라우저에만 저장한 주소로 연 탭은 서버가 알 길이 없다.
+  const { ok, data } = await post('/api/open', { id, seq, raise: plan.raise, web: Boolean(tab?.ok) })
   // 서버가 그 사이 읽기 전용이 됐다: 방금 새로 연 탭은 닫고, 이 화면도 다음 판을 기다리지 않고 읽기 전용으로 돌린다.
   if (data.code === 'read_only') { if (board) board.readonly = true; if (tab?.fresh) { try { tab.win.close() } catch {} openedTabs.delete(c.desk) } }
   if (data.code === 'superseded') return
-  // 탭이 막혔으면 서버 쪽 성공 문구로 덮지 않는다
-  if (tab && !tab.ok) toast(T.popupBlocked, true); else toast(msgOf(data), !ok)
+  // 그 앱을 다시 켜 포트가 바뀌었다: 방금 연 탭을 서버가 알려 준 주소로 다시 보낸다(연 쪽이라 옮길 수 있다 — openTab 의 설명)
+  const moved = tab?.ok && data.url ? portFixedUrl(plan.url, data.url) : ''
+  if (moved) { try { tab.win.location.replace(moved) } catch {} }
+  // 탭이 막혔으면 서버 쪽 성공 문구로 덮지 않는다. 그 세션을 탭으로 보여 줬으면 그렇게 말한다(shownReply)
+  if (tab && !tab.ok) toast(T.popupBlocked, true); else toast(msgOf(data.url ? shownReply(data, Boolean(tab?.ok)) : data), !ok)
   refresh()
 }
 async function doAct(a, id) {
@@ -751,9 +1058,11 @@ async function doAct(a, id) {
 }
 async function resumeCard(id, sid) {
   if (!can()) return denied()
-  toast(T.resuming)
-  const { ok, data } = await post('/api/resume', { id, sid })
-  toast(msgOf(data), !ok); refresh()
+  toast(sid ? T.resuming : T.agentStarting)
+  // 빈 세션은 판의 카드, 닫힌 세션은 최근 닫힘의 카드가 그 세션이다(되는 기능·데스크·주소 틀이 실려 있다)
+  const c = cardById(id) || (board?.closed || []).find((x) => x.id === id) || null
+  const r = await postWithTab('/api/resume', { id, sid }, c, sid ? T.resuming : T.agentStarting)
+  toast(r.text, r.bad); refresh()
 }
 
 /* 새 세션 패널 */
@@ -775,7 +1084,7 @@ async function showNew() {
   setTimeout(() => document.getElementById('cwd')?.focus(), 50)
 }
 async function browseTo(path) {
-  try { const r = await (await fetch(`/api/dirs?path=${encodeURIComponent(path)}`)).json(); if (r.ok) newState.dir = r } catch {}
+  try { const r = await (await fetch(`/api/dirs?path=${encodeURIComponent(path)}`)).json(); if (r.ok) newState.dir = r; return r } catch { return null }
 }
 function renderNew() {
   const d = newState.dir
@@ -787,41 +1096,70 @@ function renderNew() {
   <div class="sec caps">${T.browse}</div>
   ${d ? `<div class="crumbs">${crumbs}</div>
   <div class="dirs">${d.parent ? `<button data-browse="${esc(d.parent)}" class="upd">↰ ${T.up}</button>` : ''}${d.dirs.map((n) => `<button data-browse="${esc(d.path + (d.sep || '/') + n)}"><span class="fi"></span>${esc(clip(n, 40))}</button>`).join('') || `<div class="hint">${T.emptyDir}</div>`}</div>
-  <button class="chip pick" data-folder="${esc(d.path)}">${T.pickHere}</button>` : ''}
+  ${d.path === newState.cwd ? '' : `<button class="chip pick" data-folder="${esc(d.path)}">${T.pickHere}</button>`}` : ''}
   <div class="sec caps">${T.chosen}</div>
-  <div class="frow"><input class="in" id="cwd" placeholder="${T.folderPh}" value="${esc(newState.cwd)}" autocomplete="off"></div>
-  <div class="sec caps">${T.which}</div>
-  <div class="seg">${newState.targets.map((t) => `<button data-target="${esc(t.key)}" class="${t.key === newState.session ? 'on' : ''}" title="${esc(t.label)}">${esc(clip(t.label, 24))}</button>`).join('')}</div>
+  <div class="frow"><input class="in" id="cwd" placeholder="${T.folderPh}" value="${esc(newState.cwd)}" autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off"></div>
+  <div class="sec caps">${T.which}</div>${newNoDeskLines(newState.targets, board?.cores, T).map((l) => `<div class="hint nodesk">${esc(l)}</div>`).join('')}
+  <div class="seg">${newState.targets.map((t) => `<button data-target="${esc(t.key)}" class="${t.key === newState.session ? 'on' : ''}" title="${esc(targetTip(t, T))}">${esc(clip(targetLabel(t, T), 24))}</button>`).join('')}</div>${newOffLines(board?.cores, T).map((l) => `<div class="hint">${esc(l)}</div>`).join('')}
   <div class="hint" title="${esc(newState.cmd)}">${esc(T.hint(clip(newState.cmd, 48)))} <button class="link" data-settings>${T.changeCmd}</button></div>
   <button class="btn" data-create ${newState.cwd.trim() && newState.session ? '' : 'disabled'}>${T.open}</button></div>`
   const input = document.getElementById('cwd')
   input.addEventListener('input', () => { newState.cwd = input.value; const b = document.querySelector('[data-create]'); if (b) b.disabled = !(newState.cwd.trim() && newState.session) })
 }
-// 웹 터미널 프리셋: 그 제품의 기본 주소 모양. 누르면 주소 칸에 채우고 포트 숫자를 골라 둔다(다르면 숫자만 고치면 된다).
+// 웹 터미널 프리셋: 그 제품의 기본 주소 모양. 누르면 주소 입력란에 채우고 포트 숫자를 골라 둔다(다르면 숫자만 고치면 된다).
 const URL_PRESETS = [['Ovis', 'http://127.0.0.1:7317/?pane={pane}']]
-let lastUrlInput = null // 설정 패널에서 마지막으로 만진 주소 칸
+let lastUrlInput = null // 설정에서 마지막으로 만진 주소 입력란
 document.addEventListener('focusin', (e) => { if (e.target?.matches?.('[data-local-open-url], [data-local-open-url-desk]')) lastUrlInput = e.target })
-let pendingMode = 'terminal' // 설정 패널에서 고른(아직 저장 전) 칸 열기 방식
-let loadedMode = 'terminal' // 설정 패널을 열 때의 칸 열기 방식
-/* 감지한 환경 요약 + 첫 실행 확인 카드 */
+let pendingMode = 'terminal' // 설정에서 고른(아직 저장 전) 세션 열기 방식
+let loadedMode = 'terminal' // 설정을 열 때의 세션을 여는 곳
+let srvClickTarget = 'terminal' // 설정을 열 때 서버에 저장돼 있던 세션을 여는 곳(click_target)
+const hasLocalClick = () => localClickOf(lsLocal) // 이 브라우저에만 따로 정한 값이 있는지
+/* 감지한 환경 요약 + 첫 실행 안내 */
 let acView = null // 마지막으로 받은 GET /api/autoconf
 let acLoaded = false
-function envSummaryHtml(v, withReopen) {
-  const s = v?.summary || null
-  const at = v?.at ? new Date(v.at).toLocaleString(T.locale, { hour12: false }) : ''
-  return `<div class="envsum"><div class="caps">${T.envTitle}${at ? ` <span class="at">· ${esc(T.envAt(at))}</span>` : ''}</div><p>${envSummaryParts(s, T).map(([k, x]) => `<span><b>${esc(k)}</b> ${esc(x)}</span>`).join(' · ')}</p>${withReopen ? `<button class="link" data-firstrun-open>${T.frReopen}</button>` : ''}</div>`
+let lastClickTarget = null // 직전 /api/board 응답의 settings.click_target
+// 열려 있는 안내·설정 화면은 건드리지 않고 값만 다시 받는다.
+async function reloadClientDefaults() {
+  try { const v = await (await fetch('/api/autoconf', { cache: 'no-store' })).json(); acView = v; srvDefaults = v.client_defaults || srvDefaults } catch {}
 }
+function envSummaryHtml(v, withReopen, firstRun = false) {
+  // 앱 코어의 세션을 누르면 무엇이 보이는지는 판의 "되는 기능"(board.cores)과 이 브라우저의 여는 곳으로 가려 적는다(withCoreShow)
+  const s = withCoreShow(v?.summary || null, board?.cores, lsGet)
+  const at = v?.at ? new Date(v.at).toLocaleString(T.locale, { hour12: false }) : ''
+  return `<div class="envsum"><div class="caps">${T.envTitle}${at ? ` <span class="at">· ${esc(T.envAt(at))}</span>` : ''}</div><p>${envSummaryParts(s, T, { firstRun }).map(([k, x]) => `<span><b>${esc(k)}</b> ${esc(x)}</span>`).join(' · ')}</p>${envCoreLines(s, T).map((l) => `<p class="envcore">${esc(l)}</p>`).join('')}${withReopen ? `<button class="link" data-firstrun-open>${T.frReopen}</button>${can() ? ` · <button class="link" data-redetect>${T.redetect}</button>` : ''}` : ''}</div>`
+}
+let frPick = {}      // 첫 실행 안내에서 손댄 줄 { key: 고른 값 }
+let frForce = false  // 설정에서 다시 연 안내인지
+let frTimer = null   // 안내가 저절로 떠 있는 동안: 늦게 뜬 것(웹 터미널 등)을 다시 감지한 결과로 줄을 새로 그린다
+function choiceRowsHtml(rows, picks) {
+  return rows.map((r) => {
+    const v = Object.hasOwn(picks, r.key) ? picks[r.key] : r.value
+    return `<div class="frrow"><div class="frq">${esc(r.label)}</div><div class="presets frc">${r.options.map((o) => `<button data-fr-key="${esc(r.key)}" data-fr-val="${esc(o.value)}" class="${o.value === v ? 'on' : ''}">${esc(o.label)}${o.note ? ` <small>${esc(o.note)}</small>` : ''}</button>`).join('')}</div>${r.hint ? `<div class="hint">${esc(r.hint)}</div>` : ''}</div>`
+  }).join('')
+}
+function hideFirstRun() { document.getElementById('firstrun').hidden = true; clearInterval(frTimer); frTimer = null; if (board) render(board) }
 function showFirstRun(v, force) {
   const el = document.getElementById('firstrun')
   const plan = firstRunPlan(v, { readonly: !can(), force })
-  if (!plan.show) { el.hidden = true; return }
-  const lb = { terminal: T.frTerminal, web: T.frOvis, both: T.frBoth }
-  el.innerHTML = `<div class="frh"><span class="caps">${T.frTitle}</span><button class="x" data-firstrun-close aria-label="${esc(T.frClose)}">✕</button></div>
-  ${envSummaryHtml(v, false)}
-  ${plan.ask ? `<div class="frq">${T.frQ}</div><div class="seg mini frc">${['terminal', 'web', 'both'].map((m) => `<button data-firstrun="${m}">${esc(lb[m])}</button>`).join('')}</div>` : ''}
-  <div class="hint">${T[firstRunHintKey(plan)]}</div>
+  if (!plan.show) return hideFirstRun()
+  frForce = Boolean(force)
+  const frRows = plan.rows ? choiceRows(v, T, { firstRun: true }) : []
+  el.innerHTML = `<div class="frh"><span class="caps">${T[firstRunTitleKey(plan, frRows)]}</span><div class="seg mini frlang" role="group" aria-label="${esc(T.langLabel)}">${langSegHtml(lang)}</div><button class="x" data-firstrun-close aria-label="${esc(T.frClose)}">✕</button></div>
+  ${envSummaryHtml(v, false, true)}
+  ${plan.rows ? choiceRowsHtml(frRows, frPick) : ''}
+  <div class="hint">${T[firstRunHintKey(plan, frRows)]}</div>
   ${plan.actions.includes('ok') ? `<button class="btn" data-firstrun-ok>${T.frOk}</button>` : `<button class="btn" data-firstrun-close>${T.frClose}</button>`}`
   el.hidden = false
+  if (board) render(board)   // 안내가 떠 있는 동안에는 '다음에 할 일'을 말하지 않는다
+  if (!frTimer && plan.rows && !force) { const id = setInterval(async () => {
+    try {
+      const n = await (await fetch('/api/autoconf', { cache: 'no-store' })).json()
+      if (frTimer !== id) return   // 응답을 기다리는 사이에 안내가 닫혔다(X·Esc·이대로 시작): 늦게 온 답으로 다시 띄우지 않는다
+      if (!n.first_run?.show) { acView = n; srvDefaults = n.client_defaults || srvDefaults; return hideFirstRun() }   // 다른 탭·터미널에서 이미 골랐다: 닫기 전에 그 값을 받는다
+      if (JSON.stringify([n.summary, n.chosen]) === JSON.stringify([acView?.summary, acView?.chosen])) return
+      acView = n; srvDefaults = n.client_defaults || srvDefaults; showFirstRun(n, false)
+    } catch {}
+  }, 5000); frTimer = id }
 }
 async function loadAutoconf() {
   acLoaded = true
@@ -831,23 +1169,44 @@ async function loadAutoconf() {
     showFirstRun(v, false)
   } catch { acLoaded = false }
 }
-// 카드에서 고르면(또는 "이대로 쓰기") 서버에 사람이 정한 값으로 저장하고 다시 띄우지 않는다. choice 없음 = 지금 그대로.
-async function firstRunChoose(choice) {
+// "이대로 시작": 사람이 손댄 줄만 서버 설정에 저장하고(손대지 않은 줄은 자동 감지·기본값 그대로 — F14) 다시 띄우지 않는다.
+async function firstRunChoose() {
   if (!can()) return denied()
-  const { ok, data } = await post('/api/first-run', choice ? { choice } : {})
+  const choices = choicePatch(choiceRows(acView, T, { firstRun: true }), frPick, acView?.chosen)
+  const { ok, data } = await post('/api/first-run', { choices })
   if (!ok) return toast((data.errors || [msgOf(data)]).join(' · '), true)
   srvDefaults = data.client_defaults || srvDefaults
-  // 이 브라우저에 예전에 사람이 고른 칸 열기 방식이 있으면 방금 고른 것으로 맞춘다(없으면 서버 값을 그대로 따른다).
-  if (choice && (localStorage.getItem('whosup-open-url-on') != null || localStorage.getItem('whosup-raise') != null)) setClickMode(choice)
-  document.getElementById('firstrun').hidden = true
-  toast(T.frSaved); applyChrome()
-  if (acView) acView.first_run = { ...acView.first_run, show: false }
+  // 여기서 고른 세션을 여는 곳은 모든 브라우저의 기본값이다 — 이 브라우저에만 따로 적어 둔 값이 있으면 지워 방금 고른 것이 바로 쓰이게 한다.
+  if ('click_target' in choices) { localStorage.removeItem('whosup-open-url-on'); localStorage.removeItem('whosup-raise'); localStorage.removeItem('whosup-open-url-app') }
+  frPick = {}; hideFirstRun()
+  toast(Object.keys(choices).length ? T.frSaved : T.frKept); applyChrome()
+  try { acView = await (await fetch('/api/autoconf', { cache: 'no-store' })).json(); srvDefaults = acView.client_defaults || srvDefaults } catch {}
+}
+// 안내 닫기(X·Esc·닫기 단추). 저절로 뜬 안내를 닫으면 "마침"으로 적어 다음에 보드를 열 때 다시 뜨지 않는다(F13) — 고른 것 없이 표시만 남기므로
+// 값은 자동 감지 그대로다. 설정에서 다시 연 안내와 읽기 전용 화면은 닫기만 한다(지금대로).
+async function closeFirstRun() {
+  const mark = firstRunClosePlan({ force: frForce, readonly: !can() }).markDone
+  frPick = {}; hideFirstRun()
+  if (!mark) return
+  const { ok } = await post('/api/first-run', { choices: {} })
+  if (ok && acView?.first_run) acView.first_run.show = false
+}
+// 다시 감지: 서버가 실행 환경을 지금 다시 확인한다. 열려 있는 설정·안내를 새 결과로 다시 그린다.
+async function redetect() {
+  if (!can()) return denied()
+  toast(T.redetecting)
+  const { ok, data } = await post('/api/autoconf/refresh', {})
+  if (!ok) return toast(T.redetectFail, true)
+  acView = data; srvDefaults = data.client_defaults || srvDefaults
+  toast(T.redetected)
+  if (!document.getElementById('firstrun').hidden) showFirstRun(data, frForce)
+  if (document.querySelector('.peek.on [data-save-settings]')) showSettings()
 }
 async function showSettings() {
   peekOn = true
   pendingMode = loadedMode = clickMode()
-  const langRow = `<div class="setrow"><label>${T.langLabel}<small>${T.langHint}</small></label><div class="seg mini"><button data-lang="en" class="${lang === 'en' ? 'on' : ''}">EN</button><button data-lang="ko" class="${lang === 'ko' ? 'on' : ''}">한</button></div></div>`
-  // 읽기 전용: 언어(이 브라우저에만 저장)만 바꿀 수 있고, 서버 설정 칸·저장 버튼은 내지 않는다.
+  const langRow = `<div class="setrow"><label>${T.langLabel}<small>${T.langHint}</small></label><div class="seg mini">${langSegHtml(lang)}</div></div>`
+  // 읽기 전용: 언어(이 브라우저에만 저장)만 바꿀 수 있고, 서버 설정 입력란·저장 버튼은 내지 않는다.
   if (!can()) {
     peek.innerHTML = `<div class="ph"><span class="caps">${T.setTitle}</span><button class="x" data-close>✕</button></div>
   <div class="pb"><h2 class="pt">${T.setTitle}</h2>${langRow}<div class="hint">${board ? T.roSettings : T.loading}</div>${board ? `<div id="env-summary"></div>` : ''}</div>`
@@ -858,15 +1217,24 @@ async function showSettings() {
   }
   let data = { settings: board?.settings || {}, ranges: {} }
   try { data = await (await fetch('/api/settings')).json() } catch {}
-  if (data.autoconf) { acView = data.autoconf; srvDefaults = data.autoconf.client_defaults || srvDefaults; pendingMode = loadedMode = clickMode() }
+  if (data.autoconf) { acView = data.autoconf; srvDefaults = data.autoconf.client_defaults || srvDefaults }
+  // 세션을 여는 곳: 이 브라우저에만 따로 정한 값이 있으면 그 값, 없으면 서버 설정(click_target)을 보여 준다.
+  const localClick = hasLocalClick()
+  srvClickTarget = data.settings.click_target || 'terminal'
+  pendingMode = loadedMode = localClick ? clickMode() : srvClickTarget
   const og = data.origins || {}
   const orig = (k) => { const t = originText(og[k], T); return t ? `<span class="rg src" data-origin="${k}">${esc(t)}</span>` : '' }
-  // 칸 열기 방식은 이 브라우저 값이 먼저, 없으면 서버 click_target(첫 실행 카드·환경변수·기본값)이다.
-  const clickOrigin = localStorage.getItem('whosup-open-url-on') != null || localStorage.getItem('whosup-raise') != null ? { source: 'browser' } : og.click_target?.source === 'panel' ? { source: 'card' } : og.click_target
-  const autoUrls = Object.keys(srvDefaults).some((k) => k.startsWith('whosup-open-url:') && srvDefaults[k])
-  // 서버가 윈도우: 터미널 칸은 윈도우 선택지로, macOS 전용인 OS 알림 칸(os_notify)은 숨긴다(브라우저 알림은 헤더 토글로 된다).
+  // 세션 열기 방식은 이 브라우저 값이 먼저, 없으면 서버 click_target(첫 실행 안내·환경변수·기본값)이다.
+  const picked = (o) => (o?.source === 'panel' ? { source: 'card' } : o)   // 고르는 항목은 '입력란을 비우면…' 안내가 없는 문구로
+  const clickOrigin = localClick ? { source: 'browser' } : picked(og.click_target)
+  // 감지한 선택지(첫 실행 안내와 같은 목록). 감지 결과가 없으면 예전 기본 목록.
+  const det = data.autoconf?.summary || {}
+  const detApps = (det.options?.terminal_apps || []).map((a) => a.name)
+  const coreVal = data.settings.core_target === 'terminal' ? 'terminal' : 'app'
+  const autoUrls = Object.keys(srvDefaults).some((k) => /^whosup-open-url(-core)?:/.test(k) && srvDefaults[k])
+  // 서버가 윈도우: 터미널 항목은 윈도우 선택지로, macOS 전용인 OS 알림 항목(os_notify)은 숨긴다(브라우저 알림은 헤더 토글로 된다).
   const winSrv = data.detected?.platform === 'win32'
-  // 맥: 자동 세팅이 정한 터미널 앱은 '자동'으로 보인다(사람이 고른 값이 아니다 — 출처 줄에 근거가 나온다). '자동'을 다시 저장해도 사람 값이 생기지 않는다.
+  // 맥: 자동 감지가 정한 터미널 앱은 '자동'으로 보인다(사람이 고른 값이 아니다 — 출처 줄에 근거가 나온다). '자동'을 다시 저장해도 사람 값이 생기지 않는다.
   // 윈도우도 같다: 자동 값(예: Windows Terminal)은 '자동'으로 보이고, PowerShell은 'PowerShell' 값으로 따로 저장된다.
   const frontVal = data.origins?.front_app?.source === 'auto' ? '' : (data.settings.front_app || '')
   peek.innerHTML = `<div class="ph"><span class="caps">${T.setTitle}</span><button class="x" data-close>✕</button></div>
@@ -874,10 +1242,14 @@ async function showSettings() {
   ${envSummaryHtml(data.autoconf, true)}
   ${langRow}
   <div class="setrow cmdrow"><label>${T.clickLabel}<small>${T.clickHint}${clickOrigin ? `<span class="rg src" data-origin="click_target">${esc(originText(clickOrigin, T))}</span>` : ''}</small></label>
-    <div class="seg mini" style="justify-self:start">${[['terminal', T.clickTerminal], ['web', T.clickWeb], ['both', T.clickBoth]].map(([m, lb]) => `<button data-click-mode="${m}" class="${pendingMode === m ? 'on' : ''}">${lb}</button>`).join('')}</div></div>
+    <div class="seg mini" style="justify-self:start">${[['terminal', T.clickTerminal], ['web', T.clickWeb], ['both', T.clickBoth]].map(([m, lb]) => `<button data-click-mode="${m}" class="${pendingMode === m ? 'on' : ''}">${lb}</button>`).join('')}</div>
+    <label class="chk"><input type="checkbox" id="set-click-local"${localClick ? ' checked' : ''}> ${T.clickLocal}<small>${T.clickLocalHint}</small></label></div>
   ${data.detected?.supported ? `<div class="setrow cmdrow" id="front-app-row"${pendingMode === 'web' ? ' hidden' : ''}><label for="set-front_app">${T.appLabel}<small>${esc(winSrv ? T.appHintWin : T.appHint(data.detected.front_app))}${orig('front_app')}</small></label>
-    <div class="presets">${(winSrv ? (data.detected.choices || []).map(([n, a]) => [a === 'off' ? T.appOff : a === '' ? T.appAuto : n, a]) : [[T.appAuto, ''], ['Ghostty', 'Ghostty'], ['Terminal', 'Terminal']]).map(([n, a]) => `<button data-app-preset="${esc(a)}" class="${frontVal.toLowerCase() === a.toLowerCase() ? 'on' : ''}">${esc(n)}</button>`).join('')}</div>
+    <div class="presets">${(winSrv ? (data.detected.choices || []).map(([n, a]) => [a === 'off' ? T.appOff : a === '' ? T.appAuto : n, a]) : [[T.appAuto, ''], ...(detApps.length ? detApps : ['Ghostty', 'Terminal']).map((n) => [n, n])]).map(([n, a]) => `<button data-app-preset="${esc(a)}" class="${frontVal.toLowerCase() === a.toLowerCase() ? 'on' : ''}">${esc(n)}</button>`).join('')}</div>
     <input class="in mono" id="set-front_app" data-setting-text="front_app" data-loaded="${esc(frontVal)}" value="${esc(frontVal)}" placeholder="${esc(winSrv ? T.appPhWin : T.appPh)}" autocomplete="off"></div>` : ''}
+  ${appCoreOn(det) ? `<div class="setrow cmdrow"><label>${T.chCore}<small>${T.chCoreHint} ${T.chCoreOther}${(() => { const t = originText(picked(og.core_target), T); return t ? `<span class="rg src" data-origin="core_target">${esc(t)}</span>` : '' })()}</small></label>
+    <div class="presets">${[['app', T.chCoreApp], ['terminal', T.clickTerminal]].map(([v, lb]) => `<button data-core-target="${v}" class="${coreVal === v ? 'on' : ''}">${lb}</button>`).join('')}</div>
+    <input type="hidden" id="set-core_target" data-setting-text="core_target" data-loaded="${coreVal}" value="${coreVal}"></div>` : ''}
   <div class="setrow cmdrow" id="open-url-row"${pendingMode === 'terminal' ? ' hidden' : ''}><label for="set-open-url">${T.openUrlLabel}<small>${T.openUrlHint}</small></label>
     <div class="presets">${URL_PRESETS.map(([n, u]) => `<button data-url-preset="${esc(u)}">${esc(n)}</button>`).join('')}</div>
     <input class="in mono" id="set-open-url" data-local-open-url value="${esc(localStorage.getItem('whosup-open-url') || '')}" placeholder="http://127.0.0.1:PORT/?pane={pane}">
@@ -897,49 +1269,63 @@ async function saveSettings() {
   if (urlEl) {
     const v = urlEl.value.trim()
     const per = [...document.querySelectorAll('[data-local-open-url-desk]')].map((el) => [el.dataset.localOpenUrlDesk, el.value.trim(), el])
-    // 적은 주소는 모두 형식이 맞아야 하고, 웹 주소로 열기를 골랐으면 하나는 있어야 한다. 터미널만이면 적어 둔 주소는 두고 쓰지 않는다.
-    const autoUrl = Object.keys(srvDefaults).some((k) => k.startsWith('whosup-open-url:') && validOpenUrl(srvDefaults[k]))
-    const bad = (v && !validOpenUrl(v) ? urlEl : null) || per.find(([, x]) => x && !validOpenUrl(x))?.[2] || (pendingMode !== 'terminal' && !v && !per.some(([, x]) => x) && !autoUrl ? urlEl : null)
+    // 적은 주소는 모두 형식이 맞아야 하고, 웹 터미널로 열기를 골랐으면 하나는 있어야 한다. 터미널만이면 적어 둔 주소는 두고 쓰지 않는다.
+    const autoUrl = Object.keys(srvDefaults).some((k) => /^whosup-open-url(-core)?:/.test(k) && validOpenUrl(srvDefaults[k]))
+    // 주소가 하나도 없다고 막는 것은 웹 터미널로 바꾸려 할 때와 적어 둔 주소를 지울 때뿐이다(감지한 주소가 사라졌을 뿐이면 다른 설정 저장을 막지 않는다).
+    const hadUrl = Object.keys(localStorage).some((k) => (k === 'whosup-open-url' || k.startsWith('whosup-open-url:')) && localStorage.getItem(k))
+    const bad = (v && !validOpenUrl(v) ? urlEl : null) || per.find(([, x]) => x && !validOpenUrl(x))?.[2] || (pendingMode !== 'terminal' && (pendingMode !== loadedMode || hadUrl) && !v && !per.some(([, x]) => x) && !autoUrl ? urlEl : null)
     if (bad) { document.getElementById('seterr').textContent = T.openUrlBad; document.getElementById('open-url-row').hidden = false; bad.focus(); return }
     if (v) localStorage.setItem('whosup-open-url', v); else localStorage.removeItem('whosup-open-url')
     for (const [d, x] of per) { if (x) localStorage.setItem(`whosup-open-url:${d}`, x); else localStorage.removeItem(`whosup-open-url:${d}`) }
-    // 칸 열기 방식은 사람이 바꿨을 때만 이 브라우저에 적는다 — 다른 설정만 저장해도 서버 기본값(click_target)을 브라우저 값으로 굳히지 않게.
-    if (pendingMode !== loadedMode) setClickMode(pendingMode)
-    applyChrome()
   }
   const patch = {}
-  // 불러온 값과 달라진 칸만 보낸다 — 손대지 않은 칸까지 보내면 환경변수·기본값이 DB에 굳어 나중에 기본값을 바꿔도 반영되지 않는다(I-11).
+  // 세션을 여는 곳: 기본은 서버 설정(click_target, 모든 브라우저의 기본값)에 저장한다. "이 브라우저에서만 다르게"를 켰을 때만 이 브라우저에 적는다.
+  // 손대지 않았으면 아무것도 적지 않는다 — 다른 설정만 저장해도 값이 굳지 않게.
+  const localEl = document.getElementById('set-click-local')
+  if (localEl?.checked) { if (pendingMode !== loadedMode || !hasLocalClick()) setClickMode(pendingMode) }
+  else if (localEl) {
+    if (hasLocalClick()) { localStorage.removeItem('whosup-open-url-on'); localStorage.removeItem('whosup-raise'); localStorage.removeItem('whosup-open-url-app'); if (pendingMode !== srvClickTarget) patch.click_target = pendingMode }
+    else if (pendingMode !== loadedMode) patch.click_target = pendingMode
+  }
+  applyChrome()
+  // 불러온 값과 달라진 입력란만 보낸다 — 손대지 않은 입력란까지 보내면 환경변수·기본값이 DB에 굳어 나중에 기본값을 바꿔도 반영되지 않는다(I-11).
   document.querySelectorAll('[data-setting]').forEach((el) => { if (el.value !== el.dataset.loaded) patch[el.dataset.setting] = el.value === '' ? null : Number(el.value) })
   document.querySelectorAll('[data-setting-text]').forEach((el) => { if (el.value.trim() !== el.dataset.loaded) patch[el.dataset.settingText] = el.value.trim() === '' ? null : el.value.trim() })
   const { ok, data } = await post('/api/settings', { settings: patch })
   if (!ok) { document.getElementById('seterr').textContent = (data.errors || [msgOf(data)]).join(' · '); return }
-  toast(T.setSaved); closePeek(); refresh()
+  // 서버 기본값(세션을 여는 곳)이 바뀌었을 수 있다 — 이 탭이 쓰는 기본값도 새로 받는다.
+  try { acView = await (await fetch('/api/autoconf', { cache: 'no-store' })).json(); srvDefaults = acView.client_defaults || srvDefaults } catch {}
+  toast(T.setSaved); closePeek(); applyChrome(); refresh()
 }
 async function createSession() {
   if (!can()) return denied()
   const cwd = newState.cwd.trim()
   if (!cwd) return
   toast(T.opening)
-  const { ok, data } = await post('/api/new', { cwd, session: newState.session })
-  toast(msgOf(data), !ok)
-  if (ok) closePeek()
+  const desk = newState.session
+  const r = await postWithTab('/api/new', { cwd, session: desk }, deskProbe(desk, board?.cores, board ? allCards(board) : []), T.opening)
+  toast(r.text, r.bad)
+  if (r.ok) closePeek()
   refresh()
 }
 
 document.addEventListener('click', async (e) => {
   const t = e.target
   if (t.closest('[data-close]')) return closePeek()
-  const frc = t.closest('[data-firstrun]')
-  if (frc) return firstRunChoose(frc.dataset.firstrun)
+  const frc = t.closest('[data-fr-key]')
+  if (frc) { frPick[frc.dataset.frKey] = frc.dataset.frVal; return showFirstRun(acView, frForce) }
   if (t.closest('[data-firstrun-ok]')) return firstRunChoose()
-  if (t.closest('[data-firstrun-close]')) { document.getElementById('firstrun').hidden = true; return }
-  if (t.closest('[data-firstrun-open]')) { closePeek(); let v = acView; if (!v) { try { v = await (await fetch('/api/autoconf')).json() } catch {} } return showFirstRun(v, true) }
+  if (t.closest('[data-firstrun-close]')) return closeFirstRun()
+  if (t.closest('[data-firstrun-open]')) { closePeek(); frPick = {}; let v = null; try { v = await (await fetch('/api/autoconf', { cache: 'no-store' })).json() } catch { v = acView } if (v) acView = v; return showFirstRun(v, true) }
+  if (t.closest('[data-redetect]')) return redetect()
+  const ct = t.closest('[data-core-target]')
+  if (ct) { document.getElementById('set-core_target').value = ct.dataset.coreTarget; document.querySelectorAll('[data-core-target]').forEach((b) => b.classList.toggle('on', b === ct)); return }
   const seen = t.closest('[data-seen]')
   if (seen) { e.stopPropagation(); return doAct('seen', Number(seen.dataset.seen)) }
   const rs = t.closest('[data-resume]')
   if (rs) { e.stopPropagation(); return resumeCard(Number(rs.dataset.resume), rs.dataset.sid || null) }
   const lg = t.closest('[data-lang]')
-  if (lg) { lang = okLang(lg.dataset.lang) || lang; localStorage.setItem('whosup-lang', lang); applyChrome(); if (board) render(board); return document.querySelector('.peek.on [data-lang]') && showSettings() }
+  if (lg) { lang = okLang(lg.dataset.lang) || lang; localStorage.setItem('whosup-lang', lang); applyChrome(); if (board) render(board); if (!document.getElementById('firstrun').hidden) showFirstRun(acView, frForce); return document.querySelector('.peek.on [data-lang]') && showSettings() }
   const fl = t.closest('[data-filter]')
   if (fl) { const k = fl.dataset.filter; filter = filter === k || k === 'all' ? null : k; return board && render(board) }
   const cpn = t.closest('[data-closepane]')
@@ -964,11 +1350,11 @@ document.addEventListener('click', async (e) => {
   const folder = t.closest('[data-folder]')
   if (folder) { newState.cwd = folder.dataset.folder; await browseTo(newState.cwd); return renderNew() }
   const br = t.closest('[data-browse]')
-  if (br) { await browseTo(br.dataset.browse); return renderNew() }
+  if (br) { newState.cwd = chosenAfterBrowse(newState.cwd, await browseTo(br.dataset.browse)); return renderNew() }
   const cm = t.closest('[data-click-mode]')
   if (cm) { pendingMode = cm.dataset.clickMode; document.querySelectorAll('[data-click-mode]').forEach((b) => b.classList.toggle('on', b === cm)); const row = document.getElementById('open-url-row'); row.hidden = pendingMode === 'terminal'; const ar = document.getElementById('front-app-row'); if (ar) ar.hidden = pendingMode === 'web'; if (!row.hidden) (lastUrlInput && row.contains(lastUrlInput) ? lastUrlInput : document.getElementById('set-open-url')).focus(); return }
   const up = t.closest('[data-url-preset]')
-  // 웹 터미널 단추: 마지막으로 만진 주소 칸(기본 칸 또는 줄별 칸)에 그 제품의 기본 주소를 넣고 포트 숫자를 골라 둔다 — 세션마다 포트만 바꿔 적으면 된다.
+  // 웹 터미널 단추: 마지막으로 만진 주소 입력란(기본 입력란 또는 데스크별 입력란)에 그 제품의 기본 주소를 넣고 포트 숫자를 골라 둔다 — 데스크마다 포트만 바꿔 적으면 된다.
   if (up) { const el = (lastUrlInput && document.contains(lastUrlInput) ? lastUrlInput : null) || document.getElementById('set-open-url'); el.value = up.dataset.urlPreset; el.focus(); const i = el.value.indexOf('{pane}'); el.setSelectionRange(el.value.lastIndexOf(':', i) + 1, el.value.indexOf('/', el.value.lastIndexOf(':', i))); return }
   const ap = t.closest('[data-app-preset]')
   if (ap) { const el = document.getElementById('set-front_app'); el.value = ap.dataset.appPreset; document.querySelectorAll('[data-app-preset]').forEach((b) => b.classList.toggle('on', b === ap)); return }
@@ -982,15 +1368,18 @@ document.addEventListener('click', async (e) => {
 })
 document.addEventListener('toggle', (e) => {
   if (e.target.classList?.contains('closedrow')) closedOpen = e.target.open
+  if (e.target.id === 'notice') fitHeight()
 }, true)
 document.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return
   const typing = e.target.closest?.('input,textarea')
-  if (e.key === 'Escape') return closePeek()
+  if (e.key === 'Escape') return document.getElementById('firstrun').hidden ? closePeek() : closeFirstRun()
+  // 폴더 단추에서 누른 Enter 는 그 단추의 것이다(그 폴더로 들어간다) — 폴더에 들어가면 바로 골라지므로(F12) 여기서 가로채면 방금 고른 폴더로 세션이 열려 버린다.
+  if (e.key === 'Enter' && peekOn && e.target.closest?.('[data-browse],[data-folder]')) return
   if (e.key === 'Enter' && peekOn) { e.preventDefault(); if (!can()) return; return document.querySelector('[data-save-settings]') ? saveSettings() : createSession() }
   if (typing) return
   if (e.key === 'Enter' || e.key === ' ') {
-    // 버튼에 포커스가 있으면 그 버튼만 눌린다(다음 1건으로 같이 뛰지 않는다). 칸에 포커스가 있으면 그 칸을 연다.
+    // 버튼에 포커스가 있으면 그 버튼만 눌린다(다음 1건으로 같이 뛰지 않는다). 세션에 포커스가 있으면 그 세션을 연다.
     if (e.target.closest?.('button,a,summary')) return
     const cell = e.target.closest?.('.cell[data-open]')
     if (cell) { e.preventDefault(); return openCard(Number(cell.dataset.open)) }
@@ -1001,12 +1390,20 @@ document.addEventListener('keydown', (e) => {
   if (/^[1-9]$/.test(e.key) && order[Number(e.key) - 1]) return openCard(order[Number(e.key) - 1].id)
 })
 // 서버 응답 code를 사용자 언어 문장으로 바꾼다(F11). 모르는 code·원문 오류는 뒤에 붙인다.
-const msgOf = (data) => { const f = data?.code && T.codes[data.code]; if (f) return typeof f === 'function' ? f(data) : f; return data?.message || data?.error || T.noReply }
+// 창을 올리는 조작의 성공 응답에 권한 경고(raise_warning)가 실려 오면 그 요약을 뒤에 붙인다 — 창을 다 올리지 못했는데 성공만 말하지 않는다(방법은 위의 안내 줄).
+// 그 앱의 링크가 실패해 서버가 그 세션을 브라우저 탭으로 열었으면(opened 'browser') 그렇다고 덧붙인다.
+const msgOf = (data) => { const base = msgBase(data), n = data?.ok ? raiseNotice(data.raise_warning, data.raise_warning_app, T) : null, l = data?.ok && data.opened === 'browser' ? T.linkTab(data.app) : ''; return [base, l, n ? n.summary : ''].filter(Boolean).join(' · ') }
+const msgBase = (data) => { const f = data?.code && T.codes[data.code]; if (f) return typeof f === 'function' ? f(data) : f; return data?.message || data?.error || T.noReply }
+// 알림 띠가 머무는 시간(F15). 보드가 화면에 보이지 않는 동안(세션을 눌러 앞으로 온 창이 보드를 다 가렸을 때 등)에는 내리지 않고, 다시 보인 뒤 이 시간만큼 더 보인다.
+// 보드가 보이는 동안에는 포커스가 없어도(화면 나눠 쓰기) 이 시간 뒤에 내린다.
+const TOAST_MS = 6000
 function toast(msg, bad) {
   const el = document.getElementById('toast')
   el.textContent = msg; el.className = `toast on${bad ? ' err' : ''}`
-  clearTimeout(toast.t); toast.t = setTimeout(() => { el.className = 'toast' }, 4500)
+  toast.off = () => { if (toastPlan({ hidden: document.visibilityState !== 'visible' }) === 'hold') { toast.held = true; return } el.className = 'toast' }
+  toast.held = false; clearTimeout(toast.t); toast.t = setTimeout(toast.off, TOAST_MS)
 }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && toast.held) { toast.held = false; clearTimeout(toast.t); toast.t = setTimeout(toast.off, TOAST_MS) } })
 addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(() => board && render(board), 150) })
 refresh()
 setInterval(refresh, 3000)

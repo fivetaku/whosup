@@ -3,7 +3,7 @@
 //
 //   node scripts/doctor.mjs            사람이 읽는 표 + 상태 폴더에 doctor.json 스냅숏
 //   node scripts/doctor.mjs --json     같은 내용을 JSON으로
-//   node scripts/doctor.mjs --probe    herdr 세션 소켓(윈도우는 named pipe)에 실제로 접속이 되는지도 본다(접속만 하고 아무것도 보내지 않음)
+//   node scripts/doctor.mjs --probe    herdr session(데스크) 소켓(윈도우는 named pipe)에 실제로 접속이 되는지도 본다(접속만 하고 아무것도 보내지 않음)
 //   node scripts/doctor.mjs --no-save  스냅숏을 남기지 않는다
 //
 // 스냅숏은 진단 기록일 뿐이다: whosup은 이 파일을 읽어 동작을 정하지 않는다(OS 판단은 언제나 process.platform).
@@ -72,7 +72,7 @@ export function desktopSession(env = process.env, win = isWindows(), sessionNo) 
 export async function diagnose({ probeSockets = false } = {}) {
   const r = { at: new Date().toISOString(), os: { platform: platform(), release: release(), arch: arch() } }
   let sqlite = true
-  try { await import('node:sqlite') } catch { sqlite = false }
+  try { await (await import('../src/sqlite.mjs')).loadSqlite() } catch { sqlite = false }
   r.node = { version: process.version, execPath: process.execPath, sqlite }
   r.desktop = desktopSession()
   // herdr
@@ -99,9 +99,11 @@ export async function diagnose({ probeSockets = false } = {}) {
     h.sessions.push(row)
   }
   r.herdr = h
-  // herdr-core (Herdr 앱)
+  // herdr-core (Herdr 앱): 기본 코어 하나만 본다 — socketPath()가 기본 코어의 소켓이고, 그 소켓 파일이 있으면 떠 있는 것이다.
+  // core.available()은 "읽는 코어 가운데 하나라도"라서 쓰지 않는다: 보드 서버 안에서 다시 감지할 때 자동 감지가 더한 코어
+  // (자기 코어를 띄우는 앱 — src/autoconf.mjs coreProfiles)만 떠 있어도 참이 되어, 없는 Herdr 앱 코어를 있다고 적게 된다.
   const sp = core.socketPath()
-  r.herdrCore = { stateDirs: core.stateDirs(), socket: sp, connect: sp ? connectTarget(sp) : null, running: core.available(), assumption: isWindows() ? 'named pipe like herdr (unverified)' : null }
+  r.herdrCore = { stateDirs: core.stateDirs(), socket: sp, connect: sp ? connectTarget(sp) : null, running: Boolean(sp) && existsSync(sp), assumption: isWindows() ? 'named pipe like herdr (unverified)' : null }
   if (probeSockets && r.herdrCore.running) r.herdrCore.probe = await probe(r.herdrCore.connect)
   r.herdrApp = { bin: core.appBin(), found: Boolean(which(core.appBin())) || existsSync(core.appBin()) }
   // 그 밖의 도구
@@ -111,7 +113,7 @@ export async function diagnose({ probeSockets = false } = {}) {
   // 실기기에서만 확인할 수 있는 것(자동으로 판정하지 않는다)
   r.manual = isWindows() ? [
     'herdr startup hook: after herdr restarts, is whosup still running once the hook has returned? (node scripts/launch.mjs status)',
-    'click a pane: does the terminal window come forward (desktop session needed)?',
+    'click a session: does the terminal window come forward (desktop session needed)?',
     'click twice quickly while no window is open: only one new window?',
   ] : []
   return r
@@ -126,10 +128,10 @@ export function render(r) {
   L.push(`${mark(r.desktop.ok)}desktop   ${r.desktop.why}`)
   L.push(`${mark(r.herdr.found)}herdr     ${r.herdr.bin} (${r.herdr.from})${r.herdr.version ? `  ${r.herdr.version}` : r.herdr.error ? `  ${r.herdr.error}` : ''}`)
   if (r.herdr.found) L.push(`${mark(r.herdr.sessionListJson)}  --json  session list --json ${r.herdr.sessionListJson ? 'supported' : 'not supported (table parser used)'}`)
-  for (const s of r.herdr.sessions) L.push(`    session ${s.name} ${s.status}  ${s.connect}${s.probe ? `  connect=${s.probe}` : ''}`)
+  for (const s of r.herdr.sessions) L.push(`    desk    ${s.name} ${s.status}  ${s.connect}${s.probe ? `  connect=${s.probe}` : ''}`)
   L.push(`${mark(r.herdrCore.running)}core      ${r.herdrCore.running ? r.herdrCore.connect : 'not running'}${r.herdrCore.assumption ? `  (${r.herdrCore.assumption})` : ''}${r.herdrCore.probe ? `  connect=${r.herdrCore.probe}` : ''}`)
   L.push(`    state   ${r.herdrCore.stateDirs.join(' | ')}`)
-  L.push(`${mark(r.herdrApp.found)}herdr-app ${r.herdrApp.bin}${r.herdrApp.found ? '' : ' (not found: Herdr app cards can still be read, window control needs it)'}`)
+  L.push(`${mark(r.herdrApp.found)}herdr-app ${r.herdrApp.bin}${r.herdrApp.found ? '' : ' (not found: Herdr app sessions can still be read, window control needs it)'}`)
   for (const [k, v] of Object.entries(r.tools)) L.push(`${mark(Boolean(v))}${k.padEnd(9)} ${v || 'not found'}`)
   for (const m of r.manual) L.push(`??  check by hand: ${m}`)
   return L.join('\n')
