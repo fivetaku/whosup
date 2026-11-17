@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process'
 import { createServer } from 'node:http'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, posix } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import { Script } from 'node:vm'
@@ -16,12 +16,17 @@ import { getSettings, settingOrigins } from '../src/settings.mjs'
 import { createBoardServer, FIRST_RUN_KEYS, importSetup, SETUP_CHECK_MS } from '../src/board/server.mjs'
 import { configDirOf, ownDir, stateDirOf } from '../src/paths.mjs'
 import {
-  askAll, autostart, boardAnswers, boardStatus, chosenOf, closingLines, cols, envOn, helperParams, helperScript, herdrPluginDirs, inForeground, isExistingInstall, lineReader, listDesks, manifestId,
+  askAll, autostart, boardAnswers, boardStatus, chosenOf, closingLines as closingLinesOf, cols, envOn, helperParams, helperScript, herdrPluginDirs, inForeground, isExistingInstall, lineReader, listDesks, manifestId,
   openTerminal, pickDesk, pickLang, questionsOf, readSetup, renderQuestion, runHerdr, runningDesk, runSetup as runSetupRaw, secondsOf, setupFilePath, setupRows, SETUP_KEYS, skipMode, summaryLines,
-  sqliteFile, TEXT, timeoutMsOf, updatedLines, watchdogMsOf, writeSetup, herdrWord,
+  sqliteFile, TEXT, timeoutMsOf, updatedLines as updatedLinesOf, watchdogMsOf, writeSetup, herdrWord,
 } from '../src/setup.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
+// 마무리·업데이트 문구 시험은 macOS·Linux 의 문구(손 명령 '….start' · 'WHOSUP_SETUP=1 herdr plugin install' 재설치)를 견준다. 운영체제를 주지 않은 부름은
+// 이 파일의 다른 흉내(setupWith·runSetup 의 platform: 'darwin')처럼 darwin 으로 본다 — 기본값(process.platform)을 따르면 윈도우 CI 에서 윈도우 문구가 나와
+// 같은 단언이 갈린다. 두 함수에서 운영체제는 win32 인가만 가르므로 macOS·Linux 에서는 기본값과 같다. 윈도우 문구는 platform: 'win32' 를 넘겨 따로 본다.
+const closingLines = (o, T) => closingLinesOf({ platform: 'darwin', ...o }, T)
+const updatedLines = (o, T) => updatedLinesOf({ platform: 'darwin', ...o }, T)
 const FAKE = join(ROOT, 'test-support', 'fake-herdr-setup.mjs')
 const ID = 'fivetaku.whosup'
 const html = readFileSync(new URL('../src/board/index.html', import.meta.url), 'utf8')
@@ -789,7 +794,8 @@ test('손 실행(node scripts/setup.mjs): 늘 묻고, 자기 설정 폴더(HERDR
   // ~/.config/whosup이 이미 있는 등록 사용자(손으로도 띄우는 사람·옛 버전이 만든 폴더): 두 곳 모두에 쓰되 herdr의 설정 폴더가 기준이다 —
   // .env는 herdr의 설정 폴더에서 읽는다(등록된 보드가 읽는 곳). ~/.config/whosup의 .env는 보지 않는다
   const both = tmp('home'); mkdirSync(join(both, '.config', 'whosup'), { recursive: true })
-  const herdrConf = join(both, '.config', 'herdr', 'plugins', 'config', ID)
+  // platform: 'darwin' 으로 흉내 낸 설치의 herdr 설정 폴더는 posix 규칙으로 이어진다(src/setup.mjs herdrPluginDirs) — macOS·Linux 에서는 join 과 같다
+  const herdrConf = posix.join(both, '.config', 'herdr', 'plugins', 'config', ID)
   const { run } = fakeRun({ sessions: RUNNING, plugins: ID })
   const readFrom = []
   const bTerm = fakeTerm('3\n\n\n\n')
@@ -1260,7 +1266,8 @@ test('한 줄 설치기가 부른 설치(WHOSUP_FROM_INSTALLER=1): 질문까지�
 })
 
 // ── 가-5 · F7: herdr가 사람의 PATH에 없으면 안내하는 herdr 명령을 전체 경로로 적는다(그대로 붙여 넣으면 실행된다) ──
-test('herdr 명령의 첫 낱말(herdrWord): 사람의 PATH(WHOSUP_USER_PATH > PATH)로 herdr가 잡히면 herdr, 아니면 찾아 둔 실행 파일의 전체 경로 — 마무리 문구의 명령이 그대로 실행된다', async () => {
+// 전체 경로로 적는 갈래는 macOS·Linux 셸의 것이다(윈도우는 늘 'herdr' — herdrWord). 이 시험은 #!/bin/sh 가짜 herdr 를 /bin/sh 로 돌려 보므로 윈도우에서는 건너뛴다.
+test('herdr 명령의 첫 낱말(herdrWord): 사람의 PATH(WHOSUP_USER_PATH > PATH)로 herdr가 잡히면 herdr, 아니면 찾아 둔 실행 파일의 전체 경로 — 마무리 문구의 명령이 그대로 실행된다', { skip: process.platform === 'win32' ? '윈도우에는 sh가 없다' : false }, async () => {
   const dir = tmp('herdrword'), odd = join(tmp('herdrword'), "it's here")
   mkdirSync(odd)
   const mark = join(dir, 'ran.txt')

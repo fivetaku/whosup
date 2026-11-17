@@ -19,6 +19,10 @@ import {
 import { looksLikeInstaller, main as cli } from '../scripts/standalone.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
+// 단독 설치(실행 명령·로그인 항목 plist/systemd unit·설치 기록·잠금·제거·명령 줄)는 macOS·Linux 전용이다 — 윈도우는 herdr 플러그인으로만 깔고(README "On Windows"),
+// src/standalone.mjs는 win32에서 아무것도 쓰지 않고 'unsupported'를 돌려준다(아래 "Windows:" 시험이 윈도우에서도 그것을 본다). 그 부품을 macOS·Linux 경로로
+// 흉내 내는 시험은 윈도우에서 건너뛴다(test/harden-board.test.mjs · test-support/install-rig.mjs의 posix와 같은 관례).
+const posix = { skip: process.platform === 'win32' ? '단독 설치는 macOS·Linux 전용이다(윈도우는 herdr 플러그인으로만 깐다)' : false }
 const tmp = (name) => mkdtempSync(join(tmpdir(), `whosup-sa-${name}-`))
 const isoEnv = (home, over = {}) => ({ HOME: home, XDG_CONFIG_HOME: join(home, '.config'), XDG_STATE_HOME: join(home, '.local', 'state'), PATH: '/usr/bin:/bin', ...over })
 const touch = (file, text = '') => { mkdirSync(join(file, '..'), { recursive: true }); writeFileSync(file, text) }
@@ -87,7 +91,7 @@ test('폴더 규칙: 앱 <XDG_DATA_HOME 또는 ~/.local/share>/whosup/app, 설�
   assert.equal(LABEL, 'dev.whosup.board'); assert.equal(SERVICE, 'whosup.service')
 })
 
-test('실행 명령(~/.local/bin/whosup): 둘째 줄 표식, 남의 파일·링크는 건드리지 않는다, 사람이 칠 명령 이름', () => {
+test('실행 명령(~/.local/bin/whosup): 둘째 줄 표식, 남의 파일·링크는 건드리지 않는다, 사람이 칠 명령 이름', posix, () => {
   assert.equal(LAUNCHER_MARK, '# whosup launcher, written by install.sh')
   const text = launcherText("/a b/it's/app")
   assert.deepEqual(text.split('\n').slice(0, 2), ['#!/bin/sh', LAUNCHER_MARK])
@@ -134,7 +138,7 @@ test('실행 명령(~/.local/bin/whosup): 둘째 줄 표식, 남의 파일·링�
   assert.match(commandName(spaced, {}).cmd, /^sh '.*my home.*standalone\.sh'$/, '공백이 든 경로는 따옴표로 싼다')
 })
 
-test('로그인 항목의 글자: plist(XML 이스케이프·RunAtLoad·AbandonProcessGroup)와 systemd unit(oneshot·ExecStop·이스케이프)', () => {
+test('로그인 항목의 글자: plist(XML 이스케이프·RunAtLoad·AbandonProcessGroup)와 systemd unit(oneshot·ExecStop·이스케이프)', posix, () => {
   // 싣는 것은 필요한 최소다: 설치 때 고른 node(WHOSUP_NODE)와 그 폴더 + 시스템 기본 폴더(PATH), 절대 경로인 XDG 폴더.
   // 등록할 때의 PATH 전체는 싣지 않는다(그때만 있던 폴더·"."이 로그인 때마다 node를 찾는 길이 되지 않게)
   const vars = serviceVars({ PATH: '.:/tmp/writable:/a&b:/usr/bin', WHOSUP_NODE: '/a&b/node', XDG_STATE_HOME: '/s<1>', XDG_DATA_HOME: '', XDG_CONFIG_HOME: 'relative', HOME: '/h', SECRET: 'x' })
@@ -160,7 +164,7 @@ test('로그인 항목의 글자: plist(XML 이스케이프·RunAtLoad·AbandonP
   assert.ok(unit.includes('ExecStop="/bin/sh" "/d/50%% \\"q\\" $$HOME/app/scripts/standalone.sh" stop --service\n'), unit)
 })
 
-test('로그인할 때 자동으로 켜기(macOS): plist를 쓰고 launchctl bootout → bootstrap gui/<uid>, 해제는 bootout 뒤 파일 삭제', () => {
+test('로그인할 때 자동으로 켜기(macOS): plist를 쓰고 launchctl bootout → bootstrap gui/<uid>, 해제는 bootout 뒤 파일 삭제', posix, () => {
   const home = tmp('mac'); const env = isoEnv(home, { WHOSUP_LAUNCHCTL: '/fake/launchctl' })
   const L = layout(env, home)
   const ctl = fakeCtl()
@@ -222,7 +226,7 @@ test('로그인할 때 자동으로 켜기(macOS): plist를 쓰고 launchctl boo
   assert.equal(registerAutostart({ env: isoEnv(join(home, 'tab\there')), home: join(home, 'tab\there'), platform: 'darwin', run: fakeCtl().run, activate: false }).state, 'on', '탭은 XML에 실을 수 있다')
 })
 
-test('로그인할 때 자동으로 켜기(Linux): systemd --user 서비스 — 없으면 등록하지 않는다, 실패는 실패로 돌려준다', () => {
+test('로그인할 때 자동으로 켜기(Linux): systemd --user 서비스 — 없으면 등록하지 않는다, 실패는 실패로 돌려준다', posix, () => {
   const home = tmp('linux'); const env = isoEnv(home, { WHOSUP_SYSTEMCTL: '/fake/systemctl' })
   const L = layout(env, home)
   // systemd --user가 없다: 아무것도 쓰지 않고 'none'
@@ -314,7 +318,7 @@ test('Windows: 단독 설치를 지원하지 않는다 — 아무것도 쓰지 �
 
 // 설치기가 만든 폴더의 표식과 설치 기록을 둔다(install.sh와 scripts/standalone.mjs install이 하는 일).
 const own = (dir) => touch(join(dir, APP_MARK_FILE), `${APP_MARK}\n`)
-test('설치 기록과 표식: <데이터 폴더>/install.json에 제품·판·폴더·node를 적고, 모양이 틀린 파일·링크는 기록이 아니다', () => {
+test('설치 기록과 표식: <데이터 폴더>/install.json에 제품·판·폴더·node를 적고, 모양이 틀린 파일·링크는 기록이 아니다', posix, () => {
   const home = tmp('rec'); const env = isoEnv(home); const L = layout(env, home)
   assert.equal(RECORD_FILE, 'install.json'); assert.equal(readRecordFile(L.data), null); assert.equal(readRecord(L.data), null)
   const body = writeRecord(L, { id: 'fivetaku.whosup', version: '0.1.0', node: '/n/bin/node', login: L.plist, now: new Date('2026-01-02T03:04:05Z') })
@@ -357,7 +361,7 @@ test('설치 기록과 표식: <데이터 폴더>/install.json에 제품·판·�
   symlinkSync(L.app, `${L.app}.old`); assert.equal(appOwned(`${L.app}.old`), false, '링크는 따라가지 않는다')
 })
 
-test('잠금: <데이터 폴더>/install.lock에 주인의 PID를 적는다 — 주인이 살아 있으면 오래돼도 걷지 않고 죽었으면 걷는다, 자기가 잡은 잠금만 푼다', () => {
+test('잠금: <데이터 폴더>/install.lock에 주인의 PID를 적는다 — 주인이 살아 있으면 오래돼도 걷지 않고 죽었으면 걷는다, 자기가 잡은 잠금만 푼다', posix, () => {
   const home = tmp('lock'); const data = join(home, '.local', 'share', 'whosup'); const lock = join(data, LOCK_NAME), file = join(lock, 'pid')
   const dead = spawnSync(process.execPath, ['-e', '']).pid   // 이미 끝난 프로세스의 PID
   const hoursOld = (h) => { const t = new Date(Date.now() - h * 3600 * 1000); utimesSync(lock, t, t) }
@@ -394,7 +398,7 @@ test('잠금: <데이터 폴더>/install.lock에 주인의 PID를 적는다 — 
   assert.match(install, /node_js "\$LOCK_STALE_JS" "\$LOCK" "\$LOCK_GRACE_S"/); assert.doesNotMatch(install, /LOCK_AGE_JS|600000/, '10분 기준은 없다')
 })
 
-test('제거: 실행 명령(우리 것만)·앱 폴더(설치기의 표식이 든 것만)를 지우고 설정·상태는 --purge이고 설치 기록에 적힌 것일 때만 — 남의 파일·폴더는 건드리지 않는다', () => {
+test('제거: 실행 명령(우리 것만)·앱 폴더(설치기의 표식이 든 것만)를 지우고 설정·상태는 --purge이고 설치 기록에 적힌 것일 때만 — 남의 파일·폴더는 건드리지 않는다', posix, () => {
   const make = ({ record = true } = {}) => {
     const home = tmp('rm'); const env = isoEnv(home); const L = layout(env, home)
     touch(join(L.app, 'scripts', 'standalone.sh'), '#'); own(L.app); touch(join(`${L.app}.new`, 'x'), '1'); own(`${L.app}.new`); writeLauncher({ app: L.app, file: L.launcher })
@@ -464,7 +468,7 @@ test('제거: 실행 명령(우리 것만)·앱 폴더(설치기의 표식이 �
   }
 })
 
-test('명령 줄: stop은 Linux에서 사용자 서비스도 멈추고(ExecStop이 부른 stop --service는 보드만 본다), autostart·uninstall은 치우지 못한 것을 알리고 1로 끝난다', async () => {
+test('명령 줄: stop은 Linux에서 사용자 서비스도 멈추고(ExecStop이 부른 stop --service는 보드만 본다), autostart·uninstall은 치우지 못한 것을 알리고 1로 끝난다', posix, async () => {
   const home = tmp('cli'); const L = layout(isoEnv(home), home)
   const log = join(home, 'ctl.log')
   // 가짜 systemctl·launchctl: 받은 인자를 적는다. is-active는 <기록>.active가 있을 때만 0, stop은 그 파일을 치운다. print는 늘 실패(불려 있지 않다)
@@ -514,7 +518,7 @@ test('명령 줄: stop은 Linux에서 사용자 서비스도 멈추고(ExecStop�
   assert.match(TEXT.ko.saUninstallHalted, /프로그램은 지우지 않았습니다/); assert.match(TEXT.ko.saUninstallPartly, /다 지우지 못했습니다/)
 })
 
-test('명령 줄: uninstall·autostart on|off는 설치기와 같은 잠금을 잡고, 서비스 관리자에 아직 살아 있는 항목·서비스는 꺼졌다고 말하지 않는다', async () => {
+test('명령 줄: uninstall·autostart on|off는 설치기와 같은 잠금을 잡고, 서비스 관리자에 아직 살아 있는 항목·서비스는 꺼졌다고 말하지 않는다', posix, async () => {
   const home = tmp('cli-lock'); const L = layout(isoEnv(home), home)
   const script = (name, text) => { const f = join(home, name); writeFileSync(f, text); chmodSync(f, 0o755); return f }
   // 불려 있지도 active도 아니다. print는 진짜 launchctl이 "그 항목이 없다"고 답할 때의 종료 코드(113)를 낸다 — 그 밖의 코드는 "물을 수 없었다"다
@@ -786,7 +790,7 @@ test('지금 상태: 보드는 상태 폴더의 port(없으면 설정한 포트)
   assert.equal(readFileSync(join(L.conf, '.env'), 'utf8'), 'PORT=48130\n')
 })
 
-test('배선: 설치기·실행 명령·로그인 항목이 같은 이름과 같은 찾는 방식을 쓴다', () => {
+test('배선: 설치기·실행 명령·로그인 항목이 같은 이름과 같은 찾는 방식을 쓴다', posix, () => {
   const install = readFileSync(join(ROOT, 'install.sh'), 'utf8')
   const nodePath = readFileSync(join(ROOT, 'scripts', 'node-path.sh'), 'utf8')
   const sh = readFileSync(join(ROOT, 'scripts', 'standalone.sh'), 'utf8')
