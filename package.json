@@ -1,11 +1,12 @@
 {
   "name": "whosup",
   "version": "0.1.0",
-  "description": "Stop abandoning your agent sessions. One board for every herdr session.",
+  "description": "Stop abandoning your agent sessions. One board for every agent session in herdr.",
   "type": "module",
   "bin": { "whosup": "bin/whosup.mjs" },
   "engines": { "node": ">=22.13" },
-  "scripts": { "start": "node bin/whosup.mjs", "test": "node --test" },
+  "scripts": { "start": "node bin/whosup.mjs", "test": "node --test", "typecheck": "tsc -p ." },
   "license": "MIT",
-  "repository": "https://github.com/fivetaku/whosup"
+  "repository": "https://github.com/fivetaku/whosup",
+  "devDependencies": { "@types/node": "22.20.5", "typescript": "7.0.2" }
 }

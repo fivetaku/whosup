@@ -2,11 +2,11 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { branchOf, coreContext, lastApiError, lastPrompt, paneContext, resumeTarget, warmContext } from './context.mjs'
-import { capsOf, deskLabelOf, deskOf } from '../runtime/index.mjs'
+import { capsOf, deskLabelOf, deskOf, featuresOf } from '../runtime/index.mjs'
 import { getMeta } from '../db.mjs'
 import { getSettings } from '../settings.mjs'
 
-// 다른 칸에서 지금 살아 있는 대화 id(#9) — 이어서 열기가 그 대화를 두 번째 칸에서 열지 않게.
+// 다른 세션에서 지금 살아 있는 대화 id(#9) — 이어서 열기가 그 대화를 두 번째 세션에서 열지 않게.
 const LIVE = ['working', 'blocked', 'done', 'idle']
 export function otherLiveSids(rows, exceptId) {
   return new Set(rows.filter((r) => r.id !== exceptId && !r.archived && LIVE.includes(r.status) && r.provider_session).map((r) => r.provider_session))
@@ -20,11 +20,11 @@ export function startOfDay(now) {
 }
 
 
-// 손 든 칸 = 입력 필요(blocked)·답변 도착(done) 중 보관하지 않았고, 확인하지 않았거나 확인 뒤 미루기 시간이 지난 칸.
+// 손 든 세션 = 입력 필요(blocked)·답변 도착(done) 중 보관하지 않았고, 확인하지 않았거나 확인 뒤 미루기 시간이 지난 세션.
 // 날짜와 무관하다(약속 1 — 자정을 넘겨도 사라지지 않는다).
-// ttlMs: 확인 불가(unreachable=1)가 이보다 오래된 칸은 손 든 칸에서 내린다(#14). 칸은 판에 남는다.
+// ttlMs: 확인 불가(unreachable=1)가 이보다 오래된 세션은 손 든 세션에서 내린다(#14). 세션은 판에 남는다.
 export function attentionState(s, now, snoozeMs, ttlMs = Infinity) {
-  // 서버가 꺼진 세션(unreachable=2)의 칸은 답할 에이전트가 없으니 손 든 칸으로 세지 않는다.
+  // 서버가 꺼진 데스크(unreachable=2)의 세션은 답할 에이전트가 없으니 손 든 세션으로 세지 않는다.
   if (!['blocked', 'done'].includes(s.status) || s.stashed_at || s.archived || s.unreachable === 2) return null
   if (s.unreachable === 1 && now.getTime() - new Date(s.updated_at).getTime() > ttlMs) return null
   if (!s.seen_at || (s.attention_since && s.seen_at < s.attention_since)) return 'raised'
@@ -55,7 +55,7 @@ export function collectHealth(db, now, cfg) {
   }
 }
 
-// 서버가 쓰는 판 계산: 칸 화면·git을 비동기로 먼저 읽어 두고(서버가 멈추지 않는다) 같은 규칙으로 계산한다.
+// 서버가 쓰는 판 계산: 세션 화면·git을 비동기로 먼저 읽어 두고(서버가 멈추지 않는다) 같은 규칙으로 계산한다.
 export async function computeBoardAsync(db, opts = {}) {
   const now = opts.now || new Date()
   await warmContext(db.prepare('SELECT id, runtime, runtime_ref, status, unreachable, cwd, fields_json FROM session WHERE archived = 0').all(), now.getTime(), opts.onLate)
@@ -70,14 +70,14 @@ export function computeBoard(db, { now = new Date(), withContext = true } = {}) 
   const ttlMs = cfg.unreachable_ttl_h * 3600000
   const sessions = db.prepare('SELECT * FROM session WHERE archived = 0').all()
   const STALE_MS = cfg.stale_days * 86400000
-  // 칸 문맥(라벨·브랜치·질문 원문·마지막 요청)은 아는 런타임(herdr, herdr-core)의 칸에만 읽는다. 못 읽으면 null.
+  // 세션 문맥(라벨·브랜치·질문 원문·마지막 요청)은 아는 런타임(herdr, herdr-core)의 세션에만 읽는다. 못 읽으면 null.
   const contextOf = (s) => {
     if (!withContext || !capsOf(s)) return {}
     const [desk, pane] = s.runtime_ref.split('/')
     const live = !['stopped', 'gone', 'shell'].includes(s.status) && !s.unreachable
     const ctx = live && ['blocked', 'done'].includes(s.status) ? (s.runtime === 'herdr' ? paneContext(desk, pane, s.status, now.getTime()) : coreContext(s)) : null
     const prompt = lastPrompt(s.provider_session, now.getTime())
-    // 실패는 기록의 구조 표식이 먼저(I-5). 화면 정규식은 표식이 없는 공급자용으로 질문을 읽지 못한 blocked 칸에만 남는다(I-1).
+    // 실패는 기록의 구조 표식이 먼저(I-5). 화면 정규식은 표식이 없는 공급자용으로 질문을 읽지 못한 blocked 세션에만 남는다(I-1).
     const apiErr = ['blocked', 'done'].includes(s.status) ? lastApiError(s.provider_session, now.getTime()) : null
     const lastAt = prompt?.at || s.last_user_msg_at || s.attention_since || null
     const activityAt = lastAt || s.first_seen
@@ -93,18 +93,21 @@ export function computeBoard(db, { now = new Date(), withContext = true } = {}) 
       resume: s.status === 'shell' ? resumeFor(sessions, s, cfg.agent_cmd) : null,
       recent_prompt: s.status === 'shell' ? (resumeFor(sessions, s, cfg.agent_cmd)?.prompt ?? null) : null,
       last_prompt_at: lastAt,
-      // 핀 고정 칸은 보관 후보로 표시하지 않는다(#13).
+      // 핀 고정 세션은 보관 후보로 표시하지 않는다(#13).
       stale: !s.pinned_at && ['idle', 'stopped', 'unknown', 'shell'].includes(s.status) && now.getTime() - new Date(activityAt).getTime() > STALE_MS,
     }
   }
   const base = (s) => {
     const pane = s.runtime_ref.split('/')[1]
+    // features = 그 세션에서 되는 기능과 수단(herdr-core 세션에만 — runtime/index.mjs featuresOf). 판을 계산할 때마다 코어 프로필에서 다시 읽는다.
+    const features = featuresOf(s)
     return {
       id: s.id,
       ref: s.runtime_ref,
-      // desk = 줄 열쇠(herdr 세션 이름 또는 core:<공간>), desk_label = 줄에 보일 이름, caps = 이 카드에서 할 수 있는 일
+      // desk = 데스크 열쇠(herdr 세션 이름 또는 core:<공간>), desk_label = 데스크에 보일 이름, caps = 이 세션에서 할 수 있는 일
       desk: deskOf(s), desk_label: deskLabelOf(s), pane,
       caps: capsOf(s),
+      ...(features ? { features } : {}),
       project: s.project,
       title: s.title || '(제목 없음)',
       runtime: s.runtime,
@@ -118,10 +121,11 @@ export function computeBoard(db, { now = new Date(), withContext = true } = {}) 
       stashed_at: s.stashed_at || null,
       unreachable: s.unreachable === 1,
       off: s.unreachable === 2,
-      last_ok_at: s.unreachable ? s.updated_at : null, // 확인 불가·꺼짐 칸을 마지막으로 확인한 시각(#8)
+      last_ok_at: s.unreachable ? s.updated_at : null, // 확인 불가·꺼짐 세션을 마지막으로 확인한 시각(#8)
     }
   }
   const card = (s) => {
+    /** @type {Record<string, any>} */
     const c = { ...base(s), ...contextOf(s) }
     const st = attentionState(s, now, snoozeMs, ttlMs)
     if (st === 'snoozed') c.snoozed_until = new Date(new Date(s.seen_at).getTime() + snoozeMs).toISOString()
@@ -140,7 +144,7 @@ export function computeBoard(db, { now = new Date(), withContext = true } = {}) 
   const carryAll = live.filter((s) => !shown.has(s.id) && !(s.seen_at && s.seen_at >= today))
     .sort((a, b) => a.runtime_ref.localeCompare(b.runtime_ref, 'en', { numeric: true }))
 
-  // 최근 닫힘: 사라진 칸은 closed_keep_days 안의 것만, 사용자가 보관한 칸은 기한 없이 — 들어간 문에서 나오는 문이
+  // 최근 닫힘: 사라진 세션은 closed_keep_days 안의 것만, 사용자가 보관한 세션은 기한 없이 — 들어간 문에서 나오는 문이
   // 7일 뒤 잠기면 안 된다(약속 3, I-2).
   const keepFrom = new Date(now.getTime() - cfg.closed_keep_days * 86400000).toISOString()
   const closed = db.prepare(`SELECT * FROM session WHERE (archived = 1 AND status = 'gone' AND updated_at >= ?) OR (archived = 0 AND stashed_at IS NOT NULL)
@@ -234,8 +238,8 @@ export function todayStats(db, now = new Date()) {
   }
   return { raised, answered, within_3min: within, within_3min_rate: answered ? within / answered : null, hourly: hourly.slice(0, now.getHours() + 1) }
 }
-// 최근 닫힘에서 '이어서 열기'로 새 탭에 다시 띄운 칸: 옛 행은 'reopened'로 바꿔 최근 닫힘에서 뺀다.
-// 새 칸은 수집이 새 행으로 잡는다(D1, 2026-11-09 — 이어서 연 뒤에도 같은 칸이 최근 닫힘에 남아 있었다).
+// 최근 닫힘에서 '이어서 열기'로 새 탭에 다시 띄운 세션: 옛 행은 'reopened'로 바꿔 최근 닫힘에서 뺀다.
+// 새 세션은 수집이 새 행으로 잡는다(D1, 2026-11-09 — 이어서 연 뒤에도 같은 세션이 최근 닫힘에 남아 있었다).
 export function markReopened(db, id, now = new Date()) {
   const at = now.toISOString()
   const r = db.prepare("UPDATE session SET status = 'reopened', updated_at = ? WHERE id = ? AND archived = 1 AND status = 'gone'").run(at, id)

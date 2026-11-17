@@ -39,7 +39,7 @@ test('#7·I-7: herdr를 못 읽는 동안 재알림은 멈추고, 끊김은 에�
   assert.equal(sent.filter((x) => /herdr/.test(x.body + x.subtitle)).length, 2, '새 에피소드는 다시 한 통')
 })
 
-test('#16: 같은 패스에 보낼 칸이 둘 이상이면 한 통으로 묶고, 각 칸의 횟수는 따로 센다', () => {
+test('#16: 같은 패스에 보낼 세션이 둘 이상이면 한 통으로 묶고, 각 세션의 횟수는 따로 센다', () => {
   const db = openDb(':memory:')
   const r = rt([pane('main/w1:p1', 'blocked')])
   setSettings(db, { os_notify: 1, stale_collect_sec: 120 })

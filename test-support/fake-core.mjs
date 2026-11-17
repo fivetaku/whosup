@@ -1,7 +1,10 @@
 // 가짜 herdr-core: 진짜 코어와 같은 한 줄 JSON-RPC를 유닉스 소켓으로 받는다. 실제 코어를 띄우지 않는 테스트용.
 // 다룬 요청은 calls에 쌓인다. 터미널은 add()로 넣고 set()으로 바꾼다(바꾸면 구독자에게 event 한 줄이 간다).
+// 코어 여러 개: startFakeCore를 소켓 경로마다 한 번씩 부르면 된다(코어마다 터미널·요청 기록이 따로다).
+// startNamedCore(상태 폴더, 이름, 소켓 경로)는 진짜 코어처럼 <상태 폴더>/herdr-core/<이름>/core.lock 에 소켓 경로를 적어 둔다.
 import { createServer } from 'node:net'
-import { existsSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { pipeName } from '../src/platform.mjs'
 
 export const term = (address, over = {}) => ({
@@ -18,6 +21,20 @@ export const agentTerm = (address, state, over = {}) => term(address, {
   status: { app: 'claude-code', state, ...(over.kind ? { kind: over.kind } : {}), ...(over.msg ? { msg: over.msg } : {}) }, status_ms: 1794000100000, title: 'Claude Code', turn: state === 'idle' ? 0 : 1,
   ...Object.fromEntries(Object.entries(over).filter(([k]) => !['kind', 'msg'].includes(k))),
 })
+// 자기 코어를 따로 띄우는 앱(오비스 데스크톱 앱)의 터미널: 라벨이 herdr.space="ovis-<uuid>", herdr.tab, herdr.seen 뿐이고
+// 공간 이름을 담은 where 라벨이 없다(2026-11-13 실측한 모양). space·tab 은 그 id 의 뒷부분만 넘긴다.
+export const appTerm = (address, { space = '345e7819-0000-4000-8000-000000000001', tab = '56aa936d-0000-4000-8000-000000000001', ...over } = {}) => term(address, {
+  ...over, labels: { 'herdr.space': `ovis-${space}`, 'herdr.tab': `ovis-${tab}`, 'herdr.seen': '0', ...(over.labels || {}) },
+})
+
+// core.lock 을 남기는 가짜 코어. 돌려주는 것은 startFakeCore와 같고 name·lock 이 붙는다. close()는 lock 파일을 그대로 둔다
+// (진짜 코어도 꺼질 때 lock 을 남긴다 — 소켓만 사라진다).
+export async function startNamedCore(stateHome, name, path) {
+  const lockDir = join(stateHome, 'herdr-core', name)
+  mkdirSync(lockDir, { recursive: true })
+  writeFileSync(join(lockDir, 'core.lock'), `${path}\n`)
+  return Object.assign(await startFakeCore(path), { name, lock: join(lockDir, 'core.lock') })
+}
 
 export function startFakeCore(path) {
   if (existsSync(path)) unlinkSync(path)
@@ -80,6 +97,8 @@ export function startFakeCore(path) {
     add(t) { terminals.set(t.address, t); emit('created', t.address); return t },
     set(address, patch) { Object.assign(terminals.get(address), patch); emit('status', address, { status: terminals.get(address).status }) },
     sent: () => calls.filter((c) => c.method === 'terminal.send').map((c) => [c.params.terminal, c.params.text]),
+    // 받은 요청 가운데 목록 읽기·구독이 아닌 것(터미널 하나를 겨냥한 요청): [[method, terminal]] — "이 코어에는 가지 않았다"를 단언할 때 쓴다.
+    touched: () => calls.filter((c) => !['terminal.list', 'events.subscribe'].includes(c.method)).map((c) => [c.method, c.params.terminal ?? null]),
     // 끄면 소켓 자리도 비운다. 유닉스 소켓은 server.close가 파일을 지우지만, 윈도우의 표시 파일은 직접 지워야 한다
     // (남아 있으면 available()가 꺼진 코어를 켜진 것으로 본다 — 진짜 코어도 끝날 때 그 파일을 지운다는 가정).
     close: () => new Promise((r) => { for (const s of subs) s.destroy(); server.close(() => { if (win) { try { unlinkSync(path) } catch {} } r() }) }),

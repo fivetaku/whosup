@@ -24,6 +24,10 @@ mkdirSync(process.env.CLAUDE_PROJECTS_DIR, { recursive: true })
 mkdirSync(join(dir, 'claude', 'sessions'), { recursive: true })
 
 const core = await import('../src/runtime/core.mjs')
+// 새 터미널의 셸이 뜨기를 기다리는 일(core.mjs shellReady)은 이 파일의 시험에서는 끈다: 가짜 코어의 화면은 비어 있어 한도까지 기다리게 된다(그 동작의 시험은 test/ovis-app.test.mjs)
+core._setShellWait({ maxMs: 0 })
+// 자기 서버로 코어를 보여 주는 앱의 서버 찾기가 이 기계의 실제 등록부를 읽지 않게 한다(실제 HOME 에서 돌려도 실제 앱의 서버에 묻지 않는다)
+;(await import('../src/runtime/ovis.mjs'))._setLookup({ registryDirs: () => [], userDataDirs: () => [] })
 const { collectAll, capsOf } = await import('../src/runtime/index.mjs')
 const { collectOnce, forgetDownSince } = await import('../src/collector.mjs')
 const { computeBoard, computeBoardAsync } = await import('../src/board/board.mjs')
@@ -49,7 +53,7 @@ test('toSession: 코어 상태를 판의 상태로 옮긴다(작업 중·입력 
   assert.deepEqual([err.status, err.fields.failed, err.fields.requiresAttention], ['blocked', true, true])
 })
 
-test('toSession: 주소·줄·공급자·대기 시작 시각', () => {
+test('toSession: 주소·데스크·공급자·대기 시작 시각', () => {
   const s = core.toSession(agentTerm('t4', 'blocked', { kind: 'permission', msg: 'approve Bash: ls', labels: SPACE, cwd: '/work/proj', name: 'fix' }), { sid: SID })
   assert.equal(s.runtime, 'herdr-core')
   assert.equal(s.runtime_ref, 'whosuptest-unit/t4')
@@ -59,7 +63,7 @@ test('toSession: 주소·줄·공급자·대기 시작 시각', () => {
   assert.deepEqual([s.fields.desk, s.fields.deskLabel, s.fields.tab], ['core:spA', 'my project', 'tb1'])
   assert.deepEqual([s.fields.statusKind, s.fields.statusMsg], ['permission', 'approve Bash: ls'])
   assert.equal(s.attentionTimestamp, new Date(1794000100000).toISOString())
-  // 공간 밖 터미널은 한 줄(core:)에 모인다
+  // 공간 밖 터미널은 한 데스크(core:)에 모인다
   const loose = core.toSession(term('t9'))
   assert.deepEqual([loose.fields.desk, loose.fields.deskLabel], ['core:', 'herdr-core'])
 })
@@ -100,7 +104,7 @@ test('toSession: 상태를 알리지 않는 터미널의 화면이 폴더 신뢰
   assert.deepEqual([idle.status, idle.fields.statusKind], ['idle', null])
 })
 
-test('폴더 신뢰 화면에 멈춘 에이전트: 입력 필요 카드와 질문 문구로 뜨고, 에이전트가 뜨면 코어가 알린 상태로 돌아간다', async () => {
+test('폴더 신뢰 화면에 멈춘 에이전트: 입력 필요 세션과 질문 문구로 뜨고, 에이전트가 뜨면 코어가 알린 상태로 돌아간다', async () => {
   reset()
   fake.add(waitingAgent('t1'))
   fake.add(term('t2', { labels: SPACE }))                                                              // 셸
@@ -117,7 +121,7 @@ test('폴더 신뢰 화면에 멈춘 에이전트: 입력 필요 카드와 질�
   const b = await computeBoardAsync(db)
   const card = Object.values(b.columns).flat().find((c) => c.ref.endsWith('/t1'))
   assert.deepEqual([card.status, card.question, card.ask_kind, card.failed], ['blocked', '이 폴더를 신뢰할까요? (Yes, I trust this folder)', 'approval', false])
-  assert.equal(b.next.ref, card.ref)                                                                    // 다음에 볼 칸으로 잡힌다
+  assert.equal(b.next.ref, card.ref)                                                                    // 다음에 볼 세션으로 잡힌다
   // 신뢰를 고르면 에이전트가 뜨고 코어가 상태를 알린다
   fake.set('t1', { status: { app: 'claude-code', state: 'idle' }, status_ms: Date.now() })
   await collectAll(db)
@@ -192,7 +196,7 @@ test('대화 id를 모르면 비워 둔다(같은 폴더의 다른 대화로 추
   assert.equal((await core.listSnapshotAsync()).sessions[0].provider_session, null)
 })
 
-test('수집 → 판: 공간마다 한 줄, 질문은 코어가 알려 준 문구, 할 수 있는 일(caps)', async () => {
+test('수집 → 판: 공간마다 데스크 하나, 질문은 코어가 알려 준 문구, 할 수 있는 일(caps)', async () => {
   reset()
   fake.add(agentTerm('t1', 'blocked', { kind: 'question', msg: 'answer: Which color do you prefer? (Red · Blue)', labels: SPACE, cwd: '/work/a' }))
   fake.add(agentTerm('t2', 'blocked', { kind: 'permission', msg: 'approve Bash: curl -s https://example.com', labels: SPACE, cwd: '/work/a' }))
@@ -214,7 +218,7 @@ test('수집 → 판: 공간마다 한 줄, 질문은 코어가 알려 준 문�
   assert.equal(by('t1').failed, false)
   assert.equal(by('t3').last_say, 'Ran the test suite: 24 passed.')
   assert.deepEqual(by('t1').caps, ['focus', 'close', 'resume', 'new', 'toggle', 'web'])
-  assert.ok(!by('t4').caps.includes('toggle'))               // 공간 밖 줄에는 닫을 공간이 없다
+  assert.ok(!by('t4').caps.includes('toggle'))               // 공간 밖 데스크에는 닫을 공간이 없다
   assert.equal(b.next.runtime, 'herdr-core')
   assert.equal(b.order.length, 3)
   // 모르는 런타임의 행은 caps가 없다 → 화면이 판에 올리지 않는다
@@ -240,7 +244,7 @@ test('상태가 따라 바뀐다: 작업 중 → 입력 필요 → 답변 도착
   core.stopWatching()
 })
 
-test('주소가 다시 쓰이면 옛 카드와 섞이지 않는다(새 터미널은 새 행, 옛 행은 닫힘)', async () => {
+test('주소가 다시 쓰이면 옛 세션과 섞이지 않는다(새 터미널은 새 행, 옛 행은 닫힘)', async () => {
   reset()
   fake.add(agentTerm('t1', 'idle', { labels: SPACE, created_ms: 1000 }))
   const db = openDb(':memory:')
@@ -281,7 +285,7 @@ test('사라진 터미널은 연속 미검출 뒤 최근 닫힘으로', async ()
   assert.deepEqual(Object.values(db.prepare("SELECT archived, status FROM session WHERE runtime = 'herdr-core'").get()), [1, 'gone'])
 })
 
-test('코어가 꺼지면: 칸이 있었으면 확인 불가로 남기고, 없었으면 조용히 건너뛴다', async () => {
+test('코어가 꺼지면: 세션이 있었으면 확인 불가로 남기고, 없었으면 조용히 건너뛴다', async () => {
   reset()
   fake.add(agentTerm('t1', 'blocked', { kind: 'question', msg: 'answer: go?', labels: SPACE }))
   const db = openDb(':memory:')
@@ -294,10 +298,10 @@ test('코어가 꺼지면: 칸이 있었으면 확인 불가로 남기고, 없�
     for (let i = 0; i < 4; i++) await collectAll(db)
     const row = db.prepare("SELECT status, archived, unreachable FROM session WHERE runtime = 'herdr-core'").get()
     assert.deepEqual([row.status, row.archived, row.unreachable], ['blocked', 0, 1])
-    // 그 채로 unreachable_ttl_h(기본 24시간)가 지나면 닫힘으로 보낸다(지운 프로그램의 칸이 판에 남지 않게)
+    // 그 채로 unreachable_ttl_h(기본 24시간)가 지나면 닫힘으로 보낸다(지운 프로그램의 세션이 판에 남지 않게)
     await collectAll(db, { now: new Date(Date.now() + 25 * 3600000) })
     assert.deepEqual(Object.values(db.prepare("SELECT archived, status FROM session WHERE runtime = 'herdr-core'").get()), [1, 'gone'])
-    // 칸이 없던 DB: herdr도 코어도 없으면 예전처럼 herdr 없음 오류만 남는다(코어 때문에 새 오류가 생기지 않는다)
+    // 세션이 없던 DB: herdr도 코어도 없으면 예전처럼 herdr 없음 오류만 남는다(코어 때문에 새 오류가 생기지 않는다)
     const empty = openDb(':memory:')
     const r = await collectAll(empty)
     assert.deepEqual(r.runs, [])
@@ -345,7 +349,7 @@ test('코어 찾기: HC_SOCKET이 없으면 코어가 적어 둔 core.lock에서
   }
 })
 
-test('herdr와 함께: 두 쪽 칸이 다 나오고 herdr 쪽 수집 상태가 판의 건강 상태를 정한다', async () => {
+test('herdr와 함께: 두 쪽 세션이 다 나오고 herdr 쪽 수집 상태가 판의 건강 상태를 정한다', async () => {
   reset()
   fake.add(agentTerm('t1', 'working', { labels: SPACE }))
   const db = openDb(':memory:')
@@ -391,7 +395,7 @@ test('폴더 신뢰 화면: 커서가 어느 선택지에 있어도, Codex의 �
   const onYes = TRUST_SCREEN.replace(' ❯ No, exit\n   Yes, I trust this folder', '   No, exit\n ❯ Yes, I trust this folder')
   assert.notEqual(onYes, TRUST_SCREEN)
   assert.equal(isTrustScreen(onYes), true)                                                  // 커서를 Yes로 옮긴 화면
-  assert.equal(questionOf(onYes), TRUST_QUESTION)                                           // herdr 카드의 질문 추출도 같은 답
+  assert.equal(questionOf(onYes), TRUST_QUESTION)                                           // herdr 쪽 세션의 질문 추출도 같은 답
   assert.equal(isTrustScreen(CODEX_TRUST), true)
   assert.equal(isTrustScreen(CODEX_TRUST.replace('› 1. Trust and continue\n  2. Back', '  1. Trust and continue\n› 2. Back')), true)
   assert.equal(isTrustScreen(CODEX_HOOKS), false)                                           // 신뢰를 묻지만 폴더 신뢰가 아니다
@@ -402,7 +406,7 @@ test('폴더 신뢰 화면: 커서가 어느 선택지에 있어도, Codex의 �
   assert.equal(isTrustScreen(''), false)
 })
 
-test('신뢰 대기 카드의 질문 문구는 화면을 다시 읽지 못해도 나온다(수집이 이미 그 질문으로 확인했다)', async () => {
+test('신뢰 대기 세션의 질문 문구는 화면을 다시 읽지 못해도 나온다(수집이 이미 그 질문으로 확인했다)', async () => {
   reset()
   fake.add(waitingAgent('t1')); fake.screens.set('t1', TRUST_SCREEN)
   const db = openDb(':memory:'); await collectAll(db)
@@ -451,7 +455,7 @@ test('끝난 턴 하나는 한 사건이다: done이 idle로 바뀌며 코어의
   assert.equal(row().alert_count, 0)
 })
 
-test('수집 공백은 런타임마다 잰다: 판의 건강 상태를 herdr가 적는 기계에서도 herdr-core 카드의 대기 시작 시각이 수집마다 새로 잡히지 않는다', async () => {
+test('수집 공백은 런타임마다 잰다: 판의 건강 상태를 herdr가 적는 기계에서도 herdr-core 세션의 대기 시작 시각이 수집마다 새로 잡히지 않는다', async () => {
   reset()
   fake.add(waitingAgent('t1')); fake.screens.set('t1', TRUST_SCREEN)                        // 코어가 시각을 주지 않는 대기
   const db = openDb(':memory:')
@@ -492,7 +496,7 @@ test('실행 인자에서 대화 id: 진짜 옵션만 읽는다(프롬프트 글
   assert.equal(f([]), null)
 })
 
-test('다른 에이전트로 바뀌면 옛 대화 id를 몰랐어도 새 카드로 시작한다(고정·확인이 새 프로그램의 카드로 넘어가지 않는다)', async () => {
+test('다른 에이전트로 바뀌면 옛 대화 id를 몰랐어도 새 세션으로 시작한다(고정·확인이 새 프로그램의 세션으로 넘어가지 않는다)', async () => {
   reset()
   fake.add(agentTerm('t2', 'idle', { labels: SPACE }))                                      // Claude, 대화 id는 모른다
   const db = openDb(':memory:'); await collectAll(db)
@@ -520,7 +524,7 @@ test('toSession: 턴 값이 정수가 아니면 없는 것으로 본다. 지금 
   assert.equal(codexIdle({ turn: 2, labels: { 'herdr.seen': '7', 'whosup.seen': '2' } }).status, 'idle')
 })
 
-test('실패 표시는 코어가 오류라고 알린 칸뿐이다(답변 글 속의 오류 낱말로 추측하지 않는다)', async () => {
+test('실패 표시는 코어가 오류라고 알린 세션뿐이다(답변 글 속의 오류 낱말로 추측하지 않는다)', async () => {
   reset()
   fake.add(agentTerm('t1', 'done', { labels: SPACE }))
   fake.screens.set('t1', `⏺ Fixed the API Error: 500 handler and added a test.\n${'─'.repeat(40)}\n❯ \n${'─'.repeat(40)}\n`)
@@ -544,7 +548,7 @@ test('코어의 답이 이상해도 죽지 않는다: JSON-RPC 꼴이 아닌 줄
   const at = Date.now()
   await assert.rejects(core.rpc('terminal.list', {}), (e) => e.code === 'ECONNRESET')
   assert.ok(Date.now() - at < 1500, '끊긴 연결을 시간 초과까지 기다리지 않는다')
-  // 수집: 칸은 확인 불가로 남고, 왜 그런지가 결과에 실린다
+  // 수집: 세션은 확인 불가로 남고, 왜 그런지가 결과에 실린다
   const r = await collectAll(db)
   assert.equal(r.notes.length, 1)
   assert.match(r.notes[0], /^herdr-core: /)
@@ -568,7 +572,7 @@ test('변화 알림: event 줄만 수집을 깨운다(다른 줄 안에 같은 �
   core.stopWatching()
 })
 
-test('오래 닿지 않은 칸만 닫는다: 후즈업을 오래 꺼 두었다 켠 직후 코어에 한 번 닿지 못했다고 닫지 않는다', async () => {
+test('오래 닿지 않은 세션만 닫는다: 후즈업을 오래 꺼 두었다 켠 직후 코어에 한 번 닿지 못했다고 닫지 않는다', async () => {
   reset()
   fake.add(agentTerm('t1', 'idle', { labels: SPACE }))
   const db = openDb(':memory:')
@@ -597,7 +601,7 @@ test('턴 수를 알리지 않는 터미널: 끝난 턴이 새로 오면 새 사
   assert.notEqual(since(), first)
 })
 
-test('닿지 않기 시작한 때는 후즈업이 지켜본 동안만 센다: 꺼지기 직전에 적힌 값으로 다시 켠 첫 수집에서 칸을 닫지 않는다', async () => {
+test('닿지 않기 시작한 때는 후즈업이 지켜본 동안만 센다: 꺼지기 직전에 적힌 값으로 다시 켠 첫 수집에서 세션을 닫지 않는다', async () => {
   reset()
   fake.add(agentTerm('t1', 'idle', { labels: SPACE }))
   const t0 = Date.parse('2026-11-01T00:00:00Z')
@@ -616,7 +620,7 @@ test('닿지 않기 시작한 때는 후즈업이 지켜본 동안만 센다: �
   fake.override = null
 })
 
-test('화면 캐시는 지금 판의 카드 것만 남긴다(턴이 넘어갈 때마다 쌓이지 않는다)', async () => {
+test('화면 캐시는 지금 판의 세션 것만 남긴다(턴이 넘어갈 때마다 쌓이지 않는다)', async () => {
   reset()
   fake.add(agentTerm('t1', 'done', { labels: SPACE, turn: 1 }))
   const db = openDb(':memory:')

@@ -3,6 +3,7 @@
 // FAKE_APP_MODE=no_window 이면 진짜처럼 "no Herdr window" 를 내고 종료 코드 2로 끝난다(앱이 꺼져 있는 경우).
 // FAKE_APP_PROBE=<파일> 이면 space.close를 받은 순간 그 파일의 내용을 <파일>.at-close 에 적어 둔다(닫기 전에 무엇이 적혀 있었는지 보는 용도).
 // 공간 = 터미널 라벨 herdr.space, 이름 = 라벨 where 의 " / " 앞.
+// 이 앱이 보여 주는 코어는 FAKE_APP_SOCKET(없으면 HC_SOCKET)의 코어 하나다 — 코어가 여럿인 시험에서 "그 앱의 코어"를 정한다.
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { createConnection } from 'node:net'
 import { connectTarget } from '../src/platform.mjs'
@@ -12,7 +13,7 @@ if (process.env.FAKE_APP_LOG) appendFileSync(process.env.FAKE_APP_LOG, `${JSON.s
 if (process.env.FAKE_APP_MODE === 'no_window') { process.stderr.write('herdr-app: no Herdr window at /nowhere/herdr-app.sock: No such file or directory (os error 2)\n'); process.exit(2) }
 
 const rpc = (method, params = {}) => new Promise((resolve, reject) => {
-  const sock = createConnection(connectTarget(process.env.HC_SOCKET))   // 윈도우는 named pipe
+  const sock = createConnection(connectTarget(process.env.FAKE_APP_SOCKET || process.env.HC_SOCKET))   // 윈도우는 named pipe
   let buf = ''
   sock.setEncoding('utf8')
   sock.on('connect', () => sock.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method, params })}\n`))

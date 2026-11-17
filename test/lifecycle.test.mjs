@@ -1,4 +1,4 @@
-// #8 확인 불가 칸의 마지막 확인 시각, #13 핀 칸은 보관 후보 아님, I-2 보관 칸이 다시 손 들면 복귀·보관 칸은 기한 없이, #14 확인 불가 수명.
+// #8 확인 불가 세션의 마지막 확인 시각, #13 핀 세션은 보관 후보 아님, I-2 보관 세션이 다시 손 들면 복귀·보관 세션은 기한 없이, #14 확인 불가 수명.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { openDb } from '../src/db.mjs'
@@ -30,7 +30,7 @@ test('#8: 확인 불가가 이어져도 마지막으로 확인한 시각은 그�
   assert.equal(c.last_ok_at, at(0).toISOString())
 })
 
-test('#13: 핀 고정 칸은 오래 멈춰도 보관 후보 표시가 붙지 않는다', () => {
+test('#13: 핀 고정 세션은 오래 멈춰도 보관 후보 표시가 붙지 않는다', () => {
   const db = openDb(':memory:')
   const r = rt([pane('main/w1:p1', 'idle'), pane('main/w1:p2', 'idle')])
   tick(db, r, 0)
@@ -41,7 +41,7 @@ test('#13: 핀 고정 칸은 오래 멈춰도 보관 후보 표시가 붙지 않
   assert.equal(find(b, 'main/w1:p2').stale, true)
 })
 
-test('I-2: 보관한 빈 칸에 에이전트가 붙어 손 들면 보관이 풀리고 판에 돌아온다', () => {
+test('I-2: 보관한 빈 세션에 에이전트가 붙어 손 들면 보관이 풀리고 판에 돌아온다', () => {
   const db = openDb(':memory:')
   const r = rt([pane('main/w1:p1', 'shell', null)])
   tick(db, r, 0)
@@ -55,7 +55,7 @@ test('I-2: 보관한 빈 칸에 에이전트가 붙어 손 들면 보관이 풀�
   assert.ok(db.prepare("SELECT 1 FROM event WHERE field = 'unstash' AND source = 'collector'").get())
 })
 
-test('I-2: 보관한 칸은 기한이 지나도 최근 닫힘에 남아 되돌릴 수 있다(사라진 칸만 기한)', () => {
+test('I-2: 보관한 세션은 기한이 지나도 최근 닫힘에 남아 되돌릴 수 있다(사라진 세션만 기한)', () => {
   const db = openDb(':memory:')
   const r = rt([pane('main/w1:p1', 'idle')])
   tick(db, r, 0)
@@ -64,7 +64,7 @@ test('I-2: 보관한 칸은 기한이 지나도 최근 닫힘에 남아 되돌�
   assert.deepEqual(b.closed.map((c) => [c.ref, c.reason]), [['main/w1:p1', 'stashed']])
 })
 
-test('#14: 확인 불가가 unreachable_ttl_h를 넘긴 칸은 손 든 칸에서 내려온다', () => {
+test('#14: 확인 불가가 unreachable_ttl_h를 넘긴 세션은 손 든 세션에서 내려온다', () => {
   const db = openDb(':memory:')
   const r = rt([pane('main/w1:p1', 'blocked')])
   tick(db, r, 0)
@@ -75,5 +75,5 @@ test('#14: 확인 불가가 unreachable_ttl_h를 넘긴 칸은 손 든 칸에서
   tick(db, r, 179)
   const b = board(db, 180)
   assert.equal(b.next, null)
-  assert.ok(find(b, 'main/w1:p1'), '칸은 판에 남는다(숫자·순번에서만 빠짐)')
+  assert.ok(find(b, 'main/w1:p1'), '세션은 판에 남는다(숫자·순번에서만 빠짐)')
 })

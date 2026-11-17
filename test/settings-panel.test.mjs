@@ -1,4 +1,4 @@
-// I-11 설정 패널은 서버 키 표에서 파생되고, 라벨이 빠진 키는 테스트가 잡는다. 값의 출처도 거짓 없이.
+// I-11 설정은 서버 키 표에서 파생되고, 라벨이 빠진 키는 테스트가 잡는다. 값의 출처도 거짓 없이.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -12,11 +12,11 @@ test('모든 숫자 설정 키에 ko·en 라벨이 있다', () => {
   for (const lang of ['ko', 'en']) for (const k of Object.keys(SETTINGS)) assert.ok(I18N[lang].setItems[k], `${lang}.setItems.${k} 없음`)
 })
 
-test('패널은 T.setItems가 아니라 서버 키 표(ranges)를 돈다', () => {
+test('설정 화면은 T.setItems가 아니라 서버 키 표(ranges)를 돈다', () => {
   assert.doesNotMatch(html, /Object\.entries\(T\.setItems\)/)
 })
 
-test('저장은 불러온 값과 달라진 칸만 보낸다', () => {
+test('저장은 불러온 값과 달라진 입력란만 보낸다', () => {
   assert.match(html, /data-loaded/)
 })
 

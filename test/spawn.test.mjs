@@ -6,7 +6,7 @@ process.env.HERDR_BIN = fileURLToPath(new URL('../test-support/fake-herdr.mjs', 
 delete process.env.HERDR_BIN_PATH
 const herdr = await import('../src/runtime/herdr.mjs')
 
-test('focus: 꺼진 세션을 없는 폴더로 띄우면 cwd_missing으로 거절하고 프로세스는 산다', async () => {
+test('focus: 꺼진 데스크를 없는 폴더로 띄우면 cwd_missing으로 거절하고 프로세스는 산다', async () => {
   await assert.rejects(herdr.focus('ghost/w1:p1', { cwd: '/nonexistent/whosup-test-dir' }), (err) => err.code === 'cwd_missing')
   await new Promise((r) => setTimeout(r, 200)) // 비동기 spawn 'error'가 터질 틈
 })

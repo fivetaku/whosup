@@ -24,6 +24,12 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: preflight
         run: sh scripts/preflight.sh
+      # 타입 검사(JSDoc + tsc --checkJs, strict 아님): 개발 도구(typescript·@types/node)는 devDependencies에만 있다 — 설치기·herdr 플러그인은
+      # npm install을 하지 않으므로 사용자 설치에는 들어가지 않는다.
+      - name: install dev tools
+        run: npm ci --no-audit --no-fund
+      - name: typecheck
+        run: npm run typecheck
       - name: unit tests
         run: npm test
 

@@ -44,7 +44,7 @@ test('macOS·리눅스: FRONT_APP 앱 이름 검사는 그대로(명령줄·Appl
     assert.equal(getSettings(null).front_app, 'Ghostty')
   }
 })
-test('윈도우: 설정 패널에서 경로 값을 저장할 수 있고, 줄바꿈은 여전히 거절한다', () => {
+test('윈도우: 설정에서 경로 값을 저장할 수 있고, 줄바꿈은 여전히 거절한다', () => {
   _setPlatform('win32')
   const db = openDb(':memory:')
   assert.equal(setSettings(db, { front_app: 'C:\\Tools\\wt.exe' }).ok, true)
@@ -84,7 +84,7 @@ test('윈도우 설정: 자동 Windows Terminal 위에 PowerShell을 고르면 �
     assert.deepEqual(w.filter(([, v]) => v === ''), [['auto', '']], "빈 값은 '자동' 하나뿐")
   } finally { setAutoValues(null) }
 })
-test('설정 패널 화면: 윈도우도 자동 값은 \'자동\' 단추로 보이고(빈 값), 자동 선택지 이름은 T.appAuto', async () => {
+test('설정 화면: 윈도우도 자동 값은 \'자동\' 단추로 보이고(빈 값), 자동 선택지 이름은 T.appAuto', async () => {
   const { readFileSync } = await import('node:fs')
   const html = readFileSync(new URL('../src/board/index.html', import.meta.url), 'utf8')
   assert.match(html, /const frontVal = data\.origins\?\.front_app\?\.source === 'auto' \? '' :/)
@@ -124,8 +124,8 @@ test('herdr-core: 윈도우는 LOCALAPPDATA도 상태 폴더 후보로 보고, �
   } finally { process.env.XDG_STATE_HOME = saved.xdg; if (saved.lad === undefined) delete process.env.LOCALAPPDATA; else process.env.LOCALAPPDATA = saved.lad }
 })
 
-// ── 세션 목록 파싱 ───────────────────────────────────────────────────
-test('세션 목록 표: 홈에 공백이 있어도 폴더·소켓 칸이 밀리지 않는다', () => {
+// ── herdr 데스크 목록 파싱 ───────────────────────────────────────────────────
+test('herdr 데스크 목록 표: 홈에 공백이 있어도 폴더·소켓 열이 밀리지 않는다', () => {
   const text = [
     'name                 status   directory                                        socket',
     'main                 running  C:\\Users\\Hong Gildong\\.config\\herdr\\sessions\\main  C:\\Users\\Hong Gildong\\.config\\herdr\\sessions\\main\\herdr.sock',
@@ -141,7 +141,7 @@ test('세션 목록 표: 홈에 공백이 있어도 폴더·소켓 칸이 밀리
     { name: 'odd', status: 'running', dir: '/a b/c', socket: '/elsewhere/s.sock' },
   ])
 })
-test('세션 목록 --json: herdr 0.9.3 모양을 읽고 시험 세션은 뺀다', () => {
+test('herdr 데스크 목록 --json: herdr 0.9.3 모양을 읽고 시험 데스크는 뺀다', () => {
   const rows = herdr.parseSessionJson(JSON.stringify({ sessions: [
     { default: true, name: 'default', running: false, session_dir: 'C:\\Users\\Hong Gildong\\.config\\herdr', socket_path: 'C:\\Users\\Hong Gildong\\.config\\herdr\\herdr.sock' },
     { name: 'main', running: true, session_dir: '/s/main', socket_path: '/s/main/herdr.sock' },
@@ -159,7 +159,7 @@ test('PowerShell 명령: 작은따옴표가 든 경로·값이 깨지지 않는�
   assert.equal(psQuote("it's"), "'it''s'")
   assert.equal(herdr.winAttachCommand("C:\\Users\\O'Brien\\herdr.exe", 'main'), "& 'C:\\Users\\O''Brien\\herdr.exe' '--session' 'main'")
   assert.equal(herdr.winAttachCommand('C:\\herdr.exe', 'default'), "& 'C:\\herdr.exe'")
-  // 세션 이름에 PowerShell 구분자가 들어도 인자 하나로 남는다(M5-T4 codex 리뷰)
+  // 데스크 이름에 PowerShell 구분자가 들어도 인자 하나로 남는다(M5-T4 codex 리뷰)
   assert.equal(herdr.winAttachCommand('C:\\herdr.exe', "x; Start-Process calc"), "& 'C:\\herdr.exe' '--session' 'x; Start-Process calc'")
   assert.equal(herdr.winRunCommand(['C:\\bin\\hc.exe', 'attach', 't4'], { HC_SESSION: 'default', HC_SOCKET: "C:\\a b\\it's.sock" }),
     "$env:HC_SESSION='default'; $env:HC_SOCKET='C:\\a b\\it''s.sock'; & 'C:\\bin\\hc.exe' 'attach' 't4'")
@@ -175,7 +175,7 @@ function fakeHelper(reply = 'opened') {
   const lines = []
   return { lines, start() {}, stop() {}, send(line) { lines.push(line); return Promise.resolve(typeof reply === 'function' ? reply(line) : reply) } }
 }
-test('윈도우 칸 클릭: 도우미에 세션·터미널·새 창 명령을 보내고, 20초 안의 두 번째 클릭은 새 창을 열지 말라고 보낸다', async () => {
+test('윈도우 세션 클릭: 도우미에 데스크·터미널·새 창 명령을 보내고, 20초 안의 두 번째 클릭은 새 창을 열지 말라고 보낸다', async () => {
   _setPlatform('win32')
   process.env.HERDR_BIN_PATH = "C:\\it's\\herdr.exe"
   try {
@@ -191,7 +191,7 @@ test('윈도우 칸 클릭: 도우미에 세션·터미널·새 창 명령을 �
     assert.match(h.lines.at(-1), /^w20a\|0\|0\|wt\|/)
   } finally { delete process.env.HERDR_BIN_PATH; herdr._setWinHelper(null) }
 })
-test('윈도우 칸 클릭: 이미 떠 있던 창을 올렸다는 답이면 표시를 지워 다음 클릭이 새 창을 열 수 있다', async () => {
+test('윈도우 세션 클릭: 이미 떠 있던 창을 올렸다는 답이면 표시를 지워 다음 클릭이 새 창을 열 수 있다', async () => {
   _setPlatform('win32')
   const h = fakeHelper('raised:console:42'); herdr._setWinHelper(h)
   try {
@@ -202,7 +202,7 @@ test('윈도우 칸 클릭: 이미 떠 있던 창을 올렸다는 답이면 표�
     assert.deepEqual(h.lines.map((l) => l.split('|')[2]), ['0', '0'])
   } finally { herdr._setWinHelper(null) }
 })
-test('윈도우 칸 클릭: herdr 세션 이름 규칙에 맞지 않는 이름은 도우미에 보내지 않는다(M5-T4 codex 리뷰)', async () => {
+test('윈도우 세션 클릭: herdr 데스크 이름 규칙에 맞지 않는 이름은 도우미에 보내지 않는다(M5-T4 codex 리뷰)', async () => {
   _setPlatform('win32')
   const h = fakeHelper(); herdr._setWinHelper(h)
   try {
@@ -234,7 +234,7 @@ test('윈도우 Herdr 앱 올리기: 도우미에 앱 이름만(글자 거름) �
 })
 
 // ── herdr-core 새 창: 윈도우는 /usr/bin/env 대신 환경변수를 따로 넘긴다 ──
-test('herdr-core 카드(앱 창 없음): 윈도우는 [hc, attach, 터미널]과 환경변수 묶음으로 새 창을 연다', async () => {
+test('herdr-core 세션(앱 창 없음): 윈도우는 [hc, attach, 터미널]과 환경변수 묶음으로 새 창을 연다', async () => {
   const saved = process.env.HC_SOCKET
   const savedRun = process.env.XDG_RUNTIME_DIR
   process.env.HC_SOCKET = 'C:\\Users\\Hong Gildong\\core.sock'
@@ -292,8 +292,8 @@ test('doctor: 윈도우 앱 실행 별칭(stat이 실패하는 링크, WindowsAp
   assert.equal(doctor.which('wt', { PATH: apps }, false), null)   // 윈도우가 아니면 끊긴 링크는 없는 것
 })
 
-// ── 설정 패널: 윈도우 서버면 터미널 칸이 보이고 OS 알림 칸은 숨는다 ─────
-test('윈도우 서버의 /api/settings: 터미널 칸을 그릴 감지 결과(supported·선택지)를 준다', async () => {
+// ── 설정: 윈도우 서버면 터미널 항목이 보이고 OS 알림 항목은 숨는다 ─────
+test('윈도우 서버의 /api/settings: 터미널 항목을 그릴 감지 결과(supported·선택지)를 준다', async () => {
   _setPlatform('win32')
   const { startBoard } = await import('../src/board/server.mjs')
   const db = openDb(':memory:')
@@ -305,7 +305,7 @@ test('윈도우 서버의 /api/settings: 터미널 칸을 그릴 감지 결과(s
     assert.deepEqual(r.detected.choices.map(([n]) => n), ['auto', 'PowerShell', 'Windows Terminal', 'off'])
   } finally { await new Promise((res) => server.close(res)); server.closeAllConnections?.() }
 })
-test('설정 패널 화면: 윈도우 서버면 윈도우 선택지·안내를 쓰고 macOS 알림(os_notify) 칸을 뺀다', async () => {
+test('설정 화면: 윈도우 서버면 윈도우 선택지·안내를 쓰고 macOS 알림(os_notify) 항목을 뺀다', async () => {
   const { readFileSync } = await import('node:fs')
   const html = readFileSync(new URL('../src/board/index.html', import.meta.url), 'utf8')
   const I18N = new Function(`${html.match(/const I18N = \{[\s\S]*?\n\}\n/)[0]}; return I18N`)()
