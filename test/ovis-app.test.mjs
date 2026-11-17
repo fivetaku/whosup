@@ -797,10 +797,11 @@ test('서버 찾기: 등록부의 죽은 pid·깨진 파일은 넘어가고, 답
   writeFileSync(join(reg, 'quoted.json'), JSON.stringify({ note: '"port": 48015, "pid": 1', token: TOKEN }))
   writeFileSync(join(reg, 'notes.txt'), '{"port":48016,"pid":1}')
   assert.deepEqual(ovis.registryPorts([reg, join(dir, 'no-such-dir'), reg]), [48011])
-  assert.deepEqual(ovis.registryDirs({ XDG_CONFIG_HOME: '/x/cfg' }, '/home/u'), ['/home/u/.config/ovis/bridges', '/home/u/.config/herdr-web-ui/bridges', '/x/cfg/ovis/bridges', '/x/cfg/herdr-web-ui/bridges'])
+  // 폴더는 이 운영체제의 경로 규칙(path.join)으로 잇는다 — 윈도우에서는 '\' 로 이어지고 그대로 읽힌다. 기대값도 같은 join 으로 만든다(macOS·Linux 에서는 글자 그대로 '/…').
+  assert.deepEqual(ovis.registryDirs({ XDG_CONFIG_HOME: '/x/cfg' }, '/home/u'), [join('/home/u', '.config', 'ovis', 'bridges'), join('/home/u', '.config', 'herdr-web-ui', 'bridges'), join('/x/cfg', 'ovis', 'bridges'), join('/x/cfg', 'herdr-web-ui', 'bridges')])
   // 사용자 데이터 폴더: 운영체제마다, 앱 이름은 넘겨받은 것. 경로가 될 수 없는 이름은 받지 않는다
-  assert.deepEqual(ovis.userDataDirs('Deskapp', {}, '/home/u', 'darwin'), ['/home/u/Library/Application Support/Deskapp'])
-  assert.deepEqual(ovis.userDataDirs('Deskapp', { XDG_CONFIG_HOME: '/x/cfg' }, '/home/u', 'linux'), ['/x/cfg/Deskapp', '/home/u/.config/Deskapp'])
+  assert.deepEqual(ovis.userDataDirs('Deskapp', {}, '/home/u', 'darwin'), [join('/home/u', 'Library', 'Application Support', 'Deskapp')])
+  assert.deepEqual(ovis.userDataDirs('Deskapp', { XDG_CONFIG_HOME: '/x/cfg' }, '/home/u', 'linux'), [join('/x/cfg', 'Deskapp'), join('/home/u', '.config', 'Deskapp')])
   assert.deepEqual(ovis.userDataDirs('Deskapp', { APPDATA: 'C:\\Users\\u\\AppData\\Roaming' }, 'C:\\Users\\u', 'win32').length, 1)
   for (const bad of [null, '', '..', 'a/b', 'a\\b']) assert.deepEqual(ovis.userDataDirs(bad, {}, '/home/u', 'darwin'), [])
   const ud = join(dir, 'ud-unit'); mkdirSync(ud, { recursive: true })

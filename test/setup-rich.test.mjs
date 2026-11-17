@@ -303,7 +303,8 @@ test('화면 값(WHOSUP_UI · WHOSUP_UI_COLS · WHOSUP_UI_OPEN)은 오래 사는
   assert.match(sa, /\['WHOSUP_ENV_PICK', 'WHOSUP_ENV_INSTALLED', 'WHOSUP_ENV_APP', \.\.\.UI_ENV_KEYS\]\) delete senv\[k\]/)
 })
 
-test('PATH에 더하는 명령(pathAddCmd): 사람의 셸이 읽는 파일에, 집 폴더 안이면 $HOME/… 으로. 셸이 달리 읽을 글자가 있으면 명령 없음', () => {
+// pathAddCmd는 단독 설치 요약(src/standalone.mjs withPathAdd)에만 쓰는 sh 명령이다 — 단독 설치는 macOS·Linux 전용이라(README "On Windows") 윈도우에서는 건너뛴다.
+test('PATH에 더하는 명령(pathAddCmd): 사람의 셸이 읽는 파일에, 집 폴더 안이면 $HOME/… 으로. 셸이 달리 읽을 글자가 있으면 명령 없음', { skip: process.platform === 'win32' ? '단독 설치는 macOS·Linux 전용이다' : false }, () => {
   const H = '/Users/someone', bin = `${H}/.local/bin`
   assert.equal(pathAddCmd(bin, { env: { SHELL: '/bin/zsh' }, home: H, platform: 'darwin' }), `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc`)
   assert.equal(pathAddCmd(bin, { env: { SHELL: '/bin/zsh', ZDOTDIR: '/z/dot' }, home: H, platform: 'darwin' }), `echo 'export PATH="$HOME/.local/bin:$PATH"' >> /z/dot/.zshrc`)

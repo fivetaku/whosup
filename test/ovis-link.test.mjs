@@ -155,7 +155,9 @@ test('macOS: 이진 plist 는 plutil 로 XML 로 바꿔 읽는다(그 파일 경
   assert.equal(execs.length, 1)
 })
 
-test('Linux: 응용 프로그램 폴더의 .desktop 의 MimeType 에 x-scheme-handler/ovis 가 있으면 안다. 없으면 xdg-mime query default 를 묻는다', () => {
+// Linux 갈래(p === 'linux')는 실제 임시 폴더를 XDG_DATA_DIRS 로 넘긴다. XDG_DATA_DIRS 는 ':' 로 나뉘는 목록이라(Linux 의 규칙 — 제품이 맞다) 드라이브 문자가
+// 든 윈도우 임시 경로(C:\…)는 두 조각으로 갈려 흉내 낼 수 없다. 윈도우에서 linkSupported 는 이 갈래를 타지 않고 reg 갈래(아래 "Windows:" 시험)를 탄다.
+test('Linux: 응용 프로그램 폴더의 .desktop 의 MimeType 에 x-scheme-handler/ovis 가 있으면 안다. 없으면 xdg-mime query default 를 묻는다', { skip: process.platform === 'win32' ? 'XDG_DATA_DIRS 는 ":" 목록이라 윈도우 경로로 Linux 를 흉내 낼 수 없다' : false }, () => {
   const home = join(dir, 'lhome')
   const data = join(dir, 'ldata')
   const env = { XDG_DATA_HOME: join(home, 'share'), XDG_DATA_DIRS: data, XDG_CONFIG_HOME: join(home, 'cfg') }
