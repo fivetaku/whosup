@@ -73,13 +73,13 @@ test('launch.mjs start·status·stop: herdr가 없어도 뜨고, pid 파일이 �
 test('herdr-plugin.toml: windows 항목은 node로, linux·macos 항목의 sh 명령은 그대로', () => {
   const toml = readFileSync(join(ROOT, 'herdr-plugin.toml'), 'utf8')
   assert.match(toml, /^platforms = \["linux", "macos", "windows"\]$/m)
-  // 원래(aa1a671) 있던 sh 명령 줄 8개가 글자 그대로 남아 있다
+  // sh 명령 줄: build 훅은 설치에 이어지는 셋업(preflight.sh install)이고, 나머지 7개는 원래(aa1a671) 글자 그대로다
   const shLines = [
-    'command = ["sh", "scripts/preflight.sh"]', 'command = ["sh", "scripts/plugin.sh", "start"]', 'command = ["sh", "scripts/plugin.sh", "start"]',
+    'command = ["sh", "scripts/preflight.sh", "install"]', 'command = ["sh", "scripts/plugin.sh", "start"]', 'command = ["sh", "scripts/plugin.sh", "start"]',
     'command = ["sh", "scripts/plugin.sh", "stop"]', 'command = ["sh", "scripts/plugin.sh", "status"]',
     'command = ["sh", "-c", ". scripts/node-path.sh && exec node scripts/desks.mjs apply"]', 'command = ["sh", "-c", ". scripts/node-path.sh && exec node scripts/desks.mjs status"]',
     'command = ["sh", "scripts/plugin.sh", "open"]',
-    // 2회차: 자동 세팅 액션(설치·시작 때는 preflight가 부른다)
+    // 2회차: 자동 감지 액션(시작 때는 preflight가 부른다)
     'command = ["sh", "-c", ". scripts/node-path.sh && exec node scripts/autoconf.mjs"]',
   ]
   const have = toml.split('\n').filter((l) => l.startsWith('command = ["sh"'))
@@ -93,6 +93,9 @@ test('herdr-plugin.toml: windows 항목은 node로, linux·macos 항목의 sh �
     else assert.equal(pl, '["windows"]')
     if (pl === '["windows"]') assert.match(it, /command = \["node", "scripts\/(launch|desks|doctor|autoconf)\.mjs"/)
   }
+  // build 훅 두 개(sh·node)가 같은 일(설치 셋업)을 부른다
+  const builds = items.filter((it) => it.startsWith('build]]')).map((it) => /^command = (\[.*\])$/m.exec(it)[1])
+  assert.deepEqual(builds, ['["sh", "scripts/preflight.sh", "install"]', '["node", "scripts/launch.mjs", "install"]'])
   // action id는 플러그인 안에서 유일해야 한다(herdr 문서)
   const ids = [...toml.matchAll(/^id = "([^"]+)"$/gm)].map((m) => m[1]).filter((x) => x !== 'fivetaku.whosup')
   assert.equal(new Set(ids).size, ids.length)

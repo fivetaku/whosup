@@ -1,7 +1,9 @@
-import { DatabaseSync } from 'node:sqlite'
+import { loadSqlite } from './sqlite.mjs'
 import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
+
+const { DatabaseSync } = await loadSqlite()
 
 export const STATE_DIR = process.env.WHOSUP_STATE_DIR || join(homedir(), '.config', 'whosup')
 export const DEFAULT_DB = join(STATE_DIR, 'whosup.db')

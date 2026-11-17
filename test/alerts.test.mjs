@@ -30,7 +30,7 @@ test('#3: attention_since가 바뀌면(새 사건) 다시 알린다', () => {
   assert.deepEqual(r.send, [{ id: 1, again: false }])
 })
 
-test('#21: 손 들 때 탭을 보고 있어 못 보낸 칸의 첫 실발송에는 "다시"가 붙지 않는다', () => {
+test('#21: 손 들 때 탭을 보고 있어 못 보낸 세션의 첫 실발송에는 "다시"가 붙지 않는다', () => {
   const a = keys(card(1, 'done'))
   let r = planAlerts(new Map(), a, new Map(), { now: 0, away: false, on: true, off: false, cfg })
   assert.deepEqual(r.send, [])
@@ -50,7 +50,7 @@ test('#7: 수집이 끊긴 동안에는 재알림하지 않는다', () => {
   assert.deepEqual(r.send, [{ id: 1, again: true }])
 })
 
-test('재알림은 처음 1회 + renotify_max회까지, 풀린 칸은 걷는다', () => {
+test('재알림은 처음 1회 + renotify_max회까지, 풀린 세션은 걷는다', () => {
   const a = keys(card(1, 'blocked'))
   let r = planAlerts(new Map(), a, new Map(), { now: 0, away: true, on: true, off: false, cfg })
   let sent = r.send.length
@@ -78,6 +78,6 @@ test('#4: 데스크 순서는 처음 본 순서로 고정되고, 새 데스크�
   const seen = []
   const g = (desk, n) => ({ desk, cards: Array(n).fill(0) })
   assert.deepEqual(orderDesks([g('b', 1), g('a', 3)], seen).map((x) => x.desk), ['a', 'b'])
-  assert.deepEqual(orderDesks([g('b', 5), g('a', 1)], seen).map((x) => x.desk), ['a', 'b'], '칸 수가 바뀌어도 자리가 그대로')
+  assert.deepEqual(orderDesks([g('b', 5), g('a', 1)], seen).map((x) => x.desk), ['a', 'b'], '세션 수가 바뀌어도 자리가 그대로')
   assert.deepEqual(orderDesks([g('c', 9), g('b', 1), g('a', 1)], seen).map((x) => x.desk), ['a', 'b', 'c'])
 })

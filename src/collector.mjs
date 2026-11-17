@@ -3,7 +3,7 @@ import { getSettings } from './settings.mjs'
 
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
 
-// 런타임 조회. listSnapshot이 있으면 확인 불가 세션 목록까지 받는다.
+// 런타임 조회. listSnapshot이 있으면 확인 불가 데스크 목록까지 받는다.
 function snapshot(runtime) {
   if (typeof runtime.listSnapshot === 'function') return runtime.listSnapshot()
   return { sessions: runtime.listSessions(), unreachable: [] }
@@ -29,7 +29,7 @@ export function collectOnce(db, runtime, { now = new Date(), emit = true, source
   try {
     snap = snapshot(runtime)
   } catch (err) {
-    // herdr에 아예 닿지 않음: 칸을 하나도 건드리지 않고 실패만 남긴다(약속 5 — 모르면 모른다고 한다).
+    // herdr에 아예 닿지 않음: 세션을 하나도 건드리지 않고 실패만 남긴다(약속 5 — 모르면 모른다고 한다).
     if (health) {
       setMeta(db, 'collect_err', String(err.message || err).slice(0, 300))
       setMeta(db, 'collect_err_kind', errKind(err))
@@ -37,14 +37,15 @@ export function collectOnce(db, runtime, { now = new Date(), emit = true, source
     }
     throw err
   }
-  const { sessions, unreachable = [], stopped = [], holdAll = false } = snap
-  // 줄(데스크) 이름: herdr는 ref의 앞 마디, 그 밖의 런타임은 스스로 알려 준다.
+  // parts: 런타임의 일부(herdr-core 의 코어 하나)에만 닿지 못했다 — [{ key, label, owns(ref) }]. 그 부분의 세션만 확인 불가로 둔다.
+  const { sessions, unreachable = [], stopped = [], holdAll = false, parts = [] } = snap
+  // 데스크 이름: herdr는 ref의 앞 마디, 그 밖의 런타임은 스스로 알려 준다.
   const deskOf = (row) => (runtime.deskOf ? runtime.deskOf(row) : row.runtime_ref.split('/')[0])
-  // 수집 공백은 런타임마다 따로 잰다: 한쪽(herdr)이 한동안 읽히지 않았다고 멀쩡히 읽히는 다른 쪽(herdr-core) 칸의
+  // 수집 공백은 런타임마다 따로 잰다: 한쪽(herdr)이 한동안 읽히지 않았다고 멀쩡히 읽히는 다른 쪽(herdr-core) 세션의
   // 대기 시작 시각을 수집 때마다 새로 잡으면 안 된다. 예전 DB에는 런타임별 값이 없어 공용 값으로 이어받는다.
   const okKey = `collect_ok_at:${runtime.name}`
   const lastOk = getMeta(db, okKey) || getMeta(db, 'collect_ok_at')
-  // 수집 공백 뒤 첫 수집: 그동안 일어난 일을 모르므로 손 든 칸은 새 사건으로 연다.
+  // 수집 공백 뒤 첫 수집: 그동안 일어난 일을 모르므로 손 든 세션은 새 사건으로 연다.
   const resumedAfterGap = lastOk && now.getTime() - new Date(lastOk).getTime() > cfg.stale_collect_sec * 1000
   const primed = db.prepare('SELECT COUNT(*) AS n FROM session WHERE runtime = ?').get(runtime.name).n > 0
   emit = emit && primed
@@ -64,17 +65,20 @@ export function collectOnce(db, runtime, { now = new Date(), emit = true, source
   let events = 0
   let gone = 0
   let held = 0
+  const heldParts = new Set()   // 세션을 확인 불가로 남긴 부분(parts)의 열쇠
 
+  // 세션을 확인 불가로 남긴 부분의 이름(판의 "확인 불가" 목록에 보탠다). 세션이 없던 부분은 조용히 둔다.
+  const partLabels = () => parts.filter((p) => heldParts.has(p.key)).map((p) => p.label || p.key).filter((l) => !unreachable.includes(l))
   transaction(db, () => {
     for (let s of sessions) {
       let row = get.get(s.runtime, s.runtime_ref)
-      // a different conversation moved into the same pane: archive the old row, start a new one
+      // a different conversation moved into the same terminal: archive the old row, start a new one
       if (runtime.TRACKS_GONE && row?.provider_session && s.provider_session && row.provider_session !== s.provider_session) {
         detach.run(`${row.runtime_ref}#${row.id}`, at, row.id)
         row = null
       }
-      // 다른 에이전트 프로그램이 그 터미널을 차지했다(런타임이 프로그램을 알려 줄 때만): 옛 카드의 대화 id·확인·핀·보관을
-      // 새 프로그램의 카드에 물려주지 않는다 — 옛 행은 닫힘으로 보내고 새 행으로 시작한다. 대화 id가 있고 없고와 무관하다.
+      // 다른 에이전트 프로그램이 그 터미널을 차지했다(런타임이 프로그램을 알려 줄 때만): 옛 세션의 대화 id·확인·핀·보관을
+      // 새 프로그램의 세션에 물려주지 않는다 — 옛 행은 닫힘으로 보내고 새 행으로 시작한다. 대화 id가 있고 없고와 무관하다.
       if (runtime.AGENT_CHANGE_IS_NEW && row?.provider && s.provider && s.provider !== row.provider) {
         detach.run(`${row.runtime_ref}#${row.id}`, at, row.id)
         row = null
@@ -107,7 +111,7 @@ export function collectOnce(db, runtime, { now = new Date(), emit = true, source
       } else {
         sessionId = row.id
         update.run(...values, at, row.id)
-        // 보관은 주의를 가리지 않는다(I-2): 보관한 칸이 다시 움직이면(작업 중·입력 필요·답변 도착) 판으로 돌려놓는다.
+        // 보관은 주의를 가리지 않는다(I-2): 보관한 세션이 다시 움직이면(작업 중·입력 필요·답변 도착) 판으로 돌려놓는다.
         if (row.stashed_at && s.status !== row.status && ['working', 'blocked', 'done'].includes(s.status)) {
           unstash.run(row.id)
           addEvent.run(row.id, at, 'unstash', JSON.stringify(row.stashed_at), 'null', source)
@@ -126,28 +130,41 @@ export function collectOnce(db, runtime, { now = new Date(), emit = true, source
       const present = new Set(sessions.map((s) => s.runtime_ref))
       const cut = new Set(unreachable)
       const off = new Set(stopped)
-      // unreachable: 1 = 조회 실패(확인 불가, 마지막 상태 유지), 2 = 서버 꺼짐(손 든 칸에서 뺌)
+      // unreachable: 1 = 조회 실패(확인 불가, 마지막 상태 유지), 2 = 서버 꺼짐(손 든 세션에서 뺌)
       // updated_at은 건드리지 않는다 — 확인 불가 동안 그 값이 곧 "마지막으로 확인한 시각"이다(#8).
       const hold = db.prepare('UPDATE session SET unreachable = ? WHERE id = ?')
       const miss = db.prepare('UPDATE session SET miss_count = miss_count + 1 WHERE id = ?')
       const markGone = db.prepare("UPDATE session SET archived = 1, status = 'gone', unreachable = 0, updated_at = ? WHERE id = ?")
       // 런타임 전체에 닿지 않기 시작한 때(holdAll). 닿으면 지운다. "오래 닿지 않았다"는 이 시각부터 잰다 —
-      // 후즈업을 오래 꺼 두었다가 켠 직후 한 번 닿지 않았다고 칸을 닫지 않는다.
+      // 후즈업을 오래 꺼 두었다가 켠 직후 한 번 닿지 않았다고 세션을 닫지 않는다.
       const downKey = `collect_down_since:${runtime.name}`
       let downSince = getMeta(db, downKey)
       if (holdAll && !downSince) { downSince = at; setMeta(db, downKey, at) }
       if (!holdAll && downSince) setMeta(db, downKey, null)
-      const downFor = holdAll ? now.getTime() - new Date(downSince).getTime() : 0
+      // 런타임의 일부(parts)에만 닿지 않을 때도 같은 시계를 부분마다 따로 둔다: 한 코어가 꺼졌다고 다른 코어의 세션을 닫지 않고,
+      // 꺼진 코어의 세션만 확인 불가로 두었다가 오래 닿지 않으면 닫힘으로 보낸다. 런타임 전체에 닿지 않는 동안에는 부분 시계를 그대로 둔다.
+      const partSince = new Map()
+      if (!holdAll) {
+        const prefix = `${downKey}/`
+        const known = new Map(db.prepare('SELECT key, value FROM meta WHERE substr(key, 1, ?) = ?').all(prefix.length, prefix).map((r) => [r.key.slice(prefix.length), r.value]))
+        for (const [k, v] of known) if (v != null && !parts.some((p) => p.key === k)) setMeta(db, prefix + k, null)
+        // 방금까지 런타임 전체에 닿지 않았다면(downSince) 그때부터 센다 — 다른 부분이 먼저 돌아왔다고 시계를 새로 시작하지 않는다.
+        for (const p of parts) { const since = known.get(p.key) || downSince || at; if (!known.get(p.key)) setMeta(db, prefix + p.key, since); partSince.set(p.key, since) }
+      }
+      const ttl = cfg.unreachable_ttl_h * 3600000
       for (const row of db.prepare('SELECT id, runtime_ref, miss_count, fields_json, updated_at FROM session WHERE runtime = ? AND archived = 0').all(runtime.name)) {
         if (present.has(row.runtime_ref)) continue
-        // 조회하지 못한 세션의 칸: 마지막 상태를 그대로 두고 "확인 불가"로 표시한다.
+        // 조회하지 못한 데스크의 세션: 마지막 상태를 그대로 두고 "확인 불가"로 표시한다.
         const desk = deskOf(row)
-        // 런타임 전체에 닿지 않는 채로(holdAll) unreachable_ttl_h가 지난 칸은 닫힘으로 보낸다 — 지운 프로그램의 칸이 판에 영영 남지 않게.
-        if (holdAll && !off.has(desk) && downFor > cfg.unreachable_ttl_h * 3600000 && now.getTime() - new Date(row.updated_at).getTime() > cfg.unreachable_ttl_h * 3600000) {
+        const part = holdAll ? null : parts.find((p) => p.owns(row.runtime_ref)) || null
+        const since = holdAll ? downSince : part ? partSince.get(part.key) : null
+        const downFor = since ? now.getTime() - new Date(since).getTime() : 0
+        // 런타임 전체(holdAll)나 그 세션의 부분(part)에 닿지 않는 채로 unreachable_ttl_h가 지난 세션은 닫힘으로 보낸다 — 지운 프로그램의 세션이 판에 영영 남지 않게.
+        if ((holdAll || part) && !off.has(desk) && downFor > ttl && now.getTime() - new Date(row.updated_at).getTime() > ttl) {
           markGone.run(at, row.id); addEvent.run(row.id, at, 'gone', 'false', 'true', source); gone += 1; continue
         }
-        if (holdAll || cut.has(desk) || off.has(desk)) { hold.run(off.has(desk) ? 2 : 1, row.id); held += 1; continue }
-        // 정말 없어진 칸: 연속 gone_misses번 안 보여야 닫힘으로 옮긴다(일시 오류에 흔들리지 않게).
+        if (holdAll || part || cut.has(desk) || off.has(desk)) { hold.run(off.has(desk) ? 2 : 1, row.id); held += 1; if (part) heldParts.add(part.key); continue }
+        // 정말 없어진 세션: 연속 gone_misses번 안 보여야 닫힘으로 옮긴다(일시 오류에 흔들리지 않게).
         if (row.miss_count + 1 >= cfg.gone_misses) {
           markGone.run(at, row.id)
           addEvent.run(row.id, at, 'gone', 'false', 'true', source)
@@ -158,14 +175,14 @@ export function collectOnce(db, runtime, { now = new Date(), emit = true, source
     if (!holdAll) setMeta(db, okKey, at)
     if (health) {
       setMeta(db, 'collect_ok_at', at)
-      setMeta(db, 'collect_unreachable', unreachable.join(','))
+      setMeta(db, 'collect_unreachable', [...unreachable, ...partLabels()].join(','))
       setMeta(db, 'collect_stopped', stopped.join(','))
     }
   })
-  return { at, sessions: sessions.length, added, events, gone, held, unreachable, stopped }
+  return { at, sessions: sessions.length, added, events, gone, held, unreachable: [...unreachable, ...partLabels()], stopped, heldParts: [...heldParts] }
 }
 
-// 끝난 칸을 '유휴'로만 알려 주는 런타임(윈도우 herdr — '답변 도착'을 내지 않는다)에서, 아직 안 본 끝난 칸을 답변 도착으로 해석한다.
+// 끝난 세션을 '유휴'로만 알려 주는 런타임(윈도우 herdr — '답변 도착'을 내지 않는다)에서, 아직 안 본 끝난 세션을 답변 도착으로 해석한다.
 // D3: 진행 중 → 유휴. D2: 수집 사이(3초)에 새 요청이 들어왔다가 이미 끝나 유휴로만 보이는 짧은 작업.
 // 그렇게 만든 답변 도착은 같은 대화에 새 요청이 없는 동안 유지된다(확인함·열기는 보드의 확인 처리로 내린다). 2026-11-09 QA
 function inferDone(runtime, s, row, prev) {

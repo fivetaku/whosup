@@ -1,5 +1,5 @@
 // 탭이 닫혀 있어도 닿는 macOS 알림(선택 옵션, 기본 끔 — 설정 os_notify). 약속 4.
-// 손 든 칸마다 처음 1회 + renotify_min 간격으로 최대 renotify_max회 다시 보낸다. 확인함으로 미룬 칸은 보내지 않는다.
+// 손 든 세션마다 처음 1회 + renotify_min 간격으로 최대 renotify_max회 다시 보낸다. 확인함으로 미룬 세션은 보내지 않는다.
 import { execFile } from 'node:child_process'
 import { attentionState, collectHealth, orderAttention } from './board/board.mjs'
 import { getMeta, setMeta } from './db.mjs'
@@ -14,12 +14,12 @@ export function osNotify({ title, subtitle, body }, run = execFile) {
 
 const KIND = { blocked: { ko: '입력 필요', en: 'needs input' }, done: { ko: '답변 도착', en: 'finished' } }
 const TEXT = {
-  blind: { ko: ['herdr를 읽지 못하고 있습니다', '그동안 손 든 칸 알림이 멈춥니다'], en: ['cannot read herdr', 'pane alerts are paused until it reconnects'] },
-  many: { ko: (n) => `칸 ${n}개가 기다립니다`, en: (n) => `${n} panes are waiting` },
+  blind: { ko: ['herdr를 읽지 못하고 있습니다', '그동안 손 든 세션 알림이 멈춥니다'], en: ['cannot read herdr', 'session alerts are paused until it reconnects'] },
+  many: { ko: (n) => `세션 ${n}개가 기다립니다`, en: (n) => `${n} sessions are waiting` },
 }
 const lang = () => (process.env.LANG || '').startsWith('ko') ? 'ko' : 'en'
 
-// prime=true(프로세스 첫 수집)면 이미 손 든 칸은 보낸 것으로만 표시한다 — 재시작마다 알림이 쏟아지지 않게.
+// prime=true(프로세스 첫 수집)면 이미 손 든 세션은 보낸 것으로만 표시한다 — 재시작마다 알림이 쏟아지지 않게.
 export function notifyPass(db, { now = new Date(), prime = false, send = osNotify } = {}) {
   const cfg = getSettings(db)
   if (!cfg.os_notify) return 0
@@ -44,7 +44,7 @@ export function notifyPass(db, { now = new Date(), prime = false, send = osNotif
   const name = (s) => s.pane_label || s.project
   let sent = 0
   if (!prime && due.length >= 2) {
-    // 동시에 여러 칸이면 한 통으로 묶는다(#16). 순번대로 이름을 늘어놓는다.
+    // 동시에 여러 세션이면 한 통으로 묶는다(#16). 순번대로 이름을 늘어놓는다.
     send({ title: 'whosup', subtitle: TEXT.many[L](due.length), body: due.map((s) => `${name(s)} · ${KIND[s.status][L]}`).join(', ') })
     sent = 1
   } else if (!prime && due.length === 1) {

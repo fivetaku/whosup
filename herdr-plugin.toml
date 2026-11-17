@@ -2,18 +2,23 @@ id = "fivetaku.whosup"
 name = "whosup"
 version = "0.1.0"
 min_herdr_version = "0.9.0"
-description = "Stop abandoning your agent sessions. One board for every herdr session: what needs input, what finished, what's running. Click to jump to that pane."
+description = "Stop abandoning your agent sessions. One board for every agent session in herdr: what needs input, what finished, what's running. Click to jump to that session."
 # windows: herdr runs commands without a shell, so Windows uses the node entries below (scripts/launch.mjs).
 # Each item says where it runs; the sh items are for linux and macos exactly as before.
 platforms = ["linux", "macos", "windows"]
 
-# Node 22.13+ only (node:sqlite). No build step: preflight checks Node, then runs autoconf (scripts/autoconf.mjs),
-# which looks at this machine (OS, terminal app, herdr, Herdr app, ovis, agents) and writes auto.json in the state folder.
+# Node 22.13+ only (node:sqlite). Nothing is compiled: the build hook checks Node, then runs first-run setup in the terminal
+# you install from (scripts/setup.mjs --install). It looks at this machine (terminal app, Herdr app, ovis, agents), asks only
+# what has more than one answer, saves your picks to setup.json in the plugin config dir, and, if herdr is running,
+# starts the board once the install command returns (the start action below). With no terminal (agents, CI) it asks nothing;
+# the board asks on first open. Ctrl-C at a question ends the install command too: nothing is installed or saved.
+# auto.json is not written here (herdr gives no state folder at build time); startup writes it.
 [[build]]
-command = ["sh", "scripts/preflight.sh"]
+command = ["sh", "scripts/preflight.sh", "install"]
 platforms = ["linux", "macos"]
 
-# Brings the board up when herdr starts (and opens the browser once, unless OPEN_BROWSER=0).
+# Brings the board up when herdr starts (and opens the browser once, unless OPEN_BROWSER=0 or the session is remote).
+# The start action runs the same command; the install invokes it once, right after the install command returns.
 [[startup]]
 command = ["sh", "scripts/plugin.sh", "start"]
 platforms = ["linux", "macos"]
@@ -62,14 +67,15 @@ platforms = ["linux", "macos"]
 
 [[actions]]
 id = "autoconf"
-title = "whosup autoconf (check this machine, update auto settings)"
+title = "whosup autoconf (check this machine, update auto-detected settings)"
 contexts = ["workspace"]
 command = ["sh", "-c", ". scripts/node-path.sh && exec node scripts/autoconf.mjs"]
 platforms = ["linux", "macos"]
 
 # ── Windows (no sh): the same jobs through node. Action ids must be unique in a plugin, so these carry a win- prefix.
+# The Windows build step asks nothing (herdr runs it without a visible console) and detects nothing; the board asks on first open.
 [[build]]
-command = ["node", "scripts/launch.mjs", "preflight"]
+command = ["node", "scripts/launch.mjs", "install"]
 platforms = ["windows"]
 
 [[startup]]
@@ -127,7 +133,7 @@ platforms = ["windows"]
 
 [[actions]]
 id = "win-autoconf"
-title = "whosup autoconf (check this machine, update auto settings)"
+title = "whosup autoconf (check this machine, update auto-detected settings)"
 contexts = ["workspace"]
 command = ["node", "scripts/autoconf.mjs"]
 platforms = ["windows"]

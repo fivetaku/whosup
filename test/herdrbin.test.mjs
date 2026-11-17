@@ -1,4 +1,4 @@
-// I-4 herdr 실행 파일 찾기는 한 곳: HERDR_BIN_PATH만 있는 환경에서도 칸 화면 읽기가 같은 파일을 쓴다.
+// I-4 herdr 실행 파일 찾기는 한 곳: HERDR_BIN_PATH만 있는 환경에서도 세션 화면 읽기가 같은 파일을 쓴다.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'

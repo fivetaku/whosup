@@ -39,14 +39,14 @@ test('I-10: 열기·확인함·이어서 열기·알림 클릭·키보드가 모
   assert.match(html, /read_only:/)
 })
 
-test('I-10: 읽기 전용 화면은 + 새 세션 버튼을 숨기고, 설정 패널에는 언어만 두고 저장 버튼을 내지 않는다', () => {
+test('I-10: 읽기 전용 화면은 + 새 세션 버튼을 숨기고, 설정에는 언어만 두고 저장 버튼을 내지 않는다', () => {
   const html = readFileSync(new URL('../src/board/index.html', import.meta.url), 'utf8')
   assert.match(html, /querySelector\('\[data-new\]'\)\.hidden = Boolean\(ro\)/)
   const fn = html.match(/async function showSettings\(\) \{[\s\S]*?\n\}\n/)[0]
   const ro = fn.match(/if \(!can\(\)\) \{([\s\S]*?)\n  \}/)
   assert.ok(ro, 'showSettings에 읽기 전용 분기가 있다')
   assert.ok(fn.indexOf('if (!can())') < fn.indexOf("fetch('/api/settings')"), '읽기 전용이면 서버 설정을 불러오기 전에 끝난다')
-  assert.doesNotMatch(ro[1], /data-save-settings|data-setting/, '읽기 전용 패널에는 저장 버튼·설정 칸이 없다')
+  assert.doesNotMatch(ro[1], /data-save-settings|data-setting/, '읽기 전용 설정에는 저장 버튼·입력란이 없다')
   assert.match(ro[1], /langRow/, '언어 전환은 남는다')
   for (const lang of ['ko', 'en']) assert.match(html, new RegExp(`${lang}: \\{ roSettings: '`), lang)
 })

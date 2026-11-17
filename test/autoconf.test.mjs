@@ -1,8 +1,8 @@
-// 2회차 자동 세팅: 레인 L1~L10 순수 함수(darwin·linux·win32 주입), 감지 실패 → 값 없음, 사람 값(DB·env) > auto, auto.json·.env 미생성.
+// 2회차 자동 감지: 레인 L1~L10 순수 함수(darwin·linux·win32 주입), 감지 실패 → 값 없음, 사람 값(DB·env) > auto, auto.json·.env 미생성.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -16,6 +16,7 @@ import { autoconfView, createBoardServer, firstRunDone } from '../src/board/serv
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const FAKE_HERDR = join(ROOT, 'test-support', 'fake-herdr.mjs')
+const FAKE_SETUP_HERDR = join(ROOT, 'test-support', 'fake-herdr-setup.mjs')
 const OSES = ['darwin', 'linux', 'win32']
 const val = (items, key) => items.find((i) => i.key === key)?.value
 const has = (items, key) => items.some((i) => i.key === key)
@@ -69,11 +70,67 @@ test('L4 터미널 앱: 맥 = 보여 주는 앱 > 설치 앱, 윈도우 = wt.exe
   assert.equal(val(laneTerminal({ platform: 'darwin', env: { SSH_CONNECTION: 'x' }, terminal: { showing: 'iTerm2', installed: ['Ghostty'] } }), 'front_app'), 'off', '맥도 원격이면 창 올리기 끔(L3)')
 })
 
+// 가-7 · F9: 떠 있는 herdr 창이 없을 때, 깔린 앱 목록보다 먼저 "지금 명령을 치고 있는 터미널"을 본다(환경이 말해 주는 것)
+test('L4 터미널 앱: 떠 있는 herdr 창이 없으면 지금 명령을 치고 있는 터미널(TERM_PROGRAM · TERM)이 깔린 앱 목록보다 먼저다 — 설치기와 보드가 같은 값을 말한다', async () => {
+  const { terminalOfEnv, MAC_TERMINALS, TERM_NAMES, optionsOf, evaluate, summarize } = await import('../src/autoconf.mjs')
+  // 환경 값 → 앱 이름: 표(MAC_TERMINALS)의 이름과 대소문자·끝의 .app 을 보지 않고 맞추고, 이름이 다른 값만 TERM_NAMES 에 있다
+  assert.equal(terminalOfEnv({ TERM_PROGRAM: 'Apple_Terminal' }), 'Terminal')
+  for (const name of MAC_TERMINALS) {
+    assert.equal(terminalOfEnv({ TERM_PROGRAM: name }), name, name); assert.equal(terminalOfEnv({ TERM_PROGRAM: name.toLowerCase() }), name, name)
+    assert.equal(terminalOfEnv({ TERM_PROGRAM: `${name}.app` }), name, `${name}.app`); assert.equal(terminalOfEnv({ TERM: `xterm-${name.toLowerCase()}` }), name, `TERM xterm-${name}`)
+  }
+  assert.ok(Object.values(TERM_NAMES).every((a) => MAC_TERMINALS.includes(a)), 'TERM_NAMES 는 표의 앱만 가리킨다')
+  assert.equal(terminalOfEnv({ TERM_PROGRAM: ' Apple_Terminal ', TERM: 'xterm-256color' }), 'Terminal')
+  assert.equal(terminalOfEnv({ TERM_PROGRAM: MAC_TERMINALS[0], TERM: `xterm-${MAC_TERMINALS[4]}` }), MAC_TERMINALS[0], 'TERM_PROGRAM 이 TERM 보다 먼저')
+  // 모르는 값·값 없음은 추측하지 않는다(다른 프로그램 안의 셸, 로그인할 때 뜬 보드, 에이전트가 돌린 설치)
+  for (const env of [{}, { TERM_PROGRAM: '' }, { TERM_PROGRAM: 'tmux' }, { TERM_PROGRAM: 'vscode' }, { TERM: 'xterm-256color' }, { TERM: 'dumb' }, { TERM_PROGRAM: 'constructor' }, { TERM_PROGRAM: '__proto__' }, undefined, null]) assert.equal(terminalOfEnv(env), null, JSON.stringify(env))
+  // 레인의 순서: 지금 herdr를 띄운 앱 > 지금 치고 있는 터미널 > 깔린 앱. 원격이면 여전히 off
+  const other = MAC_TERMINALS.find((a) => a !== 'Terminal')
+  const lane = (terminal, env = {}) => laneTerminal({ platform: 'darwin', env, terminal })
+  assert.equal(val(lane({ showing: null, installed: ['Terminal', other], current: 'Terminal' }), 'front_app'), 'Terminal', '다른 앱이 깔려 있어도 지금 치고 있는 터미널이 먼저다(전에는 깔린 앱이 감지됐다)')
+  assert.match(lane({ showing: null, installed: ['Terminal', other], current: 'Terminal' })[0].reason, /terminal this was started from/)
+  assert.equal(val(lane({ showing: null, installed: ['Terminal', other], current: null }), 'front_app'), other, '환경이 말해 주지 않으면 전과 같다(깔린 앱)')
+  assert.equal(val(lane({ showing: null, installed: ['Terminal', other] }), 'front_app'), other)
+  assert.equal(val(lane({ showing: 'iTerm2', installed: [other], current: 'Terminal' }), 'front_app'), 'iTerm2', '지금 herdr를 띄운 앱이 맨 먼저')
+  assert.equal(val(lane({ showing: null, installed: [other], current: 'Terminal' }, { SSH_CONNECTION: 'x' }), 'front_app'), 'off', '원격이면 창 올리기 끔')
+  assert.equal(val(laneTerminal({ platform: 'linux', env: local.linux, terminal: { current: 'Terminal' } }), 'front_app'), undefined, '리눅스는 그대로 값 없음')
+  // 값 우선순위는 그대로다: 이것은 "자동 감지" 안의 순서라서, 사람이 바꾼 값·환경변수(FRONT_APP)가 여전히 이긴다(src/settings.mjs가 정한다)
+  const f = { platform: 'darwin', env: {}, terminal: { showing: null, installed: ['Terminal', other], current: 'Terminal' }, agents: { claude: '/x/claude' } }
+  const r = evaluate(f)
+  assert.equal(r.values.front_app, 'Terminal'); assert.match(r.reasons.front_app, /^L4: /)
+  // 화면이 쓰는 요약(설치기의 "감지한 것"과 보드의 첫 실행 안내가 같이 읽는 값)도 그 터미널이다
+  assert.equal(r.summary.terminal, 'Terminal'); assert.equal(summarize(f, r.lanes).terminal, 'Terminal')
+  // 선택지: 지금 치고 있는 터미널이 깔린 앱 목록에 없어도 선택지에 있다(맨 뒤). 목록에 있으면 한 번만
+  assert.deepEqual(optionsOf({ platform: 'darwin', terminal: { showing: null, installed: [other], current: 'Terminal' }, agents: {} }).terminal_apps.map((a) => [a.name, a.showing]), [[other, false], ['Terminal', false]])
+  assert.deepEqual(optionsOf({ platform: 'darwin', terminal: { showing: null, installed: ['Terminal', other], current: 'Terminal' }, agents: {} }).terminal_apps.map((a) => a.name), ['Terminal', other])
+})
+
+test('감지(scripts/autoconf.mjs): 맥에서는 환경의 TERM_PROGRAM 으로 "지금 치고 있는 터미널"을 본다 — 설치 셋업과 보드가 같은 감지(detect)를 쓴다', { skip: process.platform !== 'darwin' ? '맥에서만 터미널 앱을 본다' : false }, async () => {
+  const { MAC_TERMINALS } = await import('../src/autoconf.mjs')
+  // 이 기계에 깔려 있지 않은 터미널 앱의 이름을 환경에 준다: 그 이름이 결과에 나오면 환경에서 온 것이다(깔린 앱 목록에서 온 것이 아니다)
+  const home = mkdtempSync(join(tmpdir(), 'whosup-term-'))
+  const here = (a) => [join('/Applications', `${a}.app`), join('/System/Applications/Utilities', `${a}.app`), join(process.env.HOME || home, 'Applications', `${a}.app`), join(home, 'Applications', `${a}.app`)].some(existsSync)
+  const name = MAC_TERMINALS.find((a) => !here(a))
+  if (!name) return   // 표의 앱이 모두 깔린 기계에서는 가려낼 수 없다(레인의 순서는 위 시험이 본다)
+  const state = mkdtempSync(join(tmpdir(), 'whosup-term-state-'))
+  const env = { ...isolatedEnv(state, mkdtempSync(join(tmpdir(), 'whosup-term-conf-'))), HOME: home, XDG_CONFIG_HOME: join(home, '.config'), XDG_STATE_HOME: join(home, '.state'), PORT: '48770' }
+  for (const k of ['SSH_CONNECTION', 'SSH_TTY', 'FRONT_APP', 'TERM_PROGRAM', 'TERM']) delete env[k]
+  const run = (more) => JSON.parse(spawnSync(process.execPath, [join(ROOT, 'scripts/autoconf.mjs'), '--json', '--no-save'], { env: { ...env, ...more }, encoding: 'utf8', timeout: 60000 }).stdout)
+  const r = run({ TERM_PROGRAM: `${name}.app` })
+  const l4 = r.lanes.find((l) => l.key === 'front_app')
+  assert.ok(r.summary.options.terminal_apps.some((a) => a.name === name), `선택지에 그 터미널이 있다: ${JSON.stringify(r.summary.options.terminal_apps)}`)
+  // 떠 있는 herdr 창이 없으면 그 터미널이 자동 값이다(이 기계에 herdr 창이 떠 있으면 그 앱이 먼저다 — 그때는 이유 줄이 그렇게 말한다)
+  if (/is showing a herdr client now/.test(l4.reason)) assert.notEqual(l4.value, undefined)
+  else { assert.equal(l4.value, name, l4.reason); assert.equal(r.summary.terminal, name) }
+  const none = run({})
+  assert.equal(none.summary.options.terminal_apps.some((a) => a.name === name), false, '환경이 말해 주지 않으면 깔리지 않은 앱은 나오지 않는다')
+})
+
 test('L5 herdr: 찾으면 읽기 대상 true, 못 찾으면 false, 확인 못 했으면 값 없음(세 OS)', () => {
   for (const p of OSES) {
     const r = laneHerdr({ platform: p, herdr: { found: true, version: 'herdr 0.9.3', sessions: [{ name: 'main', status: 'running' }, { name: 'x', status: 'stopped' }] } })
     assert.equal(val(r, 'runtime_herdr'), true)
-    assert.match(r[0].reason, /running sessions: main$/)
+    assert.match(r[0].reason, /running desks: main$/)
     assert.equal(val(laneHerdr({ platform: p, herdr: { found: false, bin: 'herdr' } }), 'runtime_herdr'), false)
     assert.equal(val(laneHerdr({ platform: p }), 'runtime_herdr'), undefined)
   }
@@ -91,14 +148,14 @@ test('L6 Herdr 데스크톱 앱: core 소켓이 살아 있으면 읽기 대상, 
   }
 })
 
-test('L7 ovis: 서명 확인된 서버만, 붙은 세션을 herdr가 알 때만 세션별 주소, 모르면 확인 필요 후보(세 OS)', () => {
+test('L7 ovis: 서명 확인된 서버만, 붙은 데스크를 herdr가 알 때만 데스크별 주소, 모르면 확인 필요 후보(세 OS)', () => {
   const sessions = [{ name: 'main', status: 'running', socket: '/h/sessions/main/herdr.sock' }, { name: 'side', status: 'running', socket: '/h/sessions/side/herdr.sock' }]
   for (const p of OSES) {
     const r = laneOvis({ platform: p, herdr: { sessions }, ovis: [
       { port: 7317, signed: true, socket: '/h/sessions/main/herdr.sock' },
       { port: 7318, signed: true, sessionEnv: 'side' },
       { port: 7319, signed: false },                                        // 서명 없는 HTTP 서버는 ovis로 보지 않는다
-      { port: 7320, signed: true, socket: '/h/sessions/gone/herdr.sock' },   // herdr가 모르는 세션
+      { port: 7320, signed: true, socket: '/h/sessions/gone/herdr.sock' },   // herdr가 모르는 데스크
       { port: 7321, signed: true, why: 'Windows: the listening process environment is not readable' },
     ] })
     assert.deepEqual(val(r, 'ovis'), [7317, 7318, 7320, 7321])
@@ -113,13 +170,19 @@ test('L7 ovis: 서명 확인된 서버만, 붙은 세션을 herdr가 알 때만 
   assert.equal(val(laneOvis({ platform: 'darwin', ovis: [{ port: 7317, answered: true, signed: false }] }), 'ovis'), undefined)
 })
 
-test('L7 ovis 보조: 서명·ps eww·/proc environ·소켓→세션', () => {
+test('L7 ovis 보조: 서명·ps eww·/proc environ·소켓→데스크', () => {
   assert.equal(ovisSignature({ ok: true, bridge_protocol: 1, web_ui: { boot_id: 'b' } }), true)
   assert.equal(ovisSignature({ ok: true }), false)
   assert.equal(ovisSignature({ error: { code: 'connect_failed' } }), false)
   assert.equal(ovisSignature(null), false)
   assert.deepEqual(envFromPs('bun server.ts PORT=7318 HERDR_SOCKET=/h/sessions/side/herdr.sock OTHER=1'), { socket: '/h/sessions/side/herdr.sock', sessionEnv: null })
   assert.deepEqual(envFromProc('A=1\0HERDR_SESSION=main\0HERDR_SOCKET=/s/main.sock\0'), { socket: '/s/main.sock', sessionEnv: 'main' })
+  // /proc/<pid>/environ 은 두 열쇠만 훑는다(F2-3): 다른 변수(비밀값이 들었을 수 있다)는 꺼내지 않는다. 열쇠는 항목의 맨 앞에서만 그 열쇠다.
+  const environ = Buffer.from('SECRET_TOKEN=tok-zzz\0XHERDR_SOCKET=/no/1.sock\0NOTE=HERDR_SESSION=fake HERDR_SOCKET=/no/2.sock\0HERDR_SOCKET=/s/a=b/한글.sock\0HERDR_SESSION=side')
+  assert.deepEqual(envFromProc(environ), { socket: '/s/a=b/한글.sock', sessionEnv: 'side' })
+  assert.deepEqual(Object.keys(envFromProc(environ)), ['socket', 'sessionEnv'])
+  assert.deepEqual(envFromProc(Buffer.from('HERDR_SOCKET=\0A=1\0')), { socket: null, sessionEnv: null }, '빈 값은 없는 것')
+  assert.deepEqual(envFromProc(Buffer.alloc(0)), { socket: null, sessionEnv: null })
   assert.equal(sessionOfSocket('/x/sessions/side/herdr.sock', []), 'side')
   assert.equal(sessionOfSocket('/odd/path.sock', [{ name: 'main', socket: '/odd/path.sock' }]), 'main')
   assert.equal(sessionOfSocket('/odd/path.sock', []), null)
@@ -162,7 +225,7 @@ test('감지 실패: 빈 입력이면 OS 말고는 자동 값이 하나도 없�
   }
 })
 
-test('우선순위: 설정 패널(DB) > 환경변수 > auto > 기본값, 사람이 정한 값은 auto가 못 이긴다', () => {
+test('우선순위: 설정(DB) > 환경변수 > auto > 기본값, 사람이 정한 값은 auto가 못 이긴다', () => {
   const db = openDb(':memory:')
   const keep = { FRONT_APP: process.env.FRONT_APP, AGENT_CMD: process.env.AGENT_CMD, WHOSUP_SPLIT_PCT: process.env.WHOSUP_SPLIT_PCT }
   for (const k of Object.keys(keep)) delete process.env[k]
@@ -176,14 +239,14 @@ test('우선순위: 설정 패널(DB) > 환경변수 > auto > 기본값, 사람�
     assert.equal(settingOrigins(db).front_app.source, 'env')
     assert.equal(settingOrigins(db).front_app.name, 'FRONT_APP')
     setSettings(db, { front_app: 'iTerm', agent_cmd: 'claude', split_pct: 0 })
-    assert.equal(getSettings(db).front_app, 'iTerm', '패널 값이 환경변수·auto를 이긴다')
+    assert.equal(getSettings(db).front_app, 'iTerm', '설정 값이 환경변수·auto를 이긴다')
     assert.equal(getSettings(db).agent_cmd, 'claude')
-    assert.equal(getSettings(db).split_pct, 0, '패널 0도 사람 값이다(auto 33을 못 이김)')
+    assert.equal(getSettings(db).split_pct, 0, '설정 값 0도 사람 값이다(auto 33을 못 이김)')
     assert.deepEqual(settingOrigins(db).front_app, { source: 'panel' })
     setAutoValues({ values: { front_app: 'WezTerm', agent_cmd: 'codex' } })   // 다음 시작의 새 감지
     assert.equal(getSettings(db).front_app, 'iTerm', '다시 감지해도 사람 값은 그대로')
     setSettings(db, { front_app: '' }); delete process.env.FRONT_APP
-    assert.equal(getSettings(db).front_app, 'WezTerm', '패널을 비우고 환경변수도 없으면 auto')
+    assert.equal(getSettings(db).front_app, 'WezTerm', '설정 값을 비우고 환경변수도 없으면 auto')
     setAutoValues({ values: { front_app: 'bad\nname' } })
     assert.equal(getSettings(db).front_app, '', '규칙에 안 맞는 auto 값은 버리고 기본값')
     assert.equal(settingOrigins(db).front_app.source, 'default')
@@ -210,7 +273,7 @@ test('출처: 환경변수가 .env 파일에서 왔으면 그 경로를 알려 �
   }
 })
 
-test('L7 브라우저 기본값: ovis 주소를 내려 주되 클릭은 기본 터미널, 첫 실행 카드 선택이 사람 값으로 저장되고 다시 안 뜬다', () => {
+test('L7 브라우저 기본값: ovis 주소를 내려 주되 클릭은 기본 터미널, 첫 실행 안내 선택이 사람 값으로 저장되고 다시 안 뜬다', () => {
   const db = openDb(':memory:')
   try {
     setAutoValues(evaluate({ platform: 'darwin', env: {}, herdr: { found: true, sessions: [{ name: 'side', status: 'running', socket: '/h/sessions/side/herdr.sock' }] }, ovis: [{ port: 7318, signed: true, socket: '/h/sessions/side/herdr.sock' }] }))
@@ -282,7 +345,44 @@ test('scripts/autoconf.mjs: 임시 상태 폴더에 auto.json을 만들고 설�
   assert.deepEqual(readdirSync(conf), [])
 })
 
-test('설치·시작 연결: launch.mjs preflight(윈도우 build 훅)와 preflight.sh(sh build 훅)가 auto.json을 쓰고 .env는 0건', () => {
+// herdr는 build 훅에 HERDR_PLUGIN_STATE_DIR·HERDR_PLUGIN_CONFIG_DIR을 주지 않는다(herdr 0.9.3·0.9.5 실측). 그래서 설치 때는 auto.json을
+// 쓰지 않고(쓸 곳을 모른다 — 예전에는 ~/.config/whosup에 버려지는 파일을 썼다), 시작 때 herdr가 준 상태 폴더에 쓴다.
+const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? walk(join(dir, d.name)) : [join(dir, d.name)]))
+test('설치·시작 연결: 설치(build 훅 — preflight.sh install·launch.mjs install)는 auto.json·.env를 쓰지 않고, 시작(preflight)이 상태 폴더에 auto.json을 쓴다', () => {
+  // 설치: 임시 홈, HERDR_PLUGIN_* 없음, 가짜 herdr(실행 중인 데스크 없음), 터미널 없음(detached = 제어 터미널에서 떼어 냄).
+  const buildEnv = (home) => {
+    const env = {
+      ...process.env, HOME: home, USERPROFILE: home, APPDATA: join(home, 'AppData', 'Roaming'), LOCALAPPDATA: join(home, 'AppData', 'Local'),
+      XDG_CONFIG_HOME: join(home, '.config'), XDG_STATE_HOME: join(home, '.local', 'state'), HERDR_BIN: FAKE_SETUP_HERDR, HERDR_BIN_PATH: FAKE_SETUP_HERDR, FAKE_HERDR_LOG: join(home, 'herdr.log'),
+    }
+    for (const k of ['HERDR_PLUGIN_STATE_DIR', 'HERDR_PLUGIN_CONFIG_DIR', 'WHOSUP_STATE_DIR', 'CI', 'WHOSUP_NO_SETUP', 'WHOSUP_NO_AUTOSTART', 'WHOSUP_SETUP', 'HERDR_SESSION', 'HERDR_SOCKET_PATH', 'FAKE_HERDR_SESSIONS', 'FAKE_HERDR_CONFIG_DIR', 'FAKE_HERDR_PLUGINS']) delete env[k]
+    return env
+  }
+  const checkBuild = (r, home, what) => {
+    assert.equal(r.status, 0, `${what}: ${r.stdout}${r.stderr}`)
+    assert.match(r.stdout, /^node v[\d.]+ ok$/m, what)
+    assert.match(r.stdout, /whosup setup: no terminal — nothing asked; autostart: herdr_off/, what)
+    assert.deepEqual(walk(home).map((f) => f.slice(home.length + 1)), ['herdr.log'], `${what}: auto.json·.env·setup.json·상태 폴더를 만들지 않는다`)
+    const calls = readFileSync(join(home, 'herdr.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l).join(' '))
+    assert.deepEqual(calls, ['plugin config-dir fivetaku.whosup', 'session list --json'], `${what}: herdr에는 설정 폴더와 실행 중인 데스크만 묻는다`)
+  }
+  const home = mkdtempSync(join(tmpdir(), 'whosup-ahome-'))
+  const viaNode = spawnSync(process.execPath, [join(ROOT, 'scripts/launch.mjs'), 'install'], { env: buildEnv(home), encoding: 'utf8', timeout: 60000, detached: true })
+  checkBuild(viaNode, home, 'launch.mjs install')
+  if (process.platform !== 'win32') {
+    const home2 = mkdtempSync(join(tmpdir(), 'whosup-ahome-'))
+    const viaSh = spawnSync('sh', [join(ROOT, 'scripts/preflight.sh'), 'install'], { cwd: ROOT, env: buildEnv(home2), encoding: 'utf8', timeout: 60000, detached: true })
+    checkBuild(viaSh, home2, 'preflight.sh install')
+    // 셋업이 깨져도 build는 0으로 끝난다(설치를 막지 않는다): preflight.sh 사본 옆에 실패하는 setup.mjs를 둔다
+    const home3 = mkdtempSync(join(tmpdir(), 'whosup-ahome-'))
+    const scripts = mkdtempSync(join(tmpdir(), 'whosup-ascripts-'))
+    for (const f of ['preflight.sh', 'node-path.sh']) copyFileSync(join(ROOT, 'scripts', f), join(scripts, f))
+    writeFileSync(join(scripts, 'setup.mjs'), 'process.exit(7)\n')
+    const bad = spawnSync('sh', [join(scripts, 'preflight.sh'), 'install'], { cwd: ROOT, env: buildEnv(home3), encoding: 'utf8', timeout: 60000, detached: true })
+    assert.equal(bad.status, 0, bad.stdout + bad.stderr)
+    assert.match(bad.stderr, /whosup setup did not finish: the board asks on first open/)
+  }
+  // 시작: herdr가 HERDR_PLUGIN_STATE_DIR을 준다 — 그 폴더에 auto.json을 쓴다(.env는 0건)
   const state = mkdtempSync(join(tmpdir(), 'whosup-astate-'))
   const conf = mkdtempSync(join(tmpdir(), 'whosup-aconf-'))
   const env = isolatedEnv(state, conf)
@@ -380,7 +480,8 @@ function runBin(env) {
   })
 }
 const waitFor = async (fn, ms = 20000) => { const end = Date.now() + ms; while (Date.now() < end) { const v = fn(); if (v) return v; await new Promise((r) => setTimeout(r, 100)) } return fn() }
-const binEnv = (dir) => ({ WHOSUP_STATE_DIR: dir, HERDR_BIN: FAKE_HERDR, HERDR_BIN_PATH: FAKE_HERDR, CLAUDE_PROJECTS_DIR: join(dir, 'projects'), PORT: String(4800 + Math.floor(Math.random() * 100)), WHOSUP_INTERVAL: '60', WHOSUP_OPEN_BROWSER: '0', OPEN_BROWSER: '0', FRONT_APP: '' })
+// 설정 폴더(HERDR_PLUGIN_CONFIG_DIR)도 임시 폴더로 준다: 보드가 이 기계의 ~/.config/whosup/setup.json·.env를 읽지 않게.
+const binEnv = (dir) => ({ WHOSUP_STATE_DIR: dir, HERDR_PLUGIN_CONFIG_DIR: join(dir, 'conf'), HERDR_BIN: FAKE_HERDR, HERDR_BIN_PATH: FAKE_HERDR, CLAUDE_PROJECTS_DIR: join(dir, 'projects'), PORT: String(4800 + Math.floor(Math.random() * 100)), WHOSUP_INTERVAL: '60', WHOSUP_OPEN_BROWSER: '0', OPEN_BROWSER: '0', FRONT_APP: '' })
 
 test('bin/whosup.mjs 직접 실행: 오래된 auto.json(며칠 전·다른 플랫폼)은 쓰지 않고 시작할 때 다시 감지해 새로 쓴다', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'whosup-stale-'))
@@ -410,4 +511,19 @@ test('bin/whosup.mjs: 시작 스크립트가 방금 쓴 auto.json(2분 안·같�
     assert.equal(a.values.fresh_sentinel, 'kept')
     assert.doesNotMatch(r.out, /autoconf/)
   } finally { r.child.kill('SIGTERM') }
+})
+
+test('감지한 선택지(options): 맥은 지금 띄운 앱+설치된 앱, 윈도우는 Windows Terminal·PowerShell, 원격이면 터미널 앱 없음, 에이전트는 찾은 것만', async () => {
+  const { optionsOf, evaluate } = await import('../src/autoconf.mjs')
+  const mac = optionsOf({ platform: 'darwin', terminal: { showing: 'Warp', installed: ['Ghostty', 'Terminal', 'iTerm'] }, agents: { claude: '/x/claude', codex: null } })
+  assert.deepEqual(mac.terminal_apps.map((a) => a.name), ['Warp', 'Ghostty', 'Terminal', 'iTerm'], '지금 herdr를 띄운 앱이 맨 앞')
+  assert.deepEqual(mac.terminal_apps.map((a) => a.showing), [true, false, false, false])
+  assert.deepEqual(mac.terminal_apps.map((a) => a.opens_new), [false, true, true, false], '새 창까지 여는 앱은 Ghostty·Terminal')
+  assert.deepEqual(mac.agents, ['claude'])
+  assert.deepEqual(optionsOf({ platform: 'win32', tools: { wt: 'C:/wt.exe' }, agents: {} }).terminal_apps.map((a) => a.name), ['Windows Terminal', 'PowerShell'])
+  assert.deepEqual(optionsOf({ platform: 'win32', tools: {}, agents: {} }).terminal_apps.map((a) => a.name), ['PowerShell'])
+  assert.deepEqual(optionsOf({ platform: 'linux', agents: { codex: '/x/codex' } }), { terminal_apps: [], agents: ['codex'] })
+  assert.deepEqual(optionsOf({ platform: 'darwin', terminal: { showing: null, installed: ['Ghostty'] } }, false).terminal_apps, [], '원격: 창을 올리지 않는다')
+  const r = evaluate({ platform: 'darwin', env: { SSH_CONNECTION: '1 2 3 4' }, terminal: { showing: null, installed: ['Ghostty'] }, agents: { claude: '/x/claude' } })
+  assert.deepEqual(r.summary.options, { terminal_apps: [], agents: ['claude'] }, 'summary에 실린다(원격)')
 })

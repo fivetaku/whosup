@@ -32,9 +32,10 @@ function run(env, nodeArgs = []) {
   })
 }
 
+// 설정 폴더(HERDR_PLUGIN_CONFIG_DIR)도 임시 폴더로 준다: 보드가 이 기계의 ~/.config/whosup/setup.json·.env를 읽지 않게.
 test('whosup 두 번 기동: 두 번째는 기존 포트를 알리고 exit 0', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'whosup-dup-'))
-  const env = { WHOSUP_STATE_DIR: dir, HERDR_BIN: FAKE, HERDR_BIN_PATH: FAKE, PORT: String(47900 + Math.floor(Math.random() * 90)), WHOSUP_INTERVAL: '60' }
+  const env = { WHOSUP_STATE_DIR: dir, HERDR_PLUGIN_CONFIG_DIR: join(dir, 'conf'), HERDR_BIN: FAKE, HERDR_BIN_PATH: FAKE, PORT: String(47900 + Math.floor(Math.random() * 90)), WHOSUP_INTERVAL: '60' }
   const first = await run(env)
   try {
     assert.equal(first.code, null, first.out)
@@ -49,7 +50,7 @@ test('whosup 두 번 기동: 두 번째는 기존 포트를 알리고 exit 0', a
 // 첫 후즈업에서 gc()를 여러 번 돌린 뒤에도 두 번째 기동이 거절되는지 본다.
 test('whosup 잠금은 GC 뒤에도 유지된다: gc() 뒤 두 번째 기동도 거절', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'whosup-gc-'))
-  const env = { WHOSUP_STATE_DIR: dir, HERDR_BIN: FAKE, HERDR_BIN_PATH: FAKE, PORT: String(47900 + Math.floor(Math.random() * 90)), WHOSUP_INTERVAL: '60' }
+  const env = { WHOSUP_STATE_DIR: dir, HERDR_PLUGIN_CONFIG_DIR: join(dir, 'conf'), HERDR_BIN: FAKE, HERDR_BIN_PATH: FAKE, PORT: String(47900 + Math.floor(Math.random() * 90)), WHOSUP_INTERVAL: '60' }
   const gcLoop = 'data:text/javascript,setInterval(()=>globalThis.gc(),20).unref()'
   const first = await run(env, ['--expose-gc', '--import', gcLoop])
   try {
