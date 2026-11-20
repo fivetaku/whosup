@@ -6,6 +6,20 @@ All notable changes to whosup are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-21
+
+### Fixed
+
+- Choosing a folder and starting a session now keep to your home folder by
+  the real path, not the spelling. A link inside your home that points
+  outside it is no longer listed by the folder picker and cannot be used to
+  start a session there, and neither can a path that goes through such a
+  link (`~/link/..`). A link that points somewhere inside your home still
+  works. Starting a session also needs an absolute path (or `~`); a relative
+  path is refused, because its meaning depended on the folder the board was
+  started from.
+- The one-line installer installs v0.2.1.
+
 ## [0.2.0] - 2026-11-20
 
 ### Added

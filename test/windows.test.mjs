@@ -297,7 +297,7 @@ test('윈도우 서버의 /api/settings: 터미널 항목을 그릴 감지 결�
   _setPlatform('win32')
   const { startBoard } = await import('../src/board/server.mjs')
   const db = openDb(':memory:')
-  const server = await startBoard(db, { port: 48100 + Math.floor(Math.random() * 90), heartbeatPath: join(dir, 'hb') })
+  const server = await startBoard(db, { port: 0, heartbeatPath: join(dir, 'hb') })
   try {
     const r = await (await fetch(`http://127.0.0.1:${server.address().port}/api/settings`)).json()
     assert.equal(r.detected.supported, true)

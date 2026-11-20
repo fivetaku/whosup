@@ -6,8 +6,8 @@
 //     launchctl·systemctl = 받은 인자를 파일에 적는 스크립트, herdr-core = test-support/fake-core.mjs의 소켓.
 //   - 소스는 내려받지 않고 이 저장소 폴더(WHOSUP_INSTALL_SOURCE), 보드 포트는 48100~48799에서 빈 것을 골라 쓴다(시험마다 다르다).
 //   - 설치기는 제어 터미널 없이 돈다(detached) — 에이전트가 설치하는 경우와 같다. 터미널에서의 질문은 test/standalone.test.mjs가 본다.
-import { spawn } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { execFileSync, spawn } from 'node:child_process'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createServer as netServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -28,10 +28,33 @@ export const mac = process.platform === 'darwin'
 export { shq }
 
 // 48100~48799에서 지금 비어 있는 포트(보드는 차 있으면 다음 포트로 넘어가므로 바로 다음 것도 본다).
+// 짝수 p와 p+1을 한 쌍으로, 동시에 도는 다른 시험 파일(다른 프로세스)과 겹치지 않게 <임시>/whosup-test-ports/<p>를 배타적으로 만들어
+// 예약하고 이 프로세스가 끝날 때 푼다. 예약 없이 비었는지만 보면, 두 파일이 같은 포트를 골라 보드가 다음 포트에 뜨고 시험이
+// 흔들렸다(2026-11-20: 48510을 기대했는데 48511).
 const canBind = (port) => new Promise((resolve) => { const s = netServer(); s.once('error', () => resolve(false)); s.listen(port, '127.0.0.1', () => s.close(() => resolve(true))) })
+// 예약 폴더는 사용자마다 따로 둔다(공유 /tmp에서 다른 사용자의 폴더에 쓸 수 없어 시험이 멈추지 않게).
+// 남의 예약은 주인이 죽었어도 지우지 않고 건너뛴다 — 두 프로세스가 같은 묵은 예약을 동시에 걷으면 한쪽이 다른 쪽의 새 예약을
+// 지울 수 있다. 묵은 예약은 SIGKILL로 끝난 시험만 남기고(신호·정상 종료는 푼다) 쌍은 345개다.
+const PORTS = join(tmpdir(), `whosup-test-ports-${process.getuid?.() ?? 'user'}`)
+const held = new Set()
+const reserve = (p) => {
+  const f = join(PORTS, String(p))
+  mkdirSync(PORTS, { recursive: true, mode: 0o700 })
+  try { writeFileSync(f, String(process.pid), { flag: 'wx' }); held.add(f); return f } catch (e) {
+    if (/** @type {any} */ (e).code === 'EEXIST') return null
+    throw e
+  }
+}
+const unreserve = (f) => { held.delete(f); rmSync(f, { force: true }) }
 export async function freePort() {
-  for (let i = 0; i < 200; i++) { const p = 48100 + Math.floor(Math.random() * 690); if (await canBind(p) && await canBind(p + 1)) return p }
-  throw new Error('no free port in 48100-48799')
+  for (let i = 0; i < 400; i++) {
+    const p = 48100 + 2 * Math.floor(Math.random() * 345)
+    const f = reserve(p)
+    if (!f) continue
+    if (await canBind(p) && await canBind(p + 1)) return p
+    unreserve(f)
+  }
+  throw new Error(`no free port in 48100-48799 (reservations: ${PORTS} — remove it when no tests are running)`)
 }
 export const exe = (file, text) => { writeFileSync(file, text); chmodSync(file, 0o755); return file }
 export const lines = (file) => { try { return readFileSync(file, 'utf8').split('\n').filter(Boolean) } catch { return [] } }
@@ -47,11 +70,43 @@ const wipe = (dir) => rmSync(dir, { recursive: true, force: true })
 // 시험이 읽기 전용으로 바꿔 둔 폴더(chmod 0500)에서 멈췄으면 지워지지 않는다 — 폴더 권한을 되돌리고 한 번 더 지운다.
 const unlock = (dir) => { try { chmodSync(dir, 0o700); for (const e of readdirSync(dir, { withFileTypes: true })) if (e.isDirectory()) unlock(join(dir, e.name)) } catch {} }
 const sweep = () => { for (const dir of made) { try { wipe(dir) } catch { try { unlock(dir); wipe(dir) } catch {} } } made.clear() }
-if (!KEEP_TMP) {
-  process.once('exit', sweep)
-  // 신호를 받으면 지운 뒤 같은 신호를 다시 보낸다 — 이 프로세스가 끝나는 방식(신호로 죽음)은 그대로다.
-  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.once(sig, () => { sweep(); process.kill(process.pid, sig) })
+// 설치한 보드를 끝낸다. 보드는 새 세션(detached)에 뜨므로, 시험이 stop 전에 실패하거나 신호로 멈추면 폴더만 지워지고
+// 보드는 남았다(2026-11-17~20: 야간 회귀가 120초에서 시험을 SIGTERM으로 끊을 때마다 보드 하나씩).
+// 끝낼 대상은 이 프로세스가 만든 폴더 안의 server.pid(실행 명령·plugin.sh가 보드를 띄우며 적는다)가 가리키고, 작업 폴더(cwd)도
+// 그 폴더 안인 프로세스뿐이다 — 명령 줄을 훑지 않으므로 그 파일을 연 편집기·tail을 건드리지 않고, 죽은 보드의 PID를 다른 프로그램이
+// 다시 쓰고 있어도(작업 폴더가 다르다) 끝내지 않는다. 윈도우는 설치기 시험을 돌리지 않는다(posix).
+const pidFiles = (dir, depth = 0) => {
+  let ents = []
+  try { ents = readdirSync(dir, { withFileTypes: true }) } catch { return [] }
+  return ents.flatMap((e) => {
+    const p = join(dir, e.name)
+    if (e.isFile() && e.name === 'server.pid') return [p]
+    return e.isDirectory() && depth < 6 && !['app', 'node_modules', '.git'].includes(e.name) ? pidFiles(p, depth + 1) : []
+  })
 }
+const cwdOf = (pid) => {
+  try { return readlinkSync(`/proc/${pid}/cwd`) } catch {}
+  try { return execFileSync('lsof', ['-a', '-p', String(pid), '-d', 'cwd', '-Fn'], { encoding: 'utf8' }).split('\n').find((l) => l.startsWith('n'))?.slice(1) ?? '' } catch { return '' }
+}
+// 작업 폴더는 이 프로세스가 만든 폴더 어느 것 안이면 된다(다른 폴더의 보드 흉내를 한 rig의 server.pid에 적는 시험이 있다).
+const reap = () => {
+  if (process.platform === 'win32' || made.size === 0) return
+  const roots = [...made].flatMap((d) => { try { return [d, realpathSync(d)] } catch { return [d] } })
+  for (const dir of made) {
+    for (const f of pidFiles(dir)) {
+      const pid = Number(lines(f)[0])
+      if (!(pid > 1) || pid === process.pid) continue
+      const cwd = cwdOf(pid)
+      if (cwd && roots.some((r) => cwd === r || cwd.startsWith(`${r}/`))) { try { process.kill(pid, 'SIGKILL') } catch {} }
+    }
+  }
+}
+const finish = () => { reap(); for (const f of held) unreserve(f); if (!KEEP_TMP) sweep() }
+process.once('exit', finish)
+// 신호를 받으면 정리한 뒤 같은 신호를 다시 보낸다 — 이 프로세스가 끝나는 방식(신호로 죽음)은 그대로다.
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.once(sig, () => { finish(); process.kill(process.pid, sig) })
+// 시험이 rig() 밖에서 만든 임시 폴더도 같은 정리에 넣는다.
+export const track = (dir) => { made.add(dir); return dir }
 
 // 시험 하나의 격리 환경: <임시>/h = HOME, <임시>/bin = PATH에 올릴 가짜 실행 파일.
 export async function rig({ node = true, herdr = false } = {}) {

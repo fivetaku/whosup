@@ -1,6 +1,6 @@
 {
   "name": "whosup",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Stop abandoning your agent sessions. One board for every agent session in herdr.",
   "type": "module",
   "bin": { "whosup": "bin/whosup.mjs" },

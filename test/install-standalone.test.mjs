@@ -6,10 +6,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, statSync, symlinkSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { APP_MARK, APP_MARK_FILE, LAUNCHER_MARK } from '../src/standalone.mjs'
-import { INSTALL, ROOT, exe, lines, mac, posix, rig as bareRig, rx, shownRx, shq, summaryOf, walk } from '../test-support/install-rig.mjs'
+import { INSTALL, ROOT, exe, lines, mac, posix, rig as bareRig, rx, shownRx, shq, summaryOf, track, walk } from '../test-support/install-rig.mjs'
 import { tmpdir as osTmpdir } from 'node:os'
 
 // 격리 폴더는 셸이 따옴표로 싸지 않는 경로에 만든다. 임시 폴더의 경로에 공백·한글 같은 글자가 있으면 설치기와 안내 문구가 화면의 경로를 '…'로
@@ -39,9 +39,10 @@ const deadPid = () => spawnSync(process.execPath, ['-e', '']).pid
 // 끄는 쪽(whosup stop)은 pid 파일의 프로세스가 후즈업 보드일 때만 끈다(명령 줄에 보드의 진입점 이름이 있는가 — scripts/launch.mjs boardProcess):
 // 보드로 보이게 whosup.mjs라는 이름의 스크립트로 띄운다. 보드가 아닌 프로세스를 가리키는 pid 파일은 test/harden-board.test.mjs가 본다.
 const stubborn = () => new Promise((ok) => {
-  const file = join(mkdtempSync(join(osTmpdir(), 'wsi-stubborn-')), 'whosup.mjs')
+  const file = join(track(mkdtempSync(join(osTmpdir(), 'wsi-stubborn-'))), 'whosup.mjs')
   writeFileSync(file, "process.on('SIGTERM', () => {}); console.log('ready'); setInterval(() => {}, 1000)\n")
-  const child = spawn(process.execPath, [file], { stdio: ['ignore', 'pipe', 'ignore'] })
+  // 작업 폴더를 그 임시 폴더로 둔다: 시험이 신호로 끊기면 rig의 정리가 server.pid와 작업 폴더로 이 프로세스를 끝낸다.
+  const child = spawn(process.execPath, [file], { cwd: dirname(file), stdio: ['ignore', 'pipe', 'ignore'] })
   child.stdout.once('data', () => ok(child))
 })
 const gone = (pid) => { try { process.kill(pid, 0); return false } catch { return true } }

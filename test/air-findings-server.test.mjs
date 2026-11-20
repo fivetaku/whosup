@@ -95,6 +95,9 @@ test('U0 /api/new: "~/폴더" 로 친 경로는 홈 아래 그 폴더로 열린�
     // 홈 밖으로 나가는 것은 풀어도 막힌다
     const out = await post('/api/new', { session: 'core:spA', cwd: '~/../..', raise: false })
     assert.deepEqual([out.status, out.data.code], [400, 'bad_folder'])
+    // 상대 경로는 서버의 작업 폴더에 따라 달라지므로 받지 않는다
+    const rel = await post('/api/new', { session: 'core:spA', cwd: TILDE_NAME, raise: false })
+    assert.deepEqual([rel.status, rel.data.code], [400, 'bad_folder'])
   })
 })
 

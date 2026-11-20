@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { isWindows } from '../platform.mjs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
@@ -319,7 +319,21 @@ const HOME = homedir()
 // Windows 경로(C:\\Users\\…)도 받도록 구분자 대신 relative로 판정 (Windows 실기기 QA: 폴더 탐색이 400)
 // 윈도우 경로는 대소문자를 가리지 않는다: c:\users\me 도 홈 자체로 본다(REPORT 14번).
 const sameDir = (a, b) => (isWindows() ? a.toLowerCase() === b.toLowerCase() : a === b)
-const underHome = (p) => { const r = relative(HOME, p); return sameDir(p, HOME) || (!!r && !r.startsWith('..') && !isAbsolute(r)) }
+// 경계는 글자가 아니라 실제 경로로 본다: 홈 안의 심볼릭 링크가 홈 밖을 가리키면 밖이다. 아직 없는 경로는 있는 가장 가까운 조상까지 풀고
+// 나머지를 붙인다(링크 아래의 없는 폴더도 링크가 가리키는 쪽으로 본다).
+const realOf = (p) => {
+  const rest = []
+  for (let head = p; ;) {
+    try { return join(realpathSync.native(head), ...rest) } catch {}
+    const up = dirname(head)
+    if (up === head) return p
+    rest.unshift(basename(head)); head = up
+  }
+}
+// 절대 경로는 글자로 접지 않고(resolve 없이) 파일시스템이 푸는 대로 본다: '홈/링크/..'는 글자로는 홈이지만 실제로는 링크가 가리키는
+// 폴더의 부모다. 새 세션은 검사한 그 문자열을 그대로 열므로(폴더 확인·세션 만들기 모두) 검사와 사용이 같은 경로를 본다.
+const HOME_REAL = realOf(HOME)
+export const underHome = (p) => { const rp = realOf(isAbsolute(p) ? p : resolve(p)); const r = relative(HOME_REAL, rp); return sameDir(rp, HOME_REAL) || (!!r && !r.startsWith('..') && !isAbsolute(r)) }
 // 앞의 "~"·"~/" 는 홈 폴더다: 폴더 고르기·카드는 경로를 ~ 로 보여 주므로 사람이 그대로 쳐 넣는다(실기기 — ~/my-first-project 가 no_folder).
 // 그 밖의 "~"(~user, ~x)는 건드리지 않는다. 문자열이 아니면 그대로 돌려준다(뒤의 검사가 거절한다).
 // 윈도우에서는 "~\…" 도 같다(그쪽 경로 구분자).
@@ -328,10 +342,10 @@ export function listDirs(path) {
   const p = resolve(path)
   if (!underHome(p)) return { ok: false, message: 'only folders under home' }
   let names = []
-  try { names = readdirSync(p, { withFileTypes: true }).filter((d) => !d.name.startsWith('.') && (d.isDirectory() || (d.isSymbolicLink() && !isWindows() && isDir(join(p, d.name))))).map((d) => d.name) }
+  try { names = readdirSync(p, { withFileTypes: true }).filter((d) => !d.name.startsWith('.') && (d.isDirectory() || (d.isSymbolicLink() && !isWindows() && isDir(join(p, d.name)) && underHome(join(p, d.name))))).map((d) => d.name) }
   catch (err) { return { ok: false, message: String(err.code || err.message) } }
   names.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
-  return { ok: true, path: p, parent: sameDir(p, HOME) ? null : dirname(p), home: HOME, sep, dirs: names.slice(0, 500), more: Math.max(0, names.length - 500) }
+  return { ok: true, path: p, parent: sameDir(realOf(p), HOME_REAL) ? null : dirname(p), home: HOME, sep, dirs: names.slice(0, 500), more: Math.max(0, names.length - 500) }
 }
 const isDir = (p) => { try { return statSync(p).isDirectory() } catch { return false } }
 // 최근에 세션이 열렸던 폴더(지금도 있는 것만), 최근 활동 순.
@@ -496,7 +510,8 @@ export function createBoardServer(db, /** @type {BoardServerOpts} */ { heartbeat
             const rt = runtimeForDesk(session)
             if (!rt.validSessionName(session)) return send(400, JSON.stringify({ ok: false, code: 'bad_request' }))
             if (!deskAllowed(session, 'new')) return send(409, JSON.stringify(whyNotDesk(session)))
-            if ( typeof cwd !== 'string' || !underHome(resolve(cwd))) return send(400, JSON.stringify({ ok: false, code: 'bad_folder', message: 'a desk (session) and a folder under home are required' }))
+            // 상대 경로는 받지 않는다: 보드 화면은 절대 경로나 ~만 보내고, 상대 경로는 서버의 작업 폴더에 따라 달라진다.
+            if ( typeof cwd !== 'string' || !isAbsolute(cwd) || !underHome(cwd)) return send(400, JSON.stringify({ ok: false, code: 'bad_folder', message: 'a desk (session) and a folder under home are required' }))
             if (!isDir(cwd)) return send(400, JSON.stringify({ ok: false, code: 'no_folder', message: `no such folder: ${cwd}` }))
             let r
             try { r = await rt.newSession({ session, cwd, command: getSettings(db).agent_cmd, raise }) } finally { noteChange() }
