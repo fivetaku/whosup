@@ -6,6 +6,8 @@ All notable changes to whosup are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-20
+
 ### Added
 
 - The one-line installer has a screen for a person at a terminal: a header,
@@ -504,6 +506,30 @@ All notable changes to whosup are recorded here. The format follows
 
 ### Fixed
 
+- The window-raising helper (macOS) now quits when whosup goes away. Its
+  input loop compared the length of what it read with the number 0, but the
+  real JavaScript bridge reports that length as the text "0", so after the
+  board stopped the helper kept reading an empty input forever at full CPU.
+- One unreadable reply from herdr no longer stops the board: only that
+  request fails ("unreadable reply").
+- A macOS notification whose text is cut at 160 characters right where a
+  quote or backslash stands is sent again. The text was escaped before it was
+  cut, which could leave a lone backslash that broke the notification.
+- Clicking a finished session when no window could be opened (window raising
+  off or not supported here) no longer marks it as seen.
+- Clicks from two browsers whose clocks differ are no longer dropped. Each
+  board page now names itself, click order is compared within one browser,
+  and clicks from different browsers are taken in the order they arrive.
+- The installer no longer swaps whosup's own Node while another whosup
+  install holds the install lock; it stops with "another whosup install is
+  running" instead.
+- If an update was cut off right after it moved the old version to
+  `app.old` (power loss, `kill -9`), the next installer puts that version
+  back before it does anything else, so a failing install still leaves you
+  with the version you had.
+- The one-line installer installs the tagged release (v0.2.0) instead of
+  whatever is on the main branch. `WHOSUP_REF` still picks any branch, tag
+  or commit.
 - The installer, `whosup stop` and `whosup uninstall` take less on trust.
   "The board is running" now means that what answers on the board's port
   says it is whosup and that it belongs to this install; another program

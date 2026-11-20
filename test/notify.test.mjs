@@ -55,3 +55,21 @@ test('#16: 같은 패스에 보낼 세션이 둘 이상이면 한 통으로 묶�
   const counts = db.prepare('SELECT runtime_ref, alert_count FROM session ORDER BY runtime_ref').all().map((x) => x.alert_count)
   assert.deepEqual(counts, [1, 1, 1])
 })
+
+// 알림 문구가 160자 자리에서 잘릴 때 그 자리에 이스케이프한 따옴표(\")가 걸리면, 역슬래시만 남아 닫는 따옴표를 먹고
+// AppleScript 문장이 깨져 알림이 아예 가지 않았다. 실제 AppleScript 컴파일러(osacompile, 실행은 하지 않음)로 확인한다.
+test('알림: 160자에서 잘리는 자리에 따옴표·역슬래시가 걸려도 AppleScript 문장이 깨지지 않는다', { skip: process.platform !== 'darwin' && 'macOS 전용(osacompile)' }, async () => {
+  const { osNotify } = await import('../src/notify.mjs')
+  const { execFileSync } = await import('node:child_process')
+  const { mkdtempSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const { tmpdir } = await import('node:os')
+  const out = join(mkdtempSync(join(tmpdir(), 'wn-')), 'n.scpt')
+  for (const body of ['a'.repeat(159) + '"끝', 'a'.repeat(159) + '\\끝', 'a'.repeat(158) + '""""']) {
+    let script = null
+    osNotify({ title: 't', subtitle: 's', body }, (file, args) => { script = args[1] })
+    assert.ok(script, '알림을 보내려 했다')
+    assert.doesNotThrow(() => execFileSync('/usr/bin/osacompile', ['-o', out, '-e', script], { stdio: 'pipe' }),
+      `AppleScript가 깨졌다: …${script.slice(150, 190)}`)
+  }
+})

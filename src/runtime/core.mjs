@@ -382,7 +382,8 @@ let openIn = 'app'
 export const setOpenIn = (v) => { openIn = v === 'terminal' ? 'terminal' : 'app' }
 // 앱 창만 올렸거나 아무 창도 올리지 못한 결과: 그 세션 자체를 보여 준 것이 아니다.
 // app_failed = 앱은 떠 있는데 창 올리기가 오류로 실패했다(꺼져 있는 것과 다르다 — 켜라고 안내하면 틀린 안내가 된다).
-const NOT_SHOWN = new Set(['app_only', 'app_closed', 'app_failed', 'unsupported'])
+// off = 창 올리기를 꺼 뒀거나 이 기계가 지원하지 않아 터미널 창도 앱 창도 열지 않았다(herdr.openWindowRunning·raiseApp).
+const NOT_SHOWN = new Set(['app_only', 'app_closed', 'app_failed', 'unsupported', 'off'])
 // 수집이 코어에 목록을 물을 때 기다리는 시간(ms). full = 평소, short = 방금 답하지 않은 코어에 물을 때, shortFor = 답하지 않은 때부터
 // 짧게만 기다리는 동안. 답하지 않는 코어 하나(다른 앱의 코어일 수 있다) 때문에 수집마다 full 만큼 늦어지지 않게 한다 — makeCore 의 listForCollect.
 const LIST_WAIT = { full: 5000, short: 1000, shortFor: 30000 }

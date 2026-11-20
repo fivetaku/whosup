@@ -183,8 +183,10 @@ export async function snapshotRuntime() {
 // 수집 주기(3초)를 기다리지 않고 바로 수집하게 하는 지름길일 뿐이다 — 구독이 안 되는 herdr여도 주기 수집이 그대로 돈다.
 // 상태 변화 구독은 herdr pane마다 걸어야 해서(pane_id 필수), herdr pane 구성이 바뀌면 그 herdr 세션의 연결을 새로 맺는다.
 const WATCH_GLOBAL = ['pane.created', 'pane.closed', 'pane.exited', 'pane.agent_detected']
-const watchers = new Map() // herdr 세션 이름 → { sock, key, dead }
-export function watchEvents(sessions, table, onChange) {
+const watchers = new Map() // 데스크별 연결과 재시도 상태. 재시도는 수집 시에만 한다.
+const STABLE_MS = 6000
+let watchSerial = 0
+export function watchEvents(sessions, table, onChange, now = () => performance.now()) {
   if (process.env.WHOSUP_NO_EVENTS === '1') return
   const panesBy = new Map()
   for (const s of sessions) { const { session, pane } = splitRef(s.runtime_ref); if (!panesBy.has(session)) panesBy.set(session, []); panesBy.get(session).push(pane) }
@@ -193,26 +195,49 @@ export function watchEvents(sessions, table, onChange) {
     const panes = (panesBy.get(row.name) || []).sort()
     const key = panes.join(',')
     const cur = watchers.get(row.name)
-    if (cur && cur.key === key && (cur.dead || !cur.sock.destroyed)) continue
+    if (cur && (now() < cur.retryAt || (cur.key === key && (cur.dead || !cur.sock.destroyed)))) continue
+    cur?.finishStream()
     cur?.sock.destroy()
     const sock = createConnection(connectTarget(row.socket))
-    const w = { sock, key, dead: false }
+    const id = `whosup:watch:${++watchSerial}`
+    let buf = '', ackAt = null
+    // 종료 시점까지 연속으로 안정됐는지 평가한다. 별도 재시도·초기화 타이머는 없다.
+    function finishStream() {
+      if (ackAt !== null && now() - ackAt >= STABLE_MS) w.losses = 0
+      ackAt = null
+    }
+    const w = { sock, key, finishStream, dead: false, losses: cur?.losses ?? 0, retryAt: 0, recover: cur?.recover ?? false }
     watchers.set(row.name, w)
-    let buf = ''
     sock.setEncoding('utf8')
-    sock.on('connect', () => sock.write(`${JSON.stringify({ id: 'whosup:watch', method: 'events.subscribe', params: { subscriptions: [...WATCH_GLOBAL.map((type) => ({ type })), ...panes.map((pane_id) => ({ type: 'pane.agent_status_changed', pane_id }))] } })}\n`))
+    sock.on('connect', () => sock.write(`${JSON.stringify({ id, method: 'events.subscribe', params: { subscriptions: [...WATCH_GLOBAL.map((type) => ({ type })), ...panes.map((pane_id) => ({ type: 'pane.agent_status_changed', pane_id }))] } })}\n`))
     sock.on('data', (chunk) => {
+      if (watchers.get(row.name) !== w || sock.destroyed) return
       buf += chunk
       let i; let hit = false
       while ((i = buf.indexOf('\n')) >= 0) {
         const line = buf.slice(0, i); buf = buf.slice(i + 1)
-        if (line.includes('"event"')) hit = true
-        else if (line.includes('"error"')) { w.dead = true; sock.destroy() }   // 구독을 모르는 herdr: 이 herdr pane 구성에서는 다시 시도하지 않는다
+        let msg
+        try { msg = JSON.parse(line) } catch { continue }
+        if (msg?.error) {
+          if (msg.error.code === 'events_lost') {
+            finishStream()
+            w.losses = Math.min(3, w.losses + 1)
+            w.retryAt = now() + (w.losses - 1) * 6000
+            w.recover = true
+          } else { w.dead = true; w.recover = false; w.losses = 0 } // 미지원: pane 구성이 바뀔 때까지 폴링만 한다.
+          sock.destroy()
+          break
+        }
+        if (msg?.event) hit = true
+        else if (msg?.id === id && msg.result?.type === 'subscription_started' && ackAt === null) {
+          ackAt = now()
+          if (w.recover) { hit = true; w.recover = false }
+        }
       }
       if (hit) onChange(row.name)
     })
-    const drop = () => { if (watchers.get(row.name) === w && !w.dead) watchers.delete(row.name) }
-    sock.on('error', drop); sock.on('close', drop)
+    // 종료된 연결도 다음 수집까지 유지한다. 단순 EOF에는 별도 지연이나 재조회가 없다.
+    sock.on('error', finishStream); sock.on('close', finishStream)
   }
   for (const [n, w] of watchers) if (!table.some((r) => r.name === n && r.status === 'running')) { w.sock.destroy(); watchers.delete(n) }
 }
@@ -235,8 +260,10 @@ export async function apiCall(session, method, params, { timeoutMs = 5000 } = {}
       if (nl < 0) return
       clearTimeout(timer)
       sock.end()
-      const res = JSON.parse(buf.slice(0, nl))
-      if (res.error) reject(new Error(`herdr ${method}: ${res.error.code} ${res.error.message}`))
+      // 해석할 수 없는 줄은 이 요청만 실패시킨다 — 'data' 처리기에서 던지면 잡히지 않은 예외로 보드 프로세스가 끝난다.
+      let res
+      try { res = JSON.parse(buf.slice(0, nl)) } catch { reject(new Error(`herdr ${method}: unreadable reply`)); return }
+      if (res?.error) reject(new Error(`herdr ${method}: ${res.error.code} ${res.error.message}`))
       else resolve(res.result)
     })
     sock.on('error', (err) => { clearTimeout(timer); reject(err) })
@@ -618,7 +645,8 @@ function run() {
   let buf = ''
   while (true) {
     const d = inH.availableData
-    if (d.length === 0) break
+    // 실제 JXA 다리는 NSData.length 를 문자열("0")로 준다 — 숫자로 바꿔 비교해야 입력이 닫혔을 때 끝난다.
+    if (Number(d.length) === 0) break
     buf += $.NSString.alloc.initWithDataEncoding(d, $.NSUTF8StringEncoding).js
     let i
     while ((i = buf.indexOf('\\n')) >= 0) {

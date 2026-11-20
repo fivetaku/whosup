@@ -158,20 +158,29 @@ const viaOf = (r, fallback = null) => {
 }
 const shownBy = (r) => (r?.opened === 'app_link' ? ' (shown in the app window by its link)' : r?.opened === 'browser' ? ' (the app link did not work: opened in a browser tab)' : '')
 // 마지막 클릭만 이긴다 — 런타임이 달라도. 런타임마다 자기 클릭만 세므로, 판 전체의 순번은 여기서 본다.
+// 화면이 보내는 순번(seq)은 그 브라우저의 시계로 만든다 — 브라우저끼리는 시계가 달라 견줄 수 없다(한쪽이 1분 빠르면 다른 쪽
+// 클릭이 1분 동안 다 무시됐다). 그래서 순번은 보낸 브라우저(client) 안에서만 견주고, 런타임에는 서버가 도착 순서로 매긴
+// 순번(브라우저 사이에서는 도착 순서)을 넘긴다. client 를 보내지 않는 예전 화면은 하나의 브라우저로 본다.
+const latestByClient = new Map()
 let latestSeq = 0
 // web: 이 클릭을 한 브라우저가 그 세션의 웹 터미널 탭을 열었는가(true·false, 알려 주지 않았으면 undefined). 서버 화면의 창을
 // 올리지 않는 클릭에서 "그 세션을 봤다"고 적을지를 런타임이 이것으로 가린다(herdr-core 런타임의 focus).
-export async function openSession(db, id, seq, /** @type {{ raise?: boolean, web?: boolean }} */ { raise = true, web } = {}) {
+export async function openSession(db, id, seq, /** @type {{ raise?: boolean, web?: boolean, client?: string }} */ { raise = true, web, client = '' } = {}) {
   const s = db.prepare('SELECT * FROM session WHERE id = ?').get(id)
   if (!s) return { ok: false, code: 'no_session', message: `no session ${id}` }
   if (s.archived) return { ok: false, code: 'closed', message: 'that session is closed — use resume' }
   const rt = runtimeOf(s.runtime)
   if (!rt) return { ok: false, code: 'no_session', message: `no session ${id}` }
-  const older = () => Number.isFinite(seq) && seq < latestSeq
-  if (older()) return { ok: true, code: 'superseded', window: 'superseded', message: `skipped ${s.runtime_ref} (a newer click won)` }
-  if (Number.isFinite(seq)) latestSeq = seq
+  // 같은 브라우저의 더 나중 클릭이 먼저 도착했으면 이 클릭은 진다. 이긴 클릭에는 서버의 도착 순번(order)을 매긴다.
+  const key = String(client || '')
+  if (Number.isFinite(seq) && seq < (latestByClient.get(key) ?? -Infinity)) return { ok: true, code: 'superseded', window: 'superseded', message: `skipped ${s.runtime_ref} (a newer click won)` }
+  let order
+  // 런타임에는 화면의 순번을 그대로 넘기되, 시계가 늦은 다른 브라우저의 클릭은 바로 앞 클릭보다 크게 올린다(도착 순서를 지킨다).
+  // 브라우저가 하나면 예전과 같은 값이 간다.
+  if (Number.isFinite(seq)) { latestByClient.set(key, seq); order = latestSeq = Math.max(seq, latestSeq + 1) }
+  const older = () => order !== undefined && order < latestSeq
   let r
-  try { r = await rt.focus(s.runtime_ref, { cwd: s.cwd || undefined, seq, split: getSettings(db).split_pct, raise, web, incarnation: incarnationOf(s), superseded: older }) } catch (err) {
+  try { r = await rt.focus(s.runtime_ref, { cwd: s.cwd || undefined, seq: order, split: getSettings(db).split_pct, raise, web, incarnation: incarnationOf(s), superseded: older }) } catch (err) {
     // 터미널에서 이미 닫은 세션(수집이 아직 못 따라온 3~9초): 오류 대신 바로 최근 닫힘으로 옮긴다.
     if (closedErr(s, err)) { markGoneNow(db, s.id); return { ok: true, code: 'pane_gone', message: `${s.runtime_ref} was already closed` } }
     // 지금 읽지 않는 herdr-core 코어의 세션(읽을 코어 목록에서 빠졌다): 그 코어에 물어보지 못했으니 닫힌 것으로 치지 않는다. 세션은 그대로
@@ -447,7 +456,7 @@ export function createBoardServer(db, /** @type {BoardServerOpts} */ { heartbeat
         if (['/api/open', '/api/seen', '/api/unseen', '/api/pin', '/api/stash', '/api/resume', '/api/close'].includes(url.pathname) && !Number.isInteger(id)) return send(400, JSON.stringify({ error: 'id required', code: 'bad_request' }))
         try {
           const raise = body.raise !== false   // 이 클릭을 한 브라우저가 서버 화면의 창을 올려도 되는지(기기별 설정)
-          if (url.pathname === '/api/open') { const r = await openSession(db, id, Number(body.seq), { raise, web: typeof body.web === 'boolean' ? body.web : undefined }); return send(r.ok ? 200 : 409, JSON.stringify(withRaiseWarning(r))) }
+          if (url.pathname === '/api/open') { const r = await openSession(db, id, Number(body.seq), { raise, web: typeof body.web === 'boolean' ? body.web : undefined, client: typeof body.client === 'string' ? body.client.slice(0, 64) : '' }); return send(r.ok ? 200 : 409, JSON.stringify(withRaiseWarning(r))) }
           if (url.pathname === '/api/close') {
             const s = db.prepare('SELECT * FROM session WHERE id = ?').get(id)
             if (!s || s.archived) return send(409, JSON.stringify({ ok: false, code: 'no_session' }))

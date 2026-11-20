@@ -5,7 +5,8 @@ import { attentionState, collectHealth, orderAttention } from './board/board.mjs
 import { getMeta, setMeta } from './db.mjs'
 import { getSettings } from './settings.mjs'
 
-const esc = (t) => String(t ?? '').replace(/["\\]/g, '\\$&').replace(/\s+/g, ' ').slice(0, 160)
+// 먼저 자르고 나서 이스케이프한다 — 거꾸로 하면 자른 자리에 역슬래시만 남아 닫는 따옴표를 먹는다(AppleScript 문장이 깨져 알림이 안 간다).
+const esc = (t) => String(t ?? '').replace(/\s+/g, ' ').slice(0, 160).replace(/["\\]/g, '\\$&')
 export function osNotify({ title, subtitle, body }, run = execFile) {
   if (process.platform !== 'darwin') return false
   run('/usr/bin/osascript', ['-e', `display notification "${esc(body)}" with title "${esc(title)}" subtitle "${esc(subtitle)}"`], { timeout: 10000 }, (err) => { if (err) console.error(`whosup: macOS notification failed: ${String(err.message || err).slice(0, 200)}`) })

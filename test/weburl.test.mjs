@@ -105,7 +105,7 @@ test('한 번의 클릭이 할 일: 설정이 보여 주는 방식과 실제 요
   assert.match(html, /const lsGet = \(k\) => storedOf\(lsLocal, srvDefaults, k\)/)
   const { storedOf } = new Function(`${chunk}; return { storedOf }`)()
   assert.deepEqual(['a', 'b', 'c'].map((k) => storedOf(store({ a: 'mine' }), { a: 'server', b: 'server' }, k)), ['mine', 'server', null])
-  assert.match(html, /post\('\/api\/open', \{ id, seq, raise: plan\.raise, web: Boolean\(tab\?\.ok\) \}\)/)   // web = 이 클릭이 웹 터미널 탭을 실제로 열었는가(R-2)
+  assert.match(html, /post\('\/api\/open', \{ id, seq, client: CLIENT_ID, raise: plan\.raise, web: Boolean\(tab\?\.ok\) \}\)/)   // web = 이 클릭이 웹 터미널 탭을 실제로 열었는가(R-2)
   assert.match(html, /JSON\.stringify\(\{ raise: raiseOn\(\), \.\.\.body \}\)/)
 })
 
@@ -166,7 +166,7 @@ test('세션 누르기 요청(/api/open)에 "웹 터미널 탭을 실제로 열�
   const press = async (card, saved, { blocked = false, reply = { ok: true, data: { code: 'focused' } } } = {}) => {
     const sent = [], opened = [], toasts = []
     const env = {
-      can: () => true, denied: () => {}, cardById: () => card, refresh: () => {}, msgOf: (d) => d.code, T: { going: 'going', popupBlocked: 'blocked' }, board: { readonly: false }, openedTabs: new Map(),
+      CLIENT_ID: 'tab-1', can: () => true, denied: () => {}, cardById: () => card, refresh: () => {}, msgOf: (d) => d.code, T: { going: 'going', popupBlocked: 'blocked' }, board: { readonly: false }, openedTabs: new Map(),
       toast: (t, bad) => toasts.push([t, Boolean(bad)]),
       clickPlan: (c) => clickPlanOf(c, store(saved), Object.keys(saved)),
       openTab: (desk, url) => { opened.push([desk, url]); return blocked ? { ok: false } : { ok: true, win: {}, fresh: true } },
@@ -181,6 +181,7 @@ test('세션 누르기 요청(/api/open)에 "웹 터미널 탭을 실제로 열�
   // 전체 주소(herdr 데스크용)로 탭을 열었다
   let r = await press(alpha, { 'whosup-open-url': OVIS })
   assert.deepEqual([r.body.id, r.body.web, r.body.raise, r.opened], [7, true, true, [['alpha', 'http://127.0.0.1:7317/?pane=w1%3Ap3']]])
+  assert.equal(r.body.client, 'tab-1', '이 화면의 이름을 실어 서버가 클릭 순번을 브라우저마다 견주게 한다')
   // 이 브라우저에 저장한 데스크별 주소로 탭을 열었다(herdr 데스크·Herdr 앱 데스크). 웹 터미널만 고른 브라우저는 창을 올리지 않는다
   r = await press(alpha, { 'whosup-open-url:alpha': 'http://127.0.0.1:7318/?pane={pane}', 'whosup-raise': 'off' })
   assert.deepEqual([r.body.web, r.body.raise], [true, false])
@@ -198,5 +199,5 @@ test('세션 누르기 요청(/api/open)에 "웹 터미널 탭을 실제로 열�
   r = await press(alpha, { 'whosup-open-url': OVIS }, { blocked: true })
   assert.deepEqual([r.body.web, r.toasts.at(-1)], [false, ['blocked', true]])
   // web 은 늘 true·false 다(서버는 boolean 만 받는다 — 다른 값은 "알려 주지 않았다"로 읽는다)
-  assert.match(html, /post\('\/api\/open', \{ id, seq, raise: plan\.raise, web: Boolean\(tab\?\.ok\) \}\)/)
+  assert.match(html, /post\('\/api\/open', \{ id, seq, client: CLIENT_ID, raise: plan\.raise, web: Boolean\(tab\?\.ok\) \}\)/)
 })

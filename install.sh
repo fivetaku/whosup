@@ -73,7 +73,7 @@
 #   WHOSUP_INSTALL_MODE=plugin|standalone   take that path whatever is on this machine
 #   WHOSUP_ENV=herdr-app|ovis-app|herdr     with nothing to run sessions in on this machine: install that one, without asking
 #                                           (not used when something is here already, or when WHOSUP_INSTALL_MODE is given)
-#   WHOSUP_REF=<git ref>                    install that branch, tag or commit instead of the default branch
+#   WHOSUP_REF=<git ref>                    install that branch, tag or commit instead of the release tag (RELEASE_REF)
 #   WHOSUP_NO_SETUP=1                       ask nothing
 #   WHOSUP_INSTALL_NODE=1|0                 no Node 22.13+ here: 1 = download whosup's own Node without asking (also with no
 #                                           terminal), 0 = never (not asked, not downloaded — the old behavior)
@@ -114,6 +114,9 @@ set -u
 REPO="fivetaku/whosup"
 PLUGIN_ID="fivetaku.whosup"
 INSTALL_URL="https://raw.githubusercontent.com/fivetaku/whosup/main/install.sh"
+# 받을 출시판(태그). WHOSUP_REF가 없으면 이것을 받는다 — main 브랜치의 그때그때 상태가 아니다. package.json의 판과 같아야 한다(시험이 본다).
+# 이 판의 태그가 GitHub에 올라간 뒤에 이 파일을 main에 올린다(태그가 없으면 한 줄 설치가 받을 것이 없다).
+RELEASE_REF="v0.2.0"
 HERDR_MIN="0.9.0"
 HERDR_DOCS="https://herdr.dev/docs/install/"
 # herdr's own installer: no sudo, one file into ${HERDR_INSTALL_DIR:-~/.local/bin}
@@ -434,8 +437,9 @@ node_settle() {
 # 전용 Node를 받기 시작한 뒤: 신호(Ctrl-C·kill·터미널 닫힘)와 끝에서 node_settle이 돌게 한다. 받지 않은 실행은 갈무리를 비운다(지금까지와 같다).
 # 다른 갈무리를 걷는 곳(ui_menu_end · env_end)도 trap - 대신 이것을 부른다.
 node_traps() {
-  if [ "$node_pending" = 1 ]; then
-    trap 'node_rc=$?; node_settle' EXIT
+  # 잠금을 쥔 뒤(전용 Node를 바꾸기 직전 — fetch_node)에도 갈무리가 바뀔 수 있다: 끝날 때 늘 푼다(unlock은 쥐지 않았으면 아무것도 안 한다).
+  if [ "$node_pending" = 1 ] || [ "$lock_held" = 1 ]; then
+    trap 'node_rc=$?; unlock; node_settle' EXIT
     trap 'exit 129' HUP
     trap 'exit 130' INT
     trap 'exit 143' TERM
@@ -507,6 +511,9 @@ fetch_node() {
   whosup_node_ok "$node_stage/node/bin/node" || node_fail "the downloaded Node does not run here" "받은 Node가 여기서 돌지 않습니다"
   { printf '%s\nversion=%s\n' "$NODE_MARK_TEXT" "${NODE_PIN}" > "$node_stage/node/$NODE_MARK_FILE"; } 2>/dev/null && node_ours "$node_stage/node" \
     || node_fail "could not mark $node_stage/node" "$node_stage/node 폴더에 표식을 두지 못했습니다"
+  # 놓기 전에 설치 잠금을 잡는다: 다른 설치기가 일하는 동안(그 설치기와 그 판의 보드가 이 node로 돈다) 바꿔 끼우지 않는다.
+  # 묵은 잠금인지 보는 데 node가 필요하다 — 방금 받아 확인한 것을 잠깐 쓴다. 잠금이 잡혀 있으면 fail(받던 폴더는 node_settle이 치운다).
+  node_path_was=$PATH; PATH="$node_stage/node/bin:$PATH"; take_lock; PATH=$node_path_was
   # 제자리에 놓는다: 전에 있던 전용 Node(낮은 판)는 끝날 때까지 옆(.node-new.<PID>.old — 받던 폴더 밖)에 둔다. 설치가 끝나지 못하면 node_settle이 되돌린다.
   if [ -e "$node_home" ] || [ -L "$node_home" ]; then
     node_ours "$node_home" || node_fail "$node_home changed while Node was being downloaded" "Node를 받는 사이에 $node_home 폴더가 달라졌습니다"
@@ -1392,7 +1399,7 @@ ask_app_number() {
 ask_env_rich() {
   ui_saved="$( { stty -g </dev/tty; } 2>/dev/null)" || ui_saved=""
   [ -n "$ui_saved" ] || return 1
-  trap 'node_rc=$?; ui_restore; node_settle' EXIT
+  trap 'node_rc=$?; ui_restore; unlock; node_settle' EXIT
   trap 'ui_restore; ui_stopped; exit 130' INT
   trap 'ui_restore; ui_stopped; exit 143' TERM
   trap 'ui_restore; ui_stopped; exit 129' HUP
@@ -1600,7 +1607,7 @@ env_begin() {
   mkdir "$env_tmp/t" || fail "could not create a temporary folder in $tmp_root. Nothing was installed." "$tmp_root 에 임시 폴더를 만들지 못했습니다. 아무것도 설치하지 않았습니다."
   env_log="$env_tmp/output.log"
   : > "$env_log"
-  trap 'node_rc=$?; env_clean; node_settle' EXIT
+  trap 'node_rc=$?; env_clean; unlock; node_settle' EXIT
   trap 'env_clean; exit 129' HUP
   trap 'env_clean; exit 130' INT
   trap 'env_clean; exit 143' TERM
@@ -1890,7 +1897,10 @@ install_plugin() {
   else say "herdr $herdr_version is here: installing whosup as a herdr plugin ($source)" "herdr $herdr_version 확인: whosup을 herdr 플러그인으로 설치합니다($source)"
   fi
   set -- plugin install "$source" --yes
-  [ -z "${WHOSUP_REF:-}" ] || set -- "$@" --ref "$WHOSUP_REF"
+  # GitHub에서 받을 때만 출시판을 고정한다(로컬 폴더 소스에는 ref가 없다)
+  if [ -n "${WHOSUP_REF:-}" ]; then set -- "$@" --ref "$WHOSUP_REF"
+  elif [ "$source" = "$REPO" ]; then set -- "$@" --ref "$RELEASE_REF"
+  fi
   # 환경 고르기로 herdr를 방금 깔았다: 플러그인의 첫 실행 안내(scripts/setup.mjs — herdr가 build 훅으로 부른다)가 "herdr를 치세요"를 찍지 않게
   # 알린다. 그 안내는 아래 설치 요약의 "다음에 할 일"이 한 번만 말한다.
   if [ "$env_pick" = herdr ] && [ "$herdr_installed" = 1 ]; then WHOSUP_ENV_INSTALLED=herdr; export WHOSUP_ENV_INSTALLED; fi
@@ -2036,7 +2046,7 @@ fetch_source() {
     node_js "$COPY_JS" "$WHOSUP_INSTALL_SOURCE" "$dest" </dev/null
     return $?
   fi
-  ref="${WHOSUP_REF:-}"
+  ref="${WHOSUP_REF:-$RELEASE_REF}"
   if [ "$ui" = rich ]; then ui_step run "downloading whosup${ref:+ ($ref)}" "whosup${ref:+($ref)} 내려받는 중"
   else say "downloading whosup${ref:+ ($ref)} from github.com/$REPO" "github.com/$REPO 에서 whosup${ref:+($ref)}을 내려받습니다"
   fi
@@ -2101,6 +2111,7 @@ unlock() {
   return 0
 }
 take_lock() {
+  [ "$lock_held" != 1 ] || return 0   # 이미 쥐었다(전용 Node를 바꾸려고 먼저 잡았다 — fetch_node)
   LOCK="$DATA/install.lock"
   if ! mkdir "$LOCK" 2>/dev/null; then
     if node_js "$LOCK_STALE_JS" "$LOCK" "$LOCK_GRACE_S" </dev/null 2>/dev/null && mkdir "$LOCK" 2>/dev/null; then :
@@ -2264,6 +2275,13 @@ install_standalone() {
   trap 'on_signal 129' HUP
   trap 'on_signal 130' INT
   trap 'on_signal 143' TERM
+  # 새 버전으로 바꾸던 설치기가 이전 버전을 app.old로 옮긴 직후에 죽었다(kill -9·전원): 그 판은 app.old에만 있다.
+  # 아래에서 app.old를 "남은 폴더"로 치우기 전에 제자리에 되살린다 — 그래야 이번 설치가 실패해도 그 판으로 되돌아간다.
+  if [ ! -e "$APP" ] && [ ! -L "$APP" ] && ours "$APP.old"; then
+    if mv "$APP.old" "$APP" 2>/dev/null; then
+      say "the version left in $APP.old by an update that did not finish was put back in place" "끝나지 않은 새 버전 바꾸기가 $APP.old 에 남긴 이전 버전을 제자리에 되살렸습니다"
+    fi
+  fi
   # 잠금을 잡은 뒤에 다시 본다: 잠금을 기다리는 사이에 다른 설치기가 여기에 설치를 끝냈을 수 있다.
   have_standalone=0
   if installed; then have_standalone=1; fi

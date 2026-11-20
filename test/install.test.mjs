@@ -68,6 +68,10 @@ test('길 선택 (가): herdr가 있으면(0.9.0 이상) herdr 플러그인으�
   const ref = await rig({ herdr: true })
   await ref.install({ WHOSUP_REF: 'v9.9.9', WHOSUP_INSTALL_SOURCE: '' })
   assert.equal(ref.herdrCalls()[2], 'plugin install fivetaku/whosup --yes --ref v9.9.9')
+  // WHOSUP_REF가 없으면 GitHub에서 받을 때 출시 태그(package.json의 판)를 고정해 넘긴다 — main의 그때그때 상태를 받지 않는다
+  const pinned = await rig({ herdr: true })
+  await pinned.install({ WHOSUP_INSTALL_SOURCE: '' })
+  assert.equal(pinned.herdrCalls()[2], `plugin install fivetaku/whosup --yes --ref v${JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version}`)
   // herdr가 설치에 실패하면 그 사실을 알리고 1로 끝낸다
   const bad = await rig({ herdr: true })
   const f = await bad.install({ FAKE_HERDR_INSTALL_FAIL: '1' })

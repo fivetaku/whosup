@@ -718,9 +718,10 @@ test('내려받기: curl이 실패하면 풀지 않고 그만둔다(파일로 �
   assert.equal(d.code, 0, d.all)
   assert.deepEqual(lines(gitLog), [`-C ${g.app}.new init --quiet`, `-C ${g.app}.new fetch --quiet --depth 1 https://github.com/fivetaku/whosup.git ${sha}`, `-C ${g.app}.new -c advice.detachedHead=false checkout --quiet FETCH_HEAD`])
   assert.equal(existsSync(join(g.app, 'bin', 'whosup.mjs')), true)
-  // ref를 주지 않으면 기본 브랜치의 머리(HEAD)
+  // ref를 주지 않으면 출시 태그(install.sh의 RELEASE_REF — package.json의 판)
   writeFileSync(gitLog, '')
-  assert.equal((await g.install({ ...net, PATH: `${g.bin}:${tools}` })).code, 0); assert.match(lines(gitLog)[1], /fetch --quiet --depth 1 https:\/\/github\.com\/fivetaku\/whosup\.git HEAD$/)
+  const release = `v${JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version}`
+  assert.equal((await g.install({ ...net, PATH: `${g.bin}:${tools}` })).code, 0); assert.match(lines(gitLog)[1], new RegExp(`fetch --quiet --depth 1 https://github\\.com/fivetaku/whosup\\.git ${rx(release)}$`))
 })
 
 test('Node 고르기: 앞쪽의 낡은 node가 뒤의 맞는 node를 가리지 않는다 — 설치 기록·실행 명령·로그인 항목은 고른 node의 절대 경로를 쓰고, 그 파일이 없어지면 다시 찾는다', posix, async () => {
@@ -825,5 +826,39 @@ test('제거·자동 실행 끄기의 실패: 로그인 항목 파일을 지우�
     // 고친 뒤에는 평소대로 지워진다
     const un = await r.whosup(['uninstall', '--purge'])
     assert.equal(un.code, 0, un.all); assert.deepEqual(walk(r.home).filter((p) => /whosup/.test(p)), [])
+  } finally { r.cleanup() }
+})
+
+// 새 버전으로 바꾸던 설치기가 이전 버전을 app.old로 옮긴 직후에 죽었다(kill -9·전원). 이전 버전은 app.old에만 있다.
+// 다음 설치기가 그것을 "치울 남은 폴더"로 보고 지운 뒤 새 버전 설치까지 실패하면, 사용자에게 아무 판도 남지 않는다.
+// 다음 설치기는 app.old를 먼저 제자리에 되살린 뒤 평소의 새 버전 바꾸기로 간다(실패하면 그 판으로 되돌린다).
+test('끊긴 update가 남긴 app.old: 다음 설치기는 지우기 전에 되살린다 — 새 버전이 실패해도 이전 버전이 남는다', posix, async () => {
+  const r = await rig()
+  try {
+    const a = await r.install({ WHOSUP_INSTALL_MODE: 'standalone', WHOSUP_NO_AUTOSTART: '1' })
+    assert.equal(a.code, 0, a.all)
+    writeFileSync(join(r.app, 'OLD_VERSION'), 'old')
+    renameSync(r.app, `${r.app}.old`)                        // 바꾸던 설치기가 여기서 죽었다
+    const marker = "case 'install': return install(ctx)"
+    const crashing = copyOf(r, 'crashing', (text) => { assert.ok(text.includes(marker)); return text.replace(marker, "case 'install': throw new Error('boom in the new version')") })
+    const u = await r.install({ WHOSUP_INSTALL_MODE: 'standalone', WHOSUP_INSTALL_SOURCE: crashing })
+    assert.equal(u.code, 1, u.all)
+    assert.equal(existsSync(join(r.app, 'OLD_VERSION')) && readFileSync(join(r.app, 'OLD_VERSION'), 'utf8'), 'old', '이전 버전이 사라졌다')
+    assert.equal(existsSync(`${r.app}.old`), false); assert.equal(existsSync(`${r.app}.new`), false)
+  } finally { r.cleanup() }
+})
+
+// 한 줄 설치는 main 브랜치의 그때그때 상태가 아니라 이름 붙은 출시판(태그)을 받는다. WHOSUP_REF를 주면 그것을 받는다.
+test('내려받기: WHOSUP_REF가 없으면 출시 태그(package.json의 판)를 받는다', posix, async () => {
+  const net = { WHOSUP_INSTALL_MODE: 'standalone', CI: '1', WHOSUP_INSTALL_SOURCE: '' }
+  const want = `v${JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version}`
+  const r = await rig()
+  const tgz = join(r.base, 'src.tgz'), curlLog = join(r.base, 'curl.log')
+  execFileSync('tar', ['-czf', tgz, '--exclude', '.git', '--exclude', 'node_modules', '-C', join(ROOT, '..'), basename(ROOT)])
+  exe(join(r.bin, 'curl'), `#!/bin/sh\nprintf '%s\\n' "$*" >> ${shq(curlLog)}\nwhile [ $# -gt 0 ]; do if [ "$1" = -o ]; then cp ${shq(tgz)} "$2"; exit 0; fi; shift; done\nexit 2\n`)
+  try {
+    const a = await r.install(net)
+    assert.equal(a.code, 0, a.all)
+    assert.match(lines(curlLog)[0], new RegExp(`https://github\\.com/fivetaku/whosup/archive/${rx(want)}\\.tar\\.gz$`), '출시 태그가 아니라 기본 브랜치를 받았다')
   } finally { r.cleanup() }
 })

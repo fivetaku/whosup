@@ -1026,6 +1026,8 @@ async function postWithTab(path, body, probe, note) {
   const shown = end.shown ? tabReply(data) : data
   return { ok, data: shown, text: end.blocked && ok ? `${msgOf(shown)} · ${T.popupBlocked}` : msgOf(shown), bad: !ok || end.blocked }
 }
+// 이 화면(브라우저 탭)의 이름: 서버가 클릭 순번을 브라우저마다 따로 견주게 한다(브라우저끼리는 시계가 달라 순번을 견줄 수 없다).
+const CLIENT_ID = Math.random().toString(36).slice(2, 12)
 async function openCard(id) {
   if (!can()) return denied()
   // 열 주소가 있으면 클릭 처리 안에서 바로 연다(await 뒤에 열면 브라우저가 팝업으로 막는다).
@@ -1035,7 +1037,7 @@ async function openCard(id) {
   const seq = Date.now() * 1000 + (++clickN % 1000)
   // web = 이 클릭이 그 세션의 웹 터미널 탭을 실제로 열었는가(주소가 없었거나 브라우저가 탭을 막았으면 false). 서버는 이것으로
   // 창을 올리지 않은 클릭에서도 그 세션을 본 것으로 적을지 가린다 — 이 브라우저에만 저장한 주소로 연 탭은 서버가 알 길이 없다.
-  const { ok, data } = await post('/api/open', { id, seq, raise: plan.raise, web: Boolean(tab?.ok) })
+  const { ok, data } = await post('/api/open', { id, seq, client: CLIENT_ID, raise: plan.raise, web: Boolean(tab?.ok) })
   // 서버가 그 사이 읽기 전용이 됐다: 방금 새로 연 탭은 닫고, 이 화면도 다음 판을 기다리지 않고 읽기 전용으로 돌린다.
   if (data.code === 'read_only') { if (board) board.readonly = true; if (tab?.fresh) { try { tab.win.close() } catch {} openedTabs.delete(c.desk) } }
   if (data.code === 'superseded') return

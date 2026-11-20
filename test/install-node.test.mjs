@@ -279,3 +279,22 @@ test('전용 Node: 터미널이면 한 번 묻는다 — Enter는 받고, n은 �
     } finally { d.close(); r.cleanup() }
   }
 })
+
+// 다른 설치기가 잠금(install.lock)을 쥐고 일하는 동안 이 설치기가 전용 Node를 바꿔 끼우면, 그 설치기와 그 판의 보드가 쓰는
+// node가 발밑에서 사라진다(실패하면 되돌리지만 그사이에는 바뀌어 있다). 전용 Node를 바꾸는 일도 잠금 안에서 해야 한다:
+// 잠금이 잡혀 있으면 바꾸지 않고 끝낸다. 받는 것 자체는 손해가 아니다(받던 폴더는 치운다).
+test('전용 Node: 다른 설치기가 잠금을 쥐고 있으면 전용 Node를 바꾸지 않는다', opts, async () => {
+  const r = await rig({ node: false })
+  const d = await distServer(r.base)
+  try {
+    oldOwn(r)
+    const lock = join(r.data, 'install.lock'); mkdirSync(lock, { recursive: true }); writeFileSync(join(lock, 'pid'), `${process.pid}\n`)
+    const a = await r.install({ WHOSUP_INSTALL_MODE: 'standalone', WHOSUP_NODE_DIST_URL: d.url })
+    assert.notEqual(a.code, 0, a.all)
+    assert.match(a.all, /another whosup install is running/)
+    assert.equal(markVersion(r), 'v22.13.0', '잠금이 잡힌 동안 전용 Node가 바뀌었다')
+    assert.doesNotMatch(a.all, /whosup's own Node v[\d.]+ is in /, '잠금이 잡힌 동안 전용 Node를 바꿔 끼웠다')
+    assert.deepEqual(leftovers(r), [])
+    assert.equal(readFileSync(join(lock, 'pid'), 'utf8'), `${process.pid}\n`, '남의 잠금은 그대로 둔다')
+  } finally { d.close(); r.cleanup() }
+})

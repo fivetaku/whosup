@@ -116,7 +116,7 @@ test('U2 화면의 세션 누르기(openCard): 탭으로만 보여 줄 수 있�
   const press = async (card, saved, reply, { blocked = false } = {}) => {
     const sent = [], opened = [], toasts = []
     const env = {
-      can: () => true, denied: () => {}, cardById: () => card, refresh: () => {}, msgOf: (d) => d.code, T: { going: 'going', popupBlocked: 'blocked' }, board: { readonly: false }, openedTabs: new Map(),
+      CLIENT_ID: 'tab-1', can: () => true, denied: () => {}, cardById: () => card, refresh: () => {}, msgOf: (d) => d.code, T: { going: 'going', popupBlocked: 'blocked' }, board: { readonly: false }, openedTabs: new Map(),
       toast: (t, bad) => toasts.push([t, Boolean(bad)]), portFixedUrl: () => '', shownReply: web.shownReply,
       clickPlan: (c) => web.clickPlanOf(c, store(saved), Object.keys(saved)),
       openTab: (desk, url) => { opened.push([desk, url]); return blocked ? { ok: false } : { ok: true, fresh: true, win: { location: { replace() {} } } } },

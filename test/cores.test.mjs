@@ -680,6 +680,43 @@ test('이동: 그 코어를 보여 주는 앱이 떠 있으면 그 앱 창만 �
   assert.deepEqual(A.touched(), [])
 })
 
+test('이동: 터미널 창을 열지 못했으면(off — 창 올리기를 꺼 뒀거나 지원하지 않음) 그 세션을 본 것으로 적지 않는다', async () => {
+  reset()
+  setAutoValues({ cores: [{ name: OTHER }] })              // 앱을 모른다 → 그 코어에 붙는 터미널 창으로 연다(hc attach)
+  const opened = []
+  core._setWindowOps({ openWindowRunning: async (...a) => { opened.push(a); return 'off' } })
+  try {
+    B.add(agentTerm('t1', 'done', { turn: 2, labels: APP_LABELS }))
+    const db = openDb(':memory:'); await collectAll(db)
+    B.calls.length = 0
+    const r = await openSession(db, idOf(db, `${OTHER}/t1`), seq())
+    assert.equal(opened.length, 1, '터미널 창 열기를 시도했다')
+    assert.equal(r.window, 'off')
+    assert.deepEqual([B.calls.filter((c) => c.method === 'terminal.label').length, B.terminals.get('t1').labels['whosup.seen']], [0, undefined],
+      '아무 창도 열지 못했는데 본 것으로 적었다')
+  } finally {
+    core._setWindowOps({ openWindowRunning: async () => 'opened' })
+  }
+})
+
+test('클릭 순번: 시계가 다른 두 브라우저 — 한쪽이 앞서 있어도 다른 브라우저의 더 나중 클릭이 무시되지 않는다', async () => {
+  reset()
+  setAutoValues({ cores: [{ name: OTHER }] })
+  core._setWindowOps({ openWindowRunning: async () => 'opened' })
+  B.add(agentTerm('t1', 'idle', { labels: APP_LABELS }))
+  B.add(agentTerm('t2', 'idle', { labels: APP_LABELS }))
+  const db = openDb(':memory:'); await collectAll(db)
+  // 브라우저 A(시계가 1분 빠름)가 먼저 누르고, 그다음 브라우저 B(정확한 시계)가 다른 세션을 누른다. 순번은 각 화면이 자기 시계로 만든다.
+  const ahead = (Date.now() + 60_000) * 1000, now = Date.now() * 1000
+  const a = await openSession(db, idOf(db, `${OTHER}/t1`), ahead, { client: 'browser-a' })
+  assert.notEqual(a.window, 'superseded')
+  const b = await openSession(db, idOf(db, `${OTHER}/t2`), now, { client: 'browser-b' })
+  assert.notEqual(b.window, 'superseded', '다른 브라우저의 나중 클릭이 앞선 시계 때문에 무시됐다')
+  // 같은 브라우저 안에서는 예전처럼 더 오래된 클릭(늦게 도착한 앞 클릭)이 진다
+  const late = await openSession(db, idOf(db, `${OTHER}/t1`), now - 1000, { client: 'browser-b' })
+  assert.equal(late.window, 'superseded')
+})
+
 test('데스크 이름: 프로필의 공간 이름 > 폴더 이름. 기본 코어가 아니면 앱 이름(없으면 코어 이름)을 앞에 붙인다. 공간 id는 보여 주지 않는다', async () => {
   reset()
   const add = () => {
@@ -1355,7 +1392,7 @@ test('세션 누르기 요청에 "웹 터미널 탭을 실제로 열었는가"(w
   const press = async (post, saved, { blocked = false } = {}) => {
     const sent = []
     const env = {
-      can: () => true, denied: () => {}, cardById: () => card, toast: () => {}, refresh: () => {}, msgOf: () => '', T: { going: '', popupBlocked: '' }, board: { readonly: false }, openedTabs: new Map(),
+      CLIENT_ID: 'tab-1', can: () => true, denied: () => {}, cardById: () => card, toast: () => {}, refresh: () => {}, msgOf: () => '', T: { going: '', popupBlocked: '' }, board: { readonly: false }, openedTabs: new Map(),
       clickPlan: (c) => clickPlanOf(c, (k) => (k in saved ? saved[k] : null), Object.keys(saved)),
       openTab: () => (blocked ? { ok: false } : { ok: true, win: {}, fresh: true }),
       post: async (path, body) => { sent.push([path, body]); const r = await post(path, { ...body, seq: seq() }); return { ok: r.status === 200, data: r.data } },

@@ -7,7 +7,7 @@
 //   - 소스는 내려받지 않고 이 저장소 폴더(WHOSUP_INSTALL_SOURCE), 보드 포트는 48100~48799에서 빈 것을 골라 쓴다(시험마다 다르다).
 //   - 설치기는 제어 터미널 없이 돈다(detached) — 에이전트가 설치하는 경우와 같다. 터미널에서의 질문은 test/standalone.test.mjs가 본다.
 import { spawn } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createServer as netServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -38,9 +38,25 @@ export const lines = (file) => { try { return readFileSync(file, 'utf8').split('
 // 폴더 아래의 모든 경로(폴더 포함, 그 폴더 기준 상대 경로)
 export const walk = (dir, base = dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => { const p = join(dir, e.name); return [p.slice(base.length + 1), ...(e.isDirectory() ? walk(p, base) : [])] }).sort()
 
+// 임시 폴더(wsi-*)는 이 시험 프로세스가 끝날 때 지운다 — 통과·실패·신호(SIGINT·SIGTERM·SIGHUP)로 멈춘 경우 모두.
+// 하나가 약 2MB(설치된 앱 사본)라 남기면 쌓인다(2026-11-14: 사흘 반 동안 8,600개 17.6GB가 남아 디스크가 찼다).
+// WHOSUP_KEEP_TMP=1 이면 지우지 않는다(실패한 시험의 폴더를 들여다볼 때). SIGKILL로 죽으면 지우지 못한다.
+const KEEP_TMP = process.env.WHOSUP_KEEP_TMP === '1'
+const made = new Set()
+const wipe = (dir) => rmSync(dir, { recursive: true, force: true })
+// 시험이 읽기 전용으로 바꿔 둔 폴더(chmod 0500)에서 멈췄으면 지워지지 않는다 — 폴더 권한을 되돌리고 한 번 더 지운다.
+const unlock = (dir) => { try { chmodSync(dir, 0o700); for (const e of readdirSync(dir, { withFileTypes: true })) if (e.isDirectory()) unlock(join(dir, e.name)) } catch {} }
+const sweep = () => { for (const dir of made) { try { wipe(dir) } catch { try { unlock(dir); wipe(dir) } catch {} } } made.clear() }
+if (!KEEP_TMP) {
+  process.once('exit', sweep)
+  // 신호를 받으면 지운 뒤 같은 신호를 다시 보낸다 — 이 프로세스가 끝나는 방식(신호로 죽음)은 그대로다.
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.once(sig, () => { sweep(); process.kill(process.pid, sig) })
+}
+
 // 시험 하나의 격리 환경: <임시>/h = HOME, <임시>/bin = PATH에 올릴 가짜 실행 파일.
 export async function rig({ node = true, herdr = false } = {}) {
   const base = mkdtempSync(join(tmpdir(), 'wsi-'))
+  made.add(base)
   const home = join(base, 'h'), bin = join(base, 'bin')
   for (const d of [home, bin, join(base, 'run'), join(base, 't')]) mkdirSync(d)
   if (node) symlinkSync(process.execPath, join(bin, 'node'))
