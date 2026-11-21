@@ -11,13 +11,14 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkS
 import { createServer as netServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { startFakeCore } from './fake-core.mjs'
 import { shown, shq } from '../src/standalone.mjs'
 
 export const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, '')
 export const INSTALL = join(ROOT, 'install.sh')
 const FAKE_HERDR = join(ROOT, 'test-support', 'fake-herdr-install.mjs')
+const BOARD_PID_IMPORT = pathToFileURL(join(ROOT, 'test-support', 'install-board-pid.mjs')).href
 export const ID = 'fivetaku.whosup'
 export const posix = { skip: process.platform === 'win32' ? '윈도우에는 sh가 없다' : false }
 // 설치기를 돌릴 셸: 기본은 /bin/sh. WHOSUP_TEST_SH=/bin/dash 처럼 주면 그 셸로 돌리고, 설치기가 안에서 부르는 sh도 그 셸이 되게
@@ -72,7 +73,7 @@ const unlock = (dir) => { try { chmodSync(dir, 0o700); for (const e of readdirSy
 const sweep = () => { for (const dir of made) { try { wipe(dir) } catch { try { unlock(dir); wipe(dir) } catch {} } } made.clear() }
 // 설치한 보드를 끝낸다. 보드는 새 세션(detached)에 뜨므로, 시험이 stop 전에 실패하거나 신호로 멈추면 폴더만 지워지고
 // 보드는 남았다(2026-11-17~20: 야간 회귀가 120초에서 시험을 SIGTERM으로 끊을 때마다 보드 하나씩).
-// 끝낼 대상은 이 프로세스가 만든 폴더 안의 server.pid(실행 명령·plugin.sh가 보드를 띄우며 적는다)가 가리키고, 작업 폴더(cwd)도
+// 끝낼 대상은 이 프로세스가 만든 폴더 안의 server.pid 또는 시험 전용 .board-pids 장부가 가리키고, 작업 폴더(cwd)도
 // 그 폴더 안인 프로세스뿐이다 — 명령 줄을 훑지 않으므로 그 파일을 연 편집기·tail을 건드리지 않고, 죽은 보드의 PID를 다른 프로그램이
 // 다시 쓰고 있어도(작업 폴더가 다르다) 끝내지 않는다. 윈도우는 설치기 시험을 돌리지 않는다(posix).
 const pidFiles = (dir, depth = 0) => {
@@ -93,8 +94,8 @@ const reap = () => {
   if (process.platform === 'win32' || made.size === 0) return
   const roots = [...made].flatMap((d) => { try { return [d, realpathSync(d)] } catch { return [d] } })
   for (const dir of made) {
-    for (const f of pidFiles(dir)) {
-      const pid = Number(lines(f)[0])
+    const pids = [...pidFiles(dir).map((f) => lines(f)[0]), ...lines(join(dir, '.board-pids'))]
+    for (const pid of new Set(pids.map(Number))) {
       if (!(pid > 1) || pid === process.pid) continue
       const cwd = cwdOf(pid)
       if (cwd && roots.some((r) => cwd === r || cwd.startsWith(`${r}/`))) { try { process.kill(pid, 'SIGKILL') } catch {} }
@@ -160,6 +161,7 @@ export async function rig({ node = true, herdr = false } = {}) {
     FAKE_HERDR_LOG: r.herdrLog, FAKE_HERDR_REGISTRY: join(base, 'plugins.txt'),
     // 보드가 herdr를 찾지 않게(없는 경로) · 수집 주기를 늘려 조용하게
     HERDR_BIN_PATH: join(base, 'none', 'herdr'), HERDR_BIN: join(base, 'none', 'herdr'), WHOSUP_INTERVAL: '60', WHOSUP_NO_EVENTS: '1',
+    NODE_OPTIONS: `--import=${BOARD_PID_IMPORT}`, WHOSUP_TEST_BOARD_PIDS: join(base, '.board-pids'),
     ...over,
   })
   // 명령을 제어 터미널 없이 돌린다(detached = 새 세션). input을 주면 표준 입력으로 흘린다(curl | sh 흉내).

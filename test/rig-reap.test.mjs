@@ -1,10 +1,10 @@
 // 설치기 시험 도구(test-support/install-rig.mjs)의 정리: 시험 프로세스가 끝나면(정상 종료·SIGTERM) 자기가 만든 임시 폴더의
-// server.pid가 가리키고 작업 폴더도 자기가 만든 폴더 안인 보드를 끝낸다. 그 보드 파일을 인자로 연 다른 프로세스와, 남의 PID를
+// server.pid 또는 시험 전용 장부가 가리키고 작업 폴더도 자기가 만든 폴더 안인 보드를 끝낸다. 그 보드 파일을 인자로 연 다른 프로세스와, 남의 PID를
 // 가리키는 pid 파일의 프로세스(작업 폴더가 밖)는 남긴다. 2026-11-17~20 야간 회귀가 시험을 SIGTERM으로 끊을 때마다 보드가 남았다.
 import { after, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -18,6 +18,8 @@ const IDLE = "process.on('SIGTERM', () => {}); console.log('ready'); setInterval
 const PLAIN = "console.log('ready'); setInterval(() => {}, 1000)\n"
 const OUTSIDE = join(tmpdir(), `whosup-reap-outside-${process.pid}.mjs`)
 const CHILD_FILE = join(tmpdir(), `whosup-reap-child-${process.pid}.mjs`)
+const FOREIGN_DIR = join(tmpdir(), `whosup-reap-foreign-${process.pid}`)
+const FOREIGN_BOARD = join(FOREIGN_DIR, 'whosup.mjs')
 
 // 이 시험이 어떻게 끝나든(실패·SIGTERM 포함) 흉내와 그것이 띄운 프로세스, 임시 스크립트를 치운다. 흉내는 새 프로세스 그룹으로
 // 띄우고(띄우는 순간 그룹 번호를 안다), 보드가 아닌 프로세스는 그 그룹 안에 띄운다 — PID를 받기 전에 끊겨도 그룹에 SIGTERM을
@@ -28,6 +30,7 @@ const tidy = () => {
   for (const pid of spawned) { try { process.kill(pid, 'SIGKILL') } catch {} }
   groups.clear(); spawned.clear()
   for (const f of [OUTSIDE, CHILD_FILE]) rmSync(f, { force: true })
+  rmSync(FOREIGN_DIR, { recursive: true, force: true })
 }
 process.once('exit', tidy)
 for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.once(sig, () => { tidy(); process.kill(process.pid, sig) })
@@ -44,10 +47,10 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 const { rig, track } = await import(${JSON.stringify(RIG)})
 const IDLE = ${JSON.stringify(IDLE)}, PLAIN = ${JSON.stringify(PLAIN)}
-// 보드의 server.pid는 띄운 바로 그 자리(같은 틱)에서 적는다 — ready를 기다리는 사이에 끊겨도 rig 정리가 그 보드를 찾는다.
-const start = (args, cwd, detached = false, pidFile = null) => new Promise((ok, fail) => {
-  const p = spawn(process.execPath, args, { cwd, detached, stdio: ['ignore', 'pipe', 'ignore'] })
-  if (pidFile) { mkdirSync(dirname(pidFile), { recursive: true }); writeFileSync(pidFile, String(p.pid)) }
+// PID 기록 전을 재현할 때는 server.pid를 쓰지 않는다. 장부는 Node가 실제 스크립트를 읽기 전에 별도로 적는다.
+const start = (args, cwd, detached = false, pidFile = null, root = r.base) => new Promise((ok, fail) => {
+  const p = spawn(process.execPath, args, { cwd, detached, env: r.env({ WHOSUP_TEST_BOARD_PIDS: join(root, '.board-pids') }), stdio: ['ignore', 'pipe', 'ignore'] })
+  if (pidFile && process.argv[3] !== 'no-pid') { mkdirSync(dirname(pidFile), { recursive: true }); writeFileSync(pidFile, String(p.pid)) }
   console.log('pid ' + p.pid)
   p.once('exit', (code) => fail(new Error('exited before ready: ' + code)))
   p.stdout.once('data', () => { p.removeAllListeners('exit'); p.stdout.destroy(); p.unref(); ok(p.pid) })
@@ -60,8 +63,12 @@ const board2 = join(elsewhere, 'whosup.mjs'); writeFileSync(board2, IDLE)
 const reader = join(r.base, 'reader.mjs'); writeFileSync(reader, PLAIN)
 const pids = {
   board: await start(['--no-warnings', board], app, true, join(r.state, 'server.pid')),
-  board2: await start([board2], elsewhere, true, join(r.base, 'xb', 'whosup', 'server.pid')),
+  board2: await start([board2], elsewhere, true, join(r.base, 'xb', 'whosup', 'server.pid'), elsewhere),
   reader: await start([reader, board], ${JSON.stringify(tmpdir())}),
+  readerInside: await start([reader, board], app),
+  evalReader: await start(['--eval', PLAIN, board], app),
+  outsideScript: await start([${JSON.stringify(FOREIGN_BOARD)}], app),
+  outsideCwd: await start([board], ${JSON.stringify(tmpdir())}),
   other: await start([${JSON.stringify(OUTSIDE)}], ${JSON.stringify(tmpdir())}),
 }
 mkdirSync(join(r.base, 'xs', 'whosup'), { recursive: true }); writeFileSync(join(r.base, 'xs', 'whosup', 'server.pid'), String(pids.other))
@@ -74,8 +81,8 @@ const alive = (pid) => { try { process.kill(pid, 0); return true } catch { retur
 const gone = async (pid, ms = 5000) => { const end = Date.now() + ms; while (alive(pid)) { if (Date.now() > end) return false; await new Promise((r) => setTimeout(r, 20)) } return true }
 
 // 흉내를 돌려 PID들을 받는다. 다 띄우기 전에 끝나거나 20초 안에 알리지 않으면 실패한다(흉내는 SIGTERM으로 끝내 rig 정리가 돈다).
-function run(mode) {
-  const child = spawn(process.execPath, [CHILD_FILE, mode], { detached: true, stdio: ['ignore', 'pipe', 'inherit'] })
+function run(mode, pidMode = 'pid') {
+  const child = spawn(process.execPath, [CHILD_FILE, mode, pidMode], { detached: true, stdio: ['ignore', 'pipe', 'inherit'] })
   groups.add(child.pid)
   const exited = new Promise((resolve) => child.once('exit', resolve))
   return new Promise((resolve, reject) => {
@@ -102,14 +109,19 @@ function run(mode) {
 
 writeFileSync(OUTSIDE, PLAIN)
 writeFileSync(CHILD_FILE, CHILD)
-for (const mode of ['exit', 'wait']) {
-  test(`정리(${mode === 'exit' ? '정상 종료' : 'SIGTERM'}): 자기 폴더의 보드만 끝내고, 보드 파일을 연 프로세스와 남의 PID는 남긴다`, posix, async () => {
+mkdirSync(FOREIGN_DIR, { recursive: true }); writeFileSync(FOREIGN_BOARD, PLAIN)
+for (const mode of ['exit', 'wait']) for (const pidMode of ['pid', 'no-pid']) {
+  test(`정리(${mode === 'exit' ? '정상 종료' : 'SIGTERM'}, ${pidMode === 'pid' ? 'PID 기록 후' : 'PID 기록 전'}): 자기 폴더의 보드만 끝내고, 보드 파일을 연 프로세스와 남의 PID는 남긴다`, posix, async () => {
     try {
-      const { board, board2, reader, other } = await run(mode)
+      const { board, board2, reader, readerInside, evalReader, outsideScript, outsideCwd, other } = await run(mode, pidMode)
       assert.equal(await gone(board), true, 'SIGTERM을 무시하는 보드가 남았다')
       assert.equal(await gone(board2), true, '다른 임시 폴더(track)에서 도는 보드가 남았다')
       assert.equal(alive(reader), true, '보드 파일을 인자로 연 프로세스를 끝냈다')
+      assert.equal(alive(readerInside), true, '같은 작업 폴더에서 보드 파일을 인자로 연 프로세스를 끝냈다')
+      assert.equal(alive(evalReader), true, 'node --eval의 인자를 실행할 스크립트로 잘못 보았다')
+      assert.equal(alive(outsideScript), true, '스크립트가 임시 폴더 밖인 프로세스를 끝냈다')
+      assert.equal(alive(outsideCwd), true, '작업 폴더가 임시 폴더 밖인 프로세스를 끝냈다')
       assert.equal(alive(other), true, '작업 폴더가 밖인 남의 프로세스를 끝냈다')
-    } finally { tidy(); writeFileSync(OUTSIDE, PLAIN); writeFileSync(CHILD_FILE, CHILD) }
+    } finally { tidy(); writeFileSync(OUTSIDE, PLAIN); writeFileSync(CHILD_FILE, CHILD); mkdirSync(FOREIGN_DIR, { recursive: true }); writeFileSync(FOREIGN_BOARD, PLAIN) }
   })
 }
