@@ -4,11 +4,11 @@
 import { after, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { ROOT, posix } from '../test-support/install-rig.mjs'
+import { ROOT, posix, rig } from '../test-support/install-rig.mjs'
 
 const RIG = pathToFileURL(join(ROOT, 'test-support', 'install-rig.mjs')).href
 // 띄운 프로세스는 스크립트를 다 읽고 'ready'를 찍는다 — 시험 프로세스 흉내는 그것을 받은 뒤에야 끝난다(먼저 끝나면 폴더가 지워져
@@ -18,6 +18,9 @@ const IDLE = "process.on('SIGTERM', () => {}); console.log('ready'); setInterval
 const PLAIN = "console.log('ready'); setInterval(() => {}, 1000)\n"
 const OUTSIDE = join(tmpdir(), `whosup-reap-outside-${process.pid}.mjs`)
 const CHILD_FILE = join(tmpdir(), `whosup-reap-child-${process.pid}.mjs`)
+const PRELOAD = pathToFileURL(join(ROOT, 'test-support', 'install-board-pid.mjs')).href
+// 유닉스 소켓을 열고 'up', 연결이 들어올 때마다 'conn'을 찍는다(소유자 소켓 흉내).
+const LISTEN = "require('node:net').createServer(() => console.log('conn')).listen(process.argv[1], () => console.log('up'))"
 const FOREIGN_DIR = join(tmpdir(), `whosup-reap-foreign-${process.pid}`)
 const FOREIGN_BOARD = join(FOREIGN_DIR, 'whosup.mjs')
 
@@ -72,11 +75,22 @@ const pids = {
   other: await start([${JSON.stringify(OUTSIDE)}], ${JSON.stringify(tmpdir())}),
 }
 mkdirSync(join(r.base, 'xs', 'whosup'), { recursive: true }); writeFileSync(join(r.base, 'xs', 'whosup', 'server.pid'), String(pids.other))
-console.log('pids ' + JSON.stringify(pids))
-if (process.argv[2] === 'wait') setInterval(() => {}, 1000)
+console.log('pids ' + JSON.stringify({ ...pids, base: r.base, elsewhere }))
+if (process.argv[2] !== 'exit') setInterval(() => {}, 1000)
 `
 
 const alive = (pid) => { try { process.kill(pid, 0); return true } catch { return false } }
+// node 프로세스를 띄우고 첫 출력을 기다린다. p.out에 출력이 쌓인다. 띄운 것은 tidy가 끝낸다.
+const ready = (args, opts = {}) => new Promise((ok, fail) => {
+  const p = spawn(process.execPath, args, { stdio: ['ignore', 'pipe', 'ignore'], ...opts })
+  spawned.add(p.pid)
+  p.out = ''
+  p.once('exit', (code) => fail(new Error(`exited before ready: ${code}`)))
+  p.stdout.on('data', (d) => { p.out += d; p.emit('out') })
+  p.stdout.once('data', () => { p.removeAllListeners('exit'); ok(p) })
+})
+// 남은 소켓 파일: 받던 프로세스를 SIGKILL로 끝내면 파일은 남고 연결은 거절된다.
+const staleSocket = async (path) => { const l = await ready(['-e', LISTEN, path]); const done = new Promise((r) => l.once('exit', r)); l.kill('SIGKILL'); await done; return path }
 // SIGKILL을 받은 남의(자식이 아닌) 프로세스가 사라지는 것은 알려 주는 사건이 없다 — 그 상태를 기한 안에서 다시 본다.
 const gone = async (pid, ms = 5000) => { const end = Date.now() + ms; while (alive(pid)) { if (Date.now() > end) return false; await new Promise((r) => setTimeout(r, 20)) } return true }
 
@@ -100,6 +114,7 @@ function run(mode, pidMode = 'pid') {
           clearTimeout(timer); child.off('exit', early)
           const pids = JSON.parse(line.slice(5))
           if (mode === 'wait') child.kill('SIGTERM')
+          if (mode === 'kill') child.kill('SIGKILL')   // 그 프로세스만(그룹이 아니다) — 정리 코드가 돌 틈이 없다
           exited.then(() => resolve(pids))
         }
       }
@@ -125,3 +140,46 @@ for (const mode of ['exit', 'wait']) for (const pidMode of ['pid', 'no-pid']) {
     } finally { tidy(); writeFileSync(OUTSIDE, PLAIN); writeFileSync(CHILD_FILE, CHILD); mkdirSync(FOREIGN_DIR, { recursive: true }); writeFileSync(FOREIGN_BOARD, PLAIN) }
   })
 }
+
+// SIGKILL은 받은 프로세스가 아무것도 못 한다. 보드는 새 세션(detached)이라 프로세스 트리·그룹에서도 빠진다 — 보드가 스스로
+// 시험 프로세스의 죽음을 알아야 한다. 남는 임시 폴더는 다음 rig가 치운다(그 폴더의 주인 프로세스가 끝난 것이 확인될 때만).
+test('정리(SIGKILL): 정리 코드를 돌리지 못하고 죽은 시험 프로세스의 보드는 스스로 끝나고, 다른 프로세스는 남는다. 다음 rig가 그 임시 폴더를 치운다', posix, async () => {
+  let dirs = []
+  try {
+    const { board, board2, reader, readerInside, evalReader, outsideScript, outsideCwd, other, base, elsewhere } = await run('kill')
+    dirs = [base, elsewhere]
+    assert.equal(await gone(board), true, '죽은 시험 프로세스의 보드가 남았다')
+    assert.equal(await gone(board2), true, '죽은 시험 프로세스가 다른 임시 폴더(track)에 띄운 보드가 남았다')
+    for (const [name, pid] of Object.entries({ reader, readerInside, evalReader, outsideScript, outsideCwd, other })) assert.equal(alive(pid), true, `보드가 아닌 프로세스(${name})가 끝났다`)
+    assert.equal(existsSync(base), true, 'SIGKILL이면 임시 폴더는 남는다(이 시험의 전제)')
+    // 주인이 살아 있는 폴더: 그 소켓이 연결을 거절해도(대기열이 찼다·멈췄다 — macOS는 그때도 ECONNREFUSED) 치우지 않는다
+    const live = mkdtempSync(join(tmpdir(), 'wsi-live-')); dirs.push(live)
+    const holder = await ready(['-e', PLAIN])
+    writeFileSync(join(live, 'owner.pid'), String(holder.pid))
+    assert.equal(existsSync(await staleSocket(join(live, 'owner.sock'))), true, '거절하는 소켓 파일이 남아야 한다(이 시험의 전제)')
+    await rig()   // 이 프로세스의 첫 rig: 주인이 끝난 폴더를 치운다
+    assert.equal(existsSync(base), false, '죽은 시험 프로세스의 임시 폴더가 남았다')
+    assert.equal(existsSync(live), true, '주인이 살아 있는 임시 폴더를 지웠다')
+  } finally { tidy(); for (const d of dirs) rmSync(d, { recursive: true, force: true }); writeFileSync(OUTSIDE, PLAIN); writeFileSync(CHILD_FILE, CHILD); mkdirSync(FOREIGN_DIR, { recursive: true }); writeFileSync(FOREIGN_BOARD, PLAIN) }
+})
+
+// 보드는 주인 소켓에 처음 붙지 못했다는 것만으로 끝나지 않는다(주인이 살아 있어도 대기열이 찼거나 아직 받지 않을 수 있다) —
+// 주인이 살아 있으면 다시 붙는다. 붙어 있던 연결이 끊기면(주인이 끝났다) 끝난다.
+test('보드: 주인 소켓에 처음 붙지 못해도 주인이 살아 있으면 끝나지 않고 다시 붙는다. 붙어 있던 연결이 끊기면 끝난다', posix, async () => {
+  const root = mkdtempSync(join(tmpdir(), 'whosup-own-'))
+  try {
+    const sock = join(root, 'owner.sock'), board = join(root, 'whosup.mjs')
+    writeFileSync(board, IDLE)
+    const env = { ...process.env, NODE_OPTIONS: `--import=${PRELOAD}`, WHOSUP_TEST_BOARD_PIDS: join(root, '.board-pids'), WHOSUP_TEST_OWNER: sock, WHOSUP_TEST_OWNER_PID: String(process.pid) }
+    const b = await ready([board], { cwd: root, env, detached: true })   // 주인(이 프로세스)은 살아 있고, 받는 소켓은 아직 없다
+    const l = await ready(['-e', LISTEN, sock])                          // 이제 받는다: 보드가 다시 붙어야 한다
+    await new Promise((ok, fail) => {
+      const timer = setTimeout(() => fail(new Error('보드가 다시 붙지 않았다(처음 붙지 못하자 끝났다)')), 10000)
+      const seen = () => { if (l.out.includes('conn')) { clearTimeout(timer); l.off('out', seen); ok() } }
+      l.on('out', seen); seen()
+    })
+    assert.equal(alive(b.pid), true)
+    l.kill('SIGKILL')
+    assert.equal(await gone(b.pid), true, '붙어 있던 연결이 끊겼는데 보드가 남았다')
+  } finally { tidy(); rmSync(root, { recursive: true, force: true }) }
+})

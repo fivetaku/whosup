@@ -102,7 +102,37 @@ const reap = () => {
     }
   }
 }
-const finish = () => { reap(); for (const f of held) unreserve(f); if (!KEEP_TMP) sweep() }
+// 이 시험 프로세스가 살아 있다는 표시: rig마다 임시 폴더에 유닉스 소켓(owner.sock)을 열어 둔다. 시험이 띄운 보드는 시작하자마자 여기에
+// 붙고(test-support/install-board-pid.mjs) 연결이 끊기면 스스로 끝난다 — SIGKILL로 위의 정리가 돌지 못해도 커널이 이 프로세스의 소켓을 닫는다.
+// 소켓을 열지 못하면(경로가 너무 길다 등) 그 보호 없이 간다 — 알리고 빈 값을 돌려준다(보드는 붙지 않는다).
+// 주인이 살아 있는지는 소켓이 연결을 받는지로 정하지 않는다(macOS는 살아 있는 소켓의 대기열이 차도 ECONNREFUSED) — 임시 폴더를
+// 만들자마자 적어 둔 주인 PID(owner.pid)의 프로세스가 없을 때(ESRCH)만 끝난 것으로 본다. 그 PID를 다른 프로세스가 다시 쓰고 있으면
+// 살아 있는 것으로 본다(지울 것을 남길 수는 있어도 살아 있는 것을 지우지는 않는다).
+const OWNER = 'owner.sock', OWNER_PID = 'owner.pid'
+const ownerGone = (pid) => { try { process.kill(pid, 0); return false } catch (e) { return e.code === 'ESRCH' } }
+const listenOwner = (dir) => new Promise((resolve) => {
+  if (process.platform === 'win32') return resolve('')
+  const server = netServer((s) => { s.unref(); s.on('error', () => {}) })
+  server.once('error', (e) => { console.warn(`install-rig: no owner socket in ${dir} (${e.message}) — a board of this test outlives a SIGKILL`); resolve('') })
+  server.listen(join(dir, OWNER), () => { server.unref(); resolve(join(dir, OWNER)) })
+})
+// SIGKILL로 죽은 시험 프로세스의 임시 폴더는 다음 시험 프로세스의 첫 rig가 치운다. 치울 것은 owner.pid가 가리키는 프로세스가
+// 없는(ESRCH) wsi-* 폴더뿐이다. owner.pid가 없는 폴더(track()으로 넣은 것, 이 정리 전 판이 만든 것)는 건드리지 않는다.
+// WHOSUP_KEEP_TMP=1이면 치우지 않는다.
+let deadSwept = false
+const sweepDead = () => {
+  if (deadSwept || KEEP_TMP || process.platform === 'win32') return
+  deadSwept = true
+  let names = []
+  try { names = readdirSync(tmpdir()).filter((n) => n.startsWith('wsi-')) } catch { return }
+  for (const n of names) {
+    const dir = join(tmpdir(), n), pid = Number(lines(join(dir, OWNER_PID))[0])
+    if (made.has(dir) || !(pid > 1) || pid === process.pid || !ownerGone(pid)) continue
+    try { wipe(dir) } catch { try { unlock(dir); wipe(dir) } catch {} }
+  }
+}
+// WHOSUP_KEEP_TMP=1로 남기는 폴더는 owner.pid·owner.sock을 지워, 다음 시험의 sweepDead가 들여다볼 폴더를 치우지 않게 한다.
+const finish = () => { reap(); for (const f of held) unreserve(f); if (KEEP_TMP) { for (const dir of made) for (const f of [OWNER, OWNER_PID]) rmSync(join(dir, f), { force: true }) } else sweep() }
 process.once('exit', finish)
 // 신호를 받으면 정리한 뒤 같은 신호를 다시 보낸다 — 이 프로세스가 끝나는 방식(신호로 죽음)은 그대로다.
 for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.once(sig, () => { finish(); process.kill(process.pid, sig) })
@@ -111,8 +141,11 @@ export const track = (dir) => { made.add(dir); return dir }
 
 // 시험 하나의 격리 환경: <임시>/h = HOME, <임시>/bin = PATH에 올릴 가짜 실행 파일.
 export async function rig({ node = true, herdr = false } = {}) {
+  sweepDead()
   const base = mkdtempSync(join(tmpdir(), 'wsi-'))
   made.add(base)
+  writeFileSync(join(base, OWNER_PID), String(process.pid))
+  const owner = await listenOwner(base)
   const home = join(base, 'h'), bin = join(base, 'bin')
   for (const d of [home, bin, join(base, 'run'), join(base, 't')]) mkdirSync(d)
   if (node) symlinkSync(process.execPath, join(bin, 'node'))
@@ -161,7 +194,7 @@ export async function rig({ node = true, herdr = false } = {}) {
     FAKE_HERDR_LOG: r.herdrLog, FAKE_HERDR_REGISTRY: join(base, 'plugins.txt'),
     // 보드가 herdr를 찾지 않게(없는 경로) · 수집 주기를 늘려 조용하게
     HERDR_BIN_PATH: join(base, 'none', 'herdr'), HERDR_BIN: join(base, 'none', 'herdr'), WHOSUP_INTERVAL: '60', WHOSUP_NO_EVENTS: '1',
-    NODE_OPTIONS: `--import=${BOARD_PID_IMPORT}`, WHOSUP_TEST_BOARD_PIDS: join(base, '.board-pids'),
+    NODE_OPTIONS: `--import=${BOARD_PID_IMPORT}`, WHOSUP_TEST_BOARD_PIDS: join(base, '.board-pids'), WHOSUP_TEST_OWNER: owner, WHOSUP_TEST_OWNER_PID: String(process.pid),
     ...over,
   })
   // 명령을 제어 터미널 없이 돌린다(detached = 새 세션). input을 주면 표준 입력으로 흘린다(curl | sh 흉내).
