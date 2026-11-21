@@ -1146,7 +1146,11 @@ test('답하지 않는 코어: 처음 한 번만 끝까지 기다리고, 그때�
   reset()
   const G = await startNamedCore(STATE, 'gamma', join(dir, 'g.sock'))
   try {
-    core._setListWait({ full: 600, short: 100, shortFor: 1500 })   // 실제 값(5초·1초·30초)을 줄여서 본다
+    // 실제 값(5초·1초·30초)을 줄여서 본다. 끝까지 기다린 수집은 FULL 이상이고, 코어 둘을 차례로 기다렸다면 2×FULL 이상이다 — 위 한계는 그 사이에
+    // 느린 기계의 덧시간을 넣을 만큼 둔다(FULL 600·한계 1100일 때 윈도우 CI가 1121ms로 넘었다).
+    const FULL = 1000
+    const fullWait = (ms) => ms >= FULL - 50 && ms < FULL * 1.7
+    core._setListWait({ full: FULL, short: 100, shortFor: 1500 })
     process.env.WHOSUP_CORES = `${OTHER},gamma`
     A.add(term('t1', { labels: SPACE })); B.add(term('t1', { labels: APP_LABELS })); G.add(term('t1'))
     const db = openDb(':memory:'); await collectAll(db)
@@ -1160,7 +1164,7 @@ test('답하지 않는 코어: 처음 한 번만 끝까지 기다리고, 그때�
     A.add(term('t2', { labels: SPACE }))
     let [ms, r] = await timed()
     const since = performance.now()                           // 답하지 않은 때: 여기서부터 shortFor 동안 짧게 묻는다
-    assert.ok(ms >= 550 && ms < 1100, `처음: ${ms}ms`)
+    assert.ok(fullWait(ms), `처음: ${ms}ms`)
     assert.deepEqual([...r.notes].sort(), [...NO_REPLY].sort())
     assert.equal(r.failure, null)
     // 답한 코어의 세션은 그 수집에서 그대로 따라온다. 답하지 않은 코어의 세션만 확인 불가다
@@ -1173,7 +1177,7 @@ test('답하지 않는 코어: 처음 한 번만 끝까지 기다리고, 그때�
     // 그 시간이 지났다: 원래 시간으로 한 번 다시 묻는다(느리지만 살아 있는 코어를 놓치지 않게) — 또 답이 없으면 다시 짧게
     await sleep(Math.max(0, 1560 - (performance.now() - since)))
     ;[ms] = await timed()
-    assert.ok(ms >= 550 && ms < 1100, `다시 끝까지: ${ms}ms`)
+    assert.ok(fullWait(ms), `다시 끝까지: ${ms}ms`)
     ;[ms] = await timed()
     assert.ok(ms >= 80 && ms < 450, `다시 짧게: ${ms}ms`)
     // 한 코어가 답했다: 그 코어의 세션은 곧바로 돌아오고, 그 코어는 원래 시간으로 돌아간다
@@ -1189,7 +1193,7 @@ test('답하지 않는 코어: 처음 한 번만 끝까지 기다리고, 그때�
     // 원래대로 돌아갔다: 다시 멈추면 처음처럼 끝까지 한 번 기다린다
     B.override = hang
     ;[ms] = await timed()
-    assert.ok(ms >= 550 && ms < 1100, `돌아온 뒤 다시 멈춤: ${ms}ms`)
+    assert.ok(fullWait(ms), `돌아온 뒤 다시 멈춤: ${ms}ms`)
     B.override = null
     await collectAll(db)                                      // 답했다: 다음 시험은 원래 시간으로 시작한다
     assert.equal(held(`${OTHER}/t1`), 0)

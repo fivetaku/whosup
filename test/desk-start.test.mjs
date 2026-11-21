@@ -117,9 +117,10 @@ test('데스크 켜기: resume:false면 데스크만 켜고 대화는 잇지 않
 test('herdr 자체 복원 여부: config.toml의 [session] resume_agents_on_restore가 false일 때만 꺼진 것으로 본다 — 파일이 없으면 herdr 기본(켜짐)', () => {
   const base = mkdtempSync(join(tmpdir(), 'whosup-hcfg-'))
   const env = { XDG_CONFIG_HOME: base, HOME: base }
-  assert.equal(herdrRt.restoresAgents(env, 'darwin'), true, '설정 파일이 없으면 herdr 기본값(켜짐)')
+  // 파일을 실제로 읽으므로 이 기계의 플랫폼 규칙을 쓴다(윈도우의 C:\… 임시 폴더는 POSIX 규칙에서 절대 경로가 아니다)
+  assert.equal(herdrRt.restoresAgents(env), true, '설정 파일이 없으면 herdr 기본값(켜짐)')
   mkdirSync(join(base, 'herdr'))
-  const cfg = (text) => { writeFileSync(join(base, 'herdr', 'config.toml'), text); return herdrRt.restoresAgents(env, 'darwin') }
+  const cfg = (text) => { writeFileSync(join(base, 'herdr', 'config.toml'), text); return herdrRt.restoresAgents(env) }
   assert.equal(cfg('[session]\n# 래퍼로 띄운다\nresume_agents_on_restore = false\n'), false)
   assert.equal(cfg('[session]\nresume_agents_on_restore = false # whosup이 잇는다\n'), false)
   assert.equal(cfg('[session]\nresume_agents_on_restore = true\n'), true)
