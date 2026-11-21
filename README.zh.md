@@ -236,6 +236,7 @@ browser  ◄──  http://127.0.0.1:4790  ◄──  board server  ◄───
 | `WHOSUP_CORES` | 自动 | 除 Herdr 应用的核心（`default`）之外还要读取的 herdr-core 核心：逗号分隔的核心名称、`all`（留下 `core.lock` 且套接字存在的所有核心）或 `none`（只读 Herdr 应用的核心）。未设置时，自动检测会添加[运行自己核心的应用](#运行自己核心的应用)的核心。核心名称由字母、数字、`.`、`_`、`-` 组成，最多 80 个字符，不接受 `.` 和 `..`。两个名称指向同一个套接字时，该核心只读取一次，用第一个名称 |
 | `WHOSUP_CLICK_TARGET` | terminal | 会话打开的位置：`terminal`、`web` 或 `both`。在 first-run setup 或 **settings** 的 *Sessions open in* 里选的值优先，并保存在服务器上作为所有浏览器的默认值；勾选 *only in this browser* 后只在该浏览器里覆盖 |
 | `WHOSUP_CORE_TARGET` | app | Herdr 应用会话打开的位置：`app` 或 `terminal`。`terminal` 时即使应用开着，也总是在终端窗口中用 `hc attach` 打开；在 first-run setup 或 **settings** 的 *Herdr app sessions open in* 里选的值优先 |
+| `WHOSUP_DESK_RESUME` | on | 启动 desk 时是否恢复停止前在运行的对话：`on`（总是）、`ask`（每次启动时看板会询问）、`off`（不恢复）；在 **settings** 的 *Resume conversations when a desk starts* 里选的值优先 |
 | `HERDR_APP_BIN` · `HERDR_APP_NAME` · `HC_BIN` | `herdr-app` · `Herdr` · `hc` | Herdr 应用的命令（跳转、新标签页、关闭空间）、macOS 上要带到前台的应用名，以及在终端窗口中打开 herdr-core 终端所用的命令。应用名按 `HERDR_APP_NAME` > 自动检测找到的名称 > `Herdr` 的顺序取用。`HERDR_APP_NAME` 只用于 Herdr 应用，不用于[其他应用的核心](#运行自己核心的应用) |
 
 ### desk（可选）
@@ -255,7 +256,7 @@ browser  ◄──  http://127.0.0.1:4790  ◄──  board server  ◄───
 
 ### 代理恢复
 
-herdr 自己也可以在重启后重新启动代理（`[session] resume_agents_on_restore`）。如果你是通过包装脚本启动代理的，请把它设为 `false`，改用 whosup 的 **resume**，这样才会走你的包装脚本。
+herdr 自己也可以在重启后重新启动代理（`[session] resume_agents_on_restore`，herdr 默认开启）。如果你是通过包装脚本启动代理的，请把它设为 `false`，改用 whosup 的 **resume**，这样才会走你的包装脚本。设为 `false` 时，在看板上启动已停止的 desk（**start**），whosup 会在停止时有对话在运行的每个会话里恢复该对话；herdr 已经重新启动代理的会话不会被改动。它开启时（config.toml 里没写也算开启），对话由 herdr 恢复，whosup 不会输入任何东西。**settings** 里的 *Resume conversations when a desk starts*（`WHOSUP_DESK_RESUME`）只决定 whosup 是否恢复。启动时没有恢复的对话会作为原位置的空会话留下，之后仍可逐个 **resume**。Herdr 应用的 desk 不受这个 herdr 设置影响，由 whosup 恢复，没有恢复的对话留在已关闭的会话里。
 
 ---
 

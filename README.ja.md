@@ -238,6 +238,7 @@ Node プロセス1つだけで、ビルドは不要です。herdr の startup �
 | `WHOSUP_CORES` | 自動 | Herdr アプリのコア(`default`)のほかに読む herdr-core のコア: カンマ区切りのコア名、`all`(`core.lock` を残しソケットがあるコアすべて)、`none`(Herdr アプリのコアだけ)。未設定なら、自動検出が[自分のコアを起動するアプリ](#自分のコアを起動するアプリ)のコアを足す。コア名は英数字・`.`・`_`・`-` で 80 文字まで、`.` と `..` は受け付けない。2 つの名前が同じソケットを指すときは、そのコアを最初の名前で 1 回だけ読む |
 | `WHOSUP_CLICK_TARGET` | terminal | セッションを開く場所(*Sessions open in*)の初期値: `terminal`、`web`、`both`。first-run setup か **settings** で選んだ値が優先され、すべてのブラウザの既定値になります。*only in this browser* をオンにしたブラウザだけ別の値を使います |
 | `WHOSUP_CORE_TARGET` | app | Herdr アプリのセッションを開く場所(*Herdr app sessions open in*): `app`、`terminal`。`terminal` ならアプリが開いていても常にターミナルウィンドウで `hc attach` で開きます。first-run setup か **settings** で選んだ値が優先(設定名 `core_target`) |
+| `WHOSUP_DESK_RESUME` | on | デスクを起動するとき、止まる前に動いていた会話を再開するか(*Resume conversations when a desk starts*): `on`(常に)、`ask`(起動のたびにボードが尋ねる)、`off`(再開しない)。**settings** で選んだ値が優先(設定名 `desk_resume`) |
 | `HERDR_APP_BIN` · `HERDR_APP_NAME` · `HC_BIN` | `herdr-app` · `Herdr` · `hc` | Herdr アプリのコマンド(移動、新しいタブ、スペースを閉じる)、macOS で前面に出すアプリ名、herdr-core のターミナルをターミナルウィンドウで開くときのコマンド。アプリ名は `HERDR_APP_NAME` > 自動検出で見つけた名前 > `Herdr` の順。`HERDR_APP_NAME` は Herdr アプリにだけ使い、[ほかのアプリのコア](#自分のコアを起動するアプリ)には使わない |
 
 ### デスク(任意)
@@ -257,7 +258,7 @@ Node プロセス1つだけで、ビルドは不要です。herdr の startup �
 
 ### エージェントの復元
 
-herdr は再起動後にエージェントを自分で起動し直すこともできます(`[session] resume_agents_on_restore`)。ラッパー経由でエージェントを起動しているなら、これを `false` にして whosup の **resume** を使ってください。そうすればラッパーが使われます。
+herdr は再起動後にエージェントを自分で起動し直すこともできます(`[session] resume_agents_on_restore`、herdr の既定はオン)。ラッパー経由でエージェントを起動しているなら、これを `false` にして whosup の **resume** を使ってください。そうすればラッパーが使われます。これが `false` なら、ボードから止まっているデスクを起動(**start**)すると、止まったときに会話が動いていたセッションごとに whosup がその会話を再開します。herdr がすでにエージェントを起動し直したセッションには何もしません。これがオンなら(config.toml に書かれていないときも)会話は herdr が戻し、whosup は何も入れません。**settings** の *Resume conversations when a desk starts*(`WHOSUP_DESK_RESUME`)が決めるのは whosup が再開するかどうかだけです。起動時に再開しなかった会話は同じ場所の空のセッションとして残り、ひとつずつ **resume** できます。Herdr アプリのデスクはこの herdr の設定にかかわらず whosup が再開し、再開しなかった会話は閉じたセッションに残ります。
 
 ---
 

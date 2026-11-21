@@ -36,7 +36,7 @@ core._setShellWait({ maxMs: 0 })
 // 자기 서버로 코어를 보여 주는 앱의 서버 찾기가 이 기계의 실제 등록부를 읽지 않게 한다(실제 HOME 에서 돌려도 실제 앱의 서버에 묻지 않는다)
 ;(await import('../src/runtime/ovis.mjs'))._setLookup({ registryDirs: () => [], userDataDirs: () => [] })
 const { collectAll, noteChange } = await import('../src/runtime/index.mjs')
-const { createBoardServer, openSession, resumeSession, markGoneNow, _clearResumeHolds } = await import('../src/board/server.mjs')
+const { createBoardServer, openSession, resumeSession, startCoreDesk, markGoneNow, _clearResumeHolds } = await import('../src/board/server.mjs')
 const { clearContextCache } = await import('../src/board/context.mjs')
 const { openDb } = await import('../src/db.mjs')
 
@@ -460,6 +460,64 @@ test('꺼 둔 데스크 둘을 함께 켜도 서로의 터미널을 집지 않�
   const deskOfTerm = (t) => `core:${fake.terminals.get(t).labels['herdr.space']}`
   assert.deepEqual([deskOfTerm(sent['echo A']), deskOfTerm(sent['echo B'])], [a.session, b.session])
   assert.deepEqual([a.done, a.failed, b.done, b.failed], [[1], [], [2], []])
+})
+
+test('데스크 켜기: 같은 대화를 쥐던 옛 세션이 둘이어도 그 대화는 한 번만 이어 연다', async () => {
+  reset()
+  transcript(SID, WORK)
+  process.env.FAKE_APP_FOLDER = WORK
+  fake.add(agentTerm('t1', 'idle', { labels: SPACE, cwd: WORK, argv: ['zsh', '-ic', `claude --resume ${SID}`] }))
+  fake.add(agentTerm('t2', 'idle', { labels: SPACE, cwd: WORK, argv: ['zsh', '-ic', `claude --resume ${SID}`] }))
+  const db = openDb(':memory:'); await collectAll(db)
+  await withServer(db, async ({ post }) => {
+    assert.equal((await post('/api/desk', { session: 'core:spA', on: false })).status, 200)
+    writeFileSync(LOG, ''); fake.calls.length = 0
+    const on = await post('/api/desk', { session: 'core:spA', on: true })
+    assert.deepEqual([on.status, on.data.code], [200, 'desk_started'])
+    assert.deepEqual(fake.sent().map((s) => s[1]), [`claude --resume ${SID}`], '같은 대화를 두 터미널에서 열었다')
+  })
+})
+
+// 세션 하나를 베껴 닫힌 세션(최근 닫힘)으로 넣는다: 같은 대화·폴더·데스크를 쥐던 끝난 터미널.
+const closedCopy = (db, id) => {
+  const cols = db.prepare('PRAGMA table_info(session)').all().map((c) => c.name).filter((n) => !['id', 'runtime_ref', 'status', 'archived', 'unreachable'].includes(n))
+  return Number(db.prepare(`INSERT INTO session (runtime_ref, status, archived, unreachable, ${cols.join(', ')}) SELECT runtime_ref || '#old', 'gone', 1, 0, ${cols.join(', ')} FROM session WHERE id = ?`).run(id).lastInsertRowid)
+}
+
+test('데스크 켜기가 이어 여는 대화는 잡아 둔다: 그 사이 같은 대화를 쥐던 닫힌 세션을 이어 열어도 두 번 열지 않는다', async () => {
+  reset()
+  transcript(SID, WORK)
+  process.env.FAKE_APP_FOLDER = WORK
+  fake.add(agentTerm('t1', 'idle', { labels: SPACE, cwd: WORK, argv: ['zsh', '-ic', `claude --resume ${SID}`] }))
+  const db = openDb(':memory:'); await collectAll(db)
+  const old = idOf(db, 't1'), closed = closedCopy(db, old)
+  await core.stopSession('core:spA'); await collectAll(db)
+  fake.calls.length = 0
+  const on = await startCoreDesk(db, 'core:spA', { raise: false })
+  assert.deepEqual(on.done, [old])
+  // 새 터미널이 수집되기 전에 최근 닫힘의 같은 대화를 이어 연다
+  const again = await resumeSession(db, closed, undefined, { raise: false })
+  assert.equal(again.code, 'busy')
+  assert.deepEqual(fake.sent().map((s) => s[1]), [`claude --resume ${SID}`], '같은 대화를 두 번 열었다')
+})
+
+test('데스크 켜기: 이어 열 후보가 아니었던 대화(기록 파일이 없다)의 옛 세션도 접지 않는다 — 닫힌 세션에 남는다', async () => {
+  reset()
+  const NOFILE = '33333333-3333-4333-8333-333333333333'
+  transcript(SID, WORK)
+  process.env.FAKE_APP_FOLDER = WORK
+  fake.add(agentTerm('t1', 'idle', { labels: SPACE, cwd: WORK, argv: ['zsh', '-ic', `claude --resume ${SID}`] }))
+  fake.add(agentTerm('t2', 'idle', { labels: SPACE, cwd: WORK, argv: ['zsh', '-ic', `claude --resume ${NOFILE}`] }))
+  const db = openDb(':memory:'); await collectAll(db)
+  const [id1, id2] = [idOf(db, 't1'), idOf(db, 't2')]
+  const st = (id) => db.prepare('SELECT provider_session, status, archived FROM session WHERE id = ?').get(id)
+  assert.equal(st(id2).provider_session, NOFILE)
+  await core.stopSession('core:spA'); await collectAll(db)
+  fake.calls.length = 0
+  await startCoreDesk(db, 'core:spA', { raise: false })
+  assert.deepEqual(fake.sent().map((s) => s[1]), [`claude --resume ${SID}`])
+  assert.deepEqual([st(id1).status, st(id1).archived], ['reopened', 1])
+  assert.notEqual(st(id2).status, 'reopened', '이어 열지 않은 대화를 접었다')
 })
 
 test('데스크 켜기: 이어 열지 못한 대화의 옛 세션은 접지 않는다. 첫 대화도 제 폴더에서 연다. 다시 눌러도 공간이 또 생기지 않는다', async () => {

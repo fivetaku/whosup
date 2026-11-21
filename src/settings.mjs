@@ -36,6 +36,9 @@ export const TEXT_SETTINGS = {
   click_target: { def: 'terminal', env: 'WHOSUP_CLICK_TARGET', max: 8, pattern: /^(terminal|web|both)$/, choices: ['terminal', 'web', 'both'] },
   // Herdr 앱(herdr-core) 세션을 여는 곳: app(Herdr 앱, 앱 창이 없으면 터미널 창) | terminal(늘 터미널 창에서 hc attach).
   core_target: { def: 'app', env: 'WHOSUP_CORE_TARGET', max: 8, pattern: /^(app|terminal)$/, choices: ['app', 'terminal'] },
+  // 꺼 둔 데스크를 켤 때 꺼지기 전에 돌던 대화를 이어 열까: on(늘, 기본 — 오너 결정 11-21) | ask(켤 때마다 보드가 묻는다) | off(잇지 않는다).
+  // 새로 시작하고 싶은 데스크에서 지난 대화가 저절로 켜지지 않게 하는 스위치다. 켜기 요청의 resume 이 이번 한 번은 이 값보다 먼저다.
+  desk_resume: { def: 'on', env: 'WHOSUP_DESK_RESUME', max: 3, pattern: /^(on|ask|off)$/, choices: ['on', 'ask', 'off'] },
 }
 const specFor = (spec) => (spec.windows && isWindows() ? { ...spec, ...spec.windows } : spec)
 const validText = (spec0, v) => { const spec = specFor(spec0); return typeof v === 'string' && v.trim().length > 0 && v.length <= spec.max && !/[\r\n\0]/.test(v) && (!spec.pattern || spec.pattern.test(v.trim())) }

@@ -116,7 +116,7 @@ PLUGIN_ID="fivetaku.whosup"
 INSTALL_URL="https://raw.githubusercontent.com/fivetaku/whosup/main/install.sh"
 # 받을 출시판(태그). WHOSUP_REF가 없으면 이것을 받는다 — main 브랜치의 그때그때 상태가 아니다. package.json의 판과 같아야 한다(시험이 본다).
 # 이 판의 태그가 GitHub에 올라간 뒤에 이 파일을 main에 올린다(태그가 없으면 한 줄 설치가 받을 것이 없다).
-RELEASE_REF="v0.2.1"
+RELEASE_REF="v0.2.2"
 HERDR_MIN="0.9.0"
 HERDR_DOCS="https://herdr.dev/docs/install/"
 # herdr's own installer: no sudo, one file into ${HERDR_INSTALL_DIR:-~/.local/bin}

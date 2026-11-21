@@ -2,11 +2,12 @@
 // Nothing here assumes a terminal app, a herdr session name, or an agent wrapper.
 import { execFile, execFileSync, spawn } from 'node:child_process'
 import { createConnection } from 'node:net'
-import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { homedir } from 'node:os'
 import { commandFor, connectTarget, isWindows, platform, psQuote } from '../platform.mjs'
 import { STATE_DIR } from '../db.mjs'
+import { herdrDirs } from '../paths.mjs'
 import { setTimeout as sleep } from 'node:timers/promises'
 
 export const name = 'herdr'
@@ -1334,6 +1335,47 @@ async function shellReady(session, pane) {
     prev = text
   }
   return false
+}
+// 에이전트가 없는 herdr pane(셸)의 id 모음. herdr가 스스로 에이전트를 되살린 pane(resume_agents_on_restore)은 빠진다.
+export function shellPanes(panes = [], agents = []) {
+  const busy = new Set(agents.map((a) => a.pane_id))
+  return new Set(panes.filter((p) => !p.agent && (p.agent_status ?? 'unknown') === 'unknown' && !busy.has(p.pane_id)).map((p) => p.pane_id))
+}
+// herdr가 데스크를 복원할 때 에이전트를 스스로 되살리는가: <herdr 설정>/config.toml의 [session] resume_agents_on_restore(herdr 기본 true —
+// herdr 소스 src/config/model.rs). false라고 적혀 있을 때만 꺼진 것으로 본다. 파일이 없거나 읽지 못하면 켜진 것으로 본다.
+// 켜져 있으면 데스크 켜기의 대화 이어 열기는 herdr의 몫이다 — whosup이 넣으면 늦게 뜨는 에이전트의 입력으로 들어갈 수 있다.
+export function restoresAgents(env = process.env, p = process.platform, home = homedir()) {
+  let text
+  try { text = readFileSync(join(herdrDirs(env, p, home).config, 'config.toml'), 'utf8') } catch { return true }
+  let table = ''
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.replace(/#.*$/, '').trim()
+    const head = line.match(/^\[\s*([^\]]+?)\s*\]$/)
+    if (head) { table = head[1]; continue }
+    const m = table === 'session' && line.match(/^resume_agents_on_restore\s*=\s*(true|false)$/)
+    if (m) return m[1] === 'true'
+  }
+  return true
+}
+// 방금 켠 데스크의 빈 세션(셸)에 명령을 넣는다 — 데스크를 켤 때 끄기 전의 대화를 이어 여는 데 쓴다.
+// commands = [{ id, pane, command }]. herdr가 복원한 herdr pane 목록이 나올 때까지 기다리고, herdr 자체 복원이 에이전트를
+// 띄울 틈(settleMs)을 준 뒤 다시 읽어, 그때도 셸인 pane에만 넣는다. 돌려주는 값 { ran: [id], failed: [id] }.
+export async function runInShells(session, commands = [], { settleMs = 1200, tries = 24 } = {}) {
+  if (!commands.length) return { ran: [], failed: [] }
+  const list = async () => { try { return (await herdrJsonAsync(['pane', 'list'], session)).panes || [] } catch { return [] } }
+  for (let i = 0; i < tries && !(await list()).length; i++) await sleep(250)
+  await sleep(settleMs)
+  const panes = await list()
+  // 에이전트 목록을 읽지 못하면 어느 pane에도 넣지 않는다 — 모르는 채 넣으면 에이전트의 입력으로 들어갈 수 있다.
+  let agents
+  try { agents = (await herdrJsonAsync(['agent', 'list'], session)).agents || [] } catch { return { ran: [], failed: commands.map((c) => c.id) } }
+  const free = shellPanes(panes, agents)
+  const ran = [], failed = []
+  for (const c of commands) {
+    if (!free.has(c.pane)) { failed.push(c.id); continue }
+    try { await herdrAsync(['pane', 'run', c.pane, c.command], session); ran.push(c.id) } catch { failed.push(c.id) }
+  }
+  return { ran, failed }
 }
 
 // New tab in a herdr session with the agent started, then jump there.

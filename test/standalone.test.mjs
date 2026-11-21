@@ -592,10 +592,12 @@ test('update가 내려받은 설치기: 비어 있지 않고 첫 줄이 sh 스�
 test('설치 요약의 앱 코어 안내: 보드의 자동 감지 결과(auto.json)에서 "<앱>의 세션도 보드에 보인다" 줄을 가져온다 — 아직 없으면 잠깐 기다리고, 끝내 없으면 그 줄 없이 간다', async () => {
   const state = tmp('auto')
   const summary = { cores: [{ name: 'appcore', app: 'Ovis', web: true }, { name: 'other', app: null }] }
-  // 감지 결과가 있다
+  // 감지 결과가 있다. 앱이 ovis:// 링크를 아는지는 이 기계에 깔린 앱을 보고 정하므로(linkSupported), 시험이 두 경우를 정해 넣는다
   writeFileSync(join(state, 'auto.json'), JSON.stringify({ version: 1, values: {}, summary }))
-  assert.deepEqual(await coreNotes(state, TEXT.en, { waitMs: 0 }), ['Sessions of Ovis show on the board too. A click opens the session in a browser tab.', 'Sessions of herdr-core "other" show on the board too.'])
-  assert.deepEqual(await coreNotes(state, TEXT.ko, { waitMs: 0 }), ['Ovis의 세션도 보드에 보입니다. 누르면 그 세션이 브라우저 탭으로 열립니다.', 'herdr-core "other"의 세션도 보드에 보입니다.'])
+  const noLink = { waitMs: 0, link: () => false }
+  assert.deepEqual(await coreNotes(state, TEXT.en, noLink), ['Sessions of Ovis show on the board too. A click opens the session in a browser tab.', 'Sessions of herdr-core "other" show on the board too.'])
+  assert.deepEqual(await coreNotes(state, TEXT.ko, noLink), ['Ovis의 세션도 보드에 보입니다. 누르면 그 세션이 브라우저 탭으로 열립니다.', 'herdr-core "other"의 세션도 보드에 보입니다.'])
+  assert.equal((await coreNotes(state, TEXT.en, { waitMs: 0, link: () => true }))[0], 'Sessions of Ovis show on the board too. A click brings the Ovis window to the front.')
   // 감지한 앱 코어가 없으면 줄도 없다
   writeFileSync(join(state, 'auto.json'), JSON.stringify({ version: 1, values: {}, summary: { cores: [] } }))
   assert.deepEqual(await coreNotes(state, TEXT.en, { waitMs: 0 }), [])

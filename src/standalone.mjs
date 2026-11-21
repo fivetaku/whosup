@@ -616,10 +616,11 @@ export function browserOpens(L, fileEnv = {}, platform = process.platform) {
 // 보드의 자동 감지(<상태 폴더>/auto.json)가 찾은 앱 코어의 안내 줄("<앱>의 세션도 보드에 보입니다" — src/setup.mjs coreLines).
 // 터미널 없이 깐 설치에는 감지를 돌린 첫 실행 안내가 없어서, 설치 요약이 보드를 켠 뒤의 감지 결과에서 이 줄을 가져온다.
 // 감지가 아직 안 끝났으면(요약 없음) waitMs까지 기다려 보고, 그래도 없으면 빈 목록(그 줄 없이 간다).
-export async function coreNotes(stateDir, T, { waitMs = 5000, stepMs = 250, read = readAuto } = {}) {
+// link = 깔린 앱이 ovis:// 링크를 아는가(기본은 이 기계의 앱을 보는 linkSupported — 시험이 갈아 끼운다).
+export async function coreNotes(stateDir, T, { waitMs = 5000, stepMs = 250, read = readAuto, link = undefined } = {}) {
   for (const end = Date.now() + waitMs; ;) {
     const summary = read(stateDir)?.summary
-    if (summary) return coreLines(summary, T)
+    if (summary) return coreLines(summary, T, { link })
     if (Date.now() >= end) return []
     await new Promise((r) => setTimeout(r, stepMs))
   }

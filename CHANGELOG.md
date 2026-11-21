@@ -4,7 +4,34 @@ All notable changes to whosup are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the version matches
 `herdr-plugin.toml` and `package.json`.
 
-## [Unreleased]
+## [0.2.2] - 2026-11-21
+
+### Added
+
+- Starting a stopped herdr desk resumes, in each session, the conversation
+  that was running before it stopped, as Herdr app desks already did. Only
+  when this start brought the desk up, only in sessions that had an agent,
+  only when herdr's own agent restore is off
+  (`[session] resume_agents_on_restore = false`), and only in sessions that
+  are still a plain shell. With herdr's restore on (its default), herdr
+  brings the agents back and whosup types nothing into the desk.
+- A setting decides whether starting a desk resumes those conversations:
+  **Always resume** (the default), **Ask each time** (the board asks when you
+  press start: OK resumes, Cancel starts the desk fresh), or **Don't resume**.
+  On a herdr desk a conversation not resumed stays in its place as an empty
+  session; on a Herdr app desk it stays under closed sessions. Either way it
+  can still be resumed one by one. `WHOSUP_DESK_RESUME=on|ask|off` sets it
+  from the environment.
+
+### Fixed
+
+- Starting a Herdr app desk resumes a conversation only once: not twice when
+  two of the desk's old sessions held it, and not again from Recently closed
+  while the desk is still starting.
+- Starting a Herdr app desk no longer drops from Recently closed a
+  conversation it did not resume (for example one whose transcript is gone);
+  only the conversations it resumed are folded away.
+- The one-line installer installs v0.2.2.
 
 ## [0.2.1] - 2026-11-21
 

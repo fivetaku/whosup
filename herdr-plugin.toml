@@ -1,6 +1,6 @@
 id = "fivetaku.whosup"
 name = "whosup"
-version = "0.2.1"
+version = "0.2.2"
 min_herdr_version = "0.9.0"
 description = "Stop abandoning your agent sessions. One board for every agent session in herdr: what needs input, what finished, what's running. Click to jump to that session."
 # windows: herdr runs commands without a shell, so Windows uses the node entries below (scripts/launch.mjs).

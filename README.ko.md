@@ -238,6 +238,7 @@ Node 프로세스 하나, 빌드 없음. herdr의 startup 훅은 한 번 실행�
 | `WHOSUP_CORES` | 자동 | Herdr 앱의 코어(`default`) 말고 더 읽을 herdr-core 코어: 쉼표로 나눈 코어 이름들, `all`(`core.lock`을 남겼고 소켓이 있는 코어 전부), `none`(Herdr 앱의 코어만). 비워 두면 자동 감지가 [자기 코어를 띄우는 앱](#자기-코어를-띄우는-앱)의 코어를 더함. 코어 이름은 글자·숫자·`.`·`_`·`-`로 80자까지, `.`과 `..`은 받지 않음. 두 이름이 같은 소켓을 가리키면 그 코어는 첫 이름으로 한 번만 읽음 |
 | `WHOSUP_CLICK_TARGET` | terminal | 세션을 여는 곳: `terminal`, `web`, `both`. 첫 실행 안내나 **설정**의 *세션을 여는 곳*에서 고른 값이 먼저이고, *이 브라우저에서만 다르게*를 켠 브라우저는 그 브라우저에서 고른 값을 씀 |
 | `WHOSUP_CORE_TARGET` | app | Herdr 앱 세션을 여는 곳: `app`, `terminal`. `terminal`이면 앱이 열려 있어도 늘 터미널 창에서 `hc attach`로 엶. 첫 실행 안내나 **설정**의 *Herdr 앱 세션을 여는 곳*에서 고른 값이 먼저 |
+| `WHOSUP_DESK_RESUME` | on | 데스크를 켤 때 꺼지기 전의 대화를 이어 열지: `on`(늘), `ask`(켤 때마다 보드가 묻는다), `off`(열지 않는다). **설정**의 *데스크를 켤 때 대화 이어 열기*에서 고른 값이 먼저 |
 | `HERDR_APP_BIN` · `HERDR_APP_NAME` · `HC_BIN` | `herdr-app` · `Herdr` · `hc` | Herdr 앱 명령(이동, 새 탭, 공간 닫기), macOS에서 앞으로 올릴 앱 이름, herdr-core 터미널을 터미널 창에서 열 때 쓰는 명령. 앱 이름은 `HERDR_APP_NAME` > 자동 감지가 찾은 이름 > `Herdr` 순서. `HERDR_APP_NAME`은 Herdr 앱에만 쓰고 [다른 앱의 코어](#자기-코어를-띄우는-앱)에는 쓰지 않음 |
 
 ### 데스크(선택)
@@ -257,7 +258,7 @@ Node 프로세스 하나, 빌드 없음. herdr의 startup 훅은 한 번 실행�
 
 ### 에이전트 복원
 
-herdr는 재부팅 뒤 에이전트를 스스로 다시 띄울 수 있습니다(`[session] resume_agents_on_restore`). 에이전트를 래퍼로 띄운다면 이 값을 `false`로 두고 whosup의 **이어서 열기**를 쓰세요. 그래야 래퍼가 쓰입니다.
+herdr는 재부팅 뒤 에이전트를 스스로 다시 띄울 수 있습니다(`[session] resume_agents_on_restore`, herdr 기본값은 켜짐). 에이전트를 래퍼로 띄운다면 이 값을 `false`로 두고 whosup의 **이어서 열기**를 쓰세요. 그래야 래퍼가 쓰입니다. 이 값이 `false`이면, 보드에서 꺼진 데스크를 **켜기**로 켤 때 꺼질 때 대화가 돌던 세션마다 whosup이 그 대화를 이어서 엽니다. herdr가 이미 에이전트를 다시 띄운 세션은 건드리지 않습니다. 이 값이 켜져 있으면(config.toml에 없을 때도) 대화는 herdr가 되살리고 whosup은 아무것도 넣지 않습니다. **설정**의 *데스크를 켤 때 대화 이어 열기*(`WHOSUP_DESK_RESUME`)는 whosup이 이어 여는 것만 정합니다. 켤 때 이어 열지 않은 대화는 같은 자리의 빈 세션으로 남아 하나씩 **이어서 열기**를 할 수 있습니다. Herdr 앱 데스크는 이 herdr 설정과 상관없이 whosup이 이어 열고, 이어 열지 않은 대화는 닫힌 세션에 남습니다.
 
 ---
 

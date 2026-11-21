@@ -236,6 +236,7 @@ Put `KEY=value` lines in `.env` inside the plugin config dir (`herdr plugin conf
 | `WHOSUP_CORES` | auto | which other herdr-core cores to read, besides the Herdr app's core (`default`): core names separated by commas, `all` (every core that left a `core.lock` and has its socket), or `none` (the Herdr app's core only). When unset, auto-detect adds the cores of [apps that run their own core](#apps-that-run-their-own-core). A core name is letters, digits, `.`, `_` and `-`, up to 80 characters; `.` and `..` are refused. When two names point at the same socket, that core is read once, under the first name |
 | `WHOSUP_CLICK_TARGET` | terminal | where sessions open, the default for every browser: `terminal`, `web` or `both`; first-run setup and *Sessions open in* in **settings** override it on the server, and *only in this browser* overrides that in one browser |
 | `WHOSUP_CORE_TARGET` | app | where Herdr app sessions open: `app` or `terminal`. With `terminal` they always open in a terminal window with `hc attach`, even when the app is open; first-run setup and *Herdr app sessions open in* in **settings** override it |
+| `WHOSUP_DESK_RESUME` | on | whether starting a desk resumes the conversations that were running before it stopped: `on` (always), `ask` (the board asks each time you start one), `off` (never); *Resume conversations when a desk starts* in **settings** overrides it |
 | `HERDR_APP_BIN` · `HERDR_APP_NAME` · `HC_BIN` | `herdr-app` · `Herdr` · `hc` | the Herdr app command (jump, new tab, close a space), the app to bring forward on macOS, and the command used to open a herdr-core terminal in a terminal window. The app name is taken in this order: `HERDR_APP_NAME` > the name auto-detect found > `Herdr`. `HERDR_APP_NAME` is used for the Herdr app only, never for [another app's core](#apps-that-run-their-own-core) |
 
 ### Desks (optional)
@@ -255,7 +256,7 @@ Save it as `desks.json` in the plugin config dir (`herdr plugin config-dir fivet
 
 ### Agent restore
 
-herdr can restart agents itself after a reboot (`[session] resume_agents_on_restore`). If you launch agents through a wrapper, set that to `false` and use whosup's **resume** instead, so the wrapper is used.
+herdr can restart agents itself after a reboot (`[session] resume_agents_on_restore`, on by default in herdr). If you launch agents through a wrapper, set that to `false` and use whosup's **resume** instead, so the wrapper is used. With it set to `false`, starting a stopped desk from the board (**start**) makes whosup resume the conversations that were running in its sessions when it stopped; sessions where herdr already restarted an agent are left alone. With it on (also when config.toml does not set it), herdr brings the conversations back and whosup adds nothing. *Resume conversations when a desk starts* in **settings** (`WHOSUP_DESK_RESUME`) only decides what whosup resumes. A conversation not resumed at start stays in its place as an empty session, and you can still **resume** it one by one. Herdr app desks are resumed by whosup whatever this herdr setting says, and their conversations not resumed stay under closed sessions.
 
 ---
 

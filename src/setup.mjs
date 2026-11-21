@@ -21,7 +21,7 @@ import { join, posix, win32 } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { ReadStream as TtyReadStream, WriteStream as TtyWriteStream } from 'node:tty'
 import { detect, evaluate, remoteWhy, renameRetry } from './autoconf.mjs'
-import { configDirOf, stateDirOf, xdgDir } from './paths.mjs'
+import { configDirOf, herdrDirs, stateDirOf } from './paths.mjs'
 import { commandFor } from './platform.mjs'
 import { parseSessionJson, parseSessionTable } from './runtime/herdr.mjs'
 import { linkSupported } from './runtime/ovis.mjs'
@@ -577,24 +577,11 @@ export function readSetup(file) {
 }
 
 // ── herdr가 플러그인에 주는 폴더(규칙으로 계산): herdr 소스 src/config/io.rs·src/plugin_paths.rs(0.9.5) ──
-// 설정: <config>/plugins/config/<id>, 상태: <state>/plugins/<id>.
-// <config> = XDG_CONFIG_HOME/herdr | 윈도우 %APPDATA%\herdr (없으면 %USERPROFILE%\AppData\Roaming\herdr) | ~/.config/herdr
-// <state>  = XDG_STATE_HOME/herdr  | 윈도우 %LOCALAPPDATA%\herdr (없으면 %USERPROFILE%\AppData\Local\herdr) | ~/.local/state/herdr
+// 설정: <config>/plugins/config/<id>, 상태: <state>/plugins/<id>. <config>·<state>는 src/paths.mjs herdrDirs.
 const idComponent = (id) => { let c = [...Buffer.from(String(id))].map((b) => { const ch = String.fromCharCode(b); return /[a-z0-9._-]/.test(ch) ? ch : `%${b.toString(16).toUpperCase().padStart(2, '0')}` }).join(''); if (c.endsWith('.')) c = `${c.slice(0, -1)}%2E`; return c || '%plugin' }
 export function herdrPluginDirs(id, env = process.env, platform = process.platform, home = homedir()) {
-  const win = platform === 'win32'
-  const P = win ? win32 : posix
-  const h = env.HOME || home
-  // XDG 값은 절대 경로일 때만 쓴다(상대 경로·제어 문자가 든 값은 없는 것으로 본다 — src/paths.mjs xdgDir, 단독 설치·install.sh와 같은 판정).
-  const xdgConfig = xdgDir(env.XDG_CONFIG_HOME, P.isAbsolute), xdgState = xdgDir(env.XDG_STATE_HOME, P.isAbsolute)
-  const config = xdgConfig ? P.join(xdgConfig, 'herdr')
-    : win && env.APPDATA ? P.join(env.APPDATA, 'herdr')
-    : win && env.USERPROFILE ? P.join(env.USERPROFILE, 'AppData', 'Roaming', 'herdr')
-    : P.join(h, '.config', 'herdr')
-  const state = xdgState ? P.join(xdgState, 'herdr')
-    : win && env.LOCALAPPDATA ? P.join(env.LOCALAPPDATA, 'herdr')
-    : win && env.USERPROFILE ? P.join(env.USERPROFILE, 'AppData', 'Local', 'herdr')
-    : P.join(h, '.local', 'state', 'herdr')
+  const P = platform === 'win32' ? win32 : posix
+  const { config, state } = herdrDirs(env, platform, home)
   return { config: P.join(config, 'plugins', 'config', idComponent(id)), state: P.join(state, 'plugins', idComponent(id)) }
 }
 // 이미 셋업한 설치(업데이트·재설치): 설정 폴더에 읽을 수 있는 setup.json이 있거나 상태 폴더에 whosup.db(SQLite 파일)가 있다.

@@ -259,24 +259,64 @@ export async function resumeSession(db, id, shownSid, { raise = true } = {}) {
 
 // 꺼 둔 Herdr 앱 데스크를 다시 켠다: 같은 이름·폴더로 공간을 만들고, 끌 때 열려 있던 대화를 이어서 연다.
 // 옛 세션(끝난 터미널)은 'reopened'로 접는다 — 새 터미널은 수집이 새 세션으로 잡는다.
-export async function startCoreDesk(db, desk, { raise = true } = {}) {
+// 켜기 요청 하나가 대화를 이어 열지: 요청이 정했으면(resume: true·false) 그것, 아니면 설정(desk_resume). ask 인데 요청이 정하지
+// 않았으면(묻는 화면이 없는 예전 화면·curl) 예전처럼 잇는다.
+export const deskResumeFor = (db, asked) => (typeof asked === 'boolean' ? asked : getSettings(db).desk_resume !== 'off')
+export async function startCoreDesk(db, desk, { raise = true, resume = true } = {}) {
   const cmd = getSettings(db).agent_cmd
   const all = db.prepare('SELECT * FROM session WHERE archived = 0').all()
   const off = all.filter((r) => r.runtime === core.name && r.unreachable === 2 && deskOf(r) === desk)
   const others = all.filter((r) => !off.includes(r))
   const commands = []
+  const sidOf = new Map()   // 옛 세션 id → 이어 열 대화(후보일 때만)
   for (const r of off) {
-    if (!r.provider_session) continue
+    if (!resume || !r.provider_session) continue
     const t = resumeFor(others, r, cmd)
-    if (t?.from === 'pane') commands.push({ id: r.id, cwd: r.cwd, command: `${cmd} --resume ${t.sid}` })   // 그 세션의 대화만 — 폴더의 다른 대화로 대신하지 않는다
+    if (t?.from !== 'pane') continue   // 그 세션의 대화만 — 폴더의 다른 대화로 대신하지 않는다
+    sidOf.set(r.id, t.sid)
+    // 같은 대화를 쥐던 옛 세션이 둘이어도 한 번만 연다. 다른 세션에서 이어 여는 중인 대화는 넣지 않고, 넣는 대화는 잡아 둔다
+    // (resumeSession·startHerdrDesk와 같은 잡아 두기 — 새 터미널이 수집되기 전에 최근 닫힘에서 같은 대화를 또 열지 않게).
+    if (commands.some((c) => sidOf.get(c.id) === t.sid) || heldByOther(t.sid, r.id)) continue
+    holdSid(t.sid, r.id)
+    commands.push({ id: r.id, cwd: r.cwd, command: `${cmd} --resume ${t.sid}` })
   }
-  const r = await core.startSession(desk, undefined, { raise, commands })
-  // 이어 열지 못한 대화의 옛 세션은 접지 않는다: 다음 수집이 닫힌 세션으로 옮기고, 거기서 하나씩 이어 열 수 있다.
-  const failed = new Set(r.failed || [])
+  let r
+  try { r = await core.startSession(desk, undefined, { raise, commands }) } catch (err) { for (const c of commands) dropSid(sidOf.get(c.id)); throw err }
+  const done = new Set(r.done || [])
+  for (const c of commands) (done.has(c.id) ? releaseLater : dropSid)(sidOf.get(c.id))
+  // 옛 세션은 그 대화를 이번에 이어 연 것이 확인됐을 때만 접는다(접을 대화가 없던 빈 세션도 접는다). 이어 열지 못한 대화 —
+  // 후보가 아니었거나, 다른 세션이 이어 여는 중이었거나, 넣기가 실패한 대화 — 의 옛 세션은 남긴다: 다음 수집이 닫힌 세션으로
+  // 옮기고, 거기서 하나씩 이어 열 수 있다. 잇지 않기로 한 켜기(resume: false)는 옛 세션을 모두 남긴다.
+  const opened = new Set(commands.filter((c) => done.has(c.id)).map((c) => sidOf.get(c.id)))
   const at = new Date().toISOString()
   const fold = db.prepare("UPDATE session SET archived = 1, status = 'reopened', unreachable = 0, updated_at = ? WHERE id = ?")
-  for (const row of off) if (!failed.has(row.id)) fold.run(at, row.id)
+  for (const row of off) if (resume && (!row.provider_session || opened.has(sidOf.get(row.id)))) fold.run(at, row.id)
   return r
+}
+// 꺼져 있던 herdr 데스크를 다시 켠다: 서버와 창을 띄우고, 꺼질 때 대화가 돌던 세션마다 그 대화를 이어서 연다
+// (Herdr 앱 데스크의 startCoreDesk와 같은 약속 — 켜기를 누른 뒤 세션마다 이어서 열기를 또 누르지 않게).
+// - 이 호출이 서버를 띄웠을 때만 한다. 이미 켜져 있던 데스크의 세션에는 아무것도 넣지 않는다.
+// - 꺼질 때 에이전트가 없던 세션(빈 세션)은 그대로 둔다. 그 세션의 대화만 잇는다(폴더의 다른 대화로 대신하지 않는다).
+// - herdr가 스스로 에이전트를 되살리는 설정(resume_agents_on_restore, herdr 기본 켜짐)이면 아무것도 넣지 않는다 — 그 복원은 herdr의 몫이고,
+//   늦게 뜨는 에이전트에 재개 명령이 입력으로 들어갈 수 있다. 꺼져 있어도 runInShells가 넣기 직전에 셸인지 다시 본다.
+export async function startHerdrDesk(db, desk, { raise = true, rt = herdr, resume = true } = {}) {
+  const cmd = getSettings(db).agent_cmd
+  const all = db.prepare('SELECT * FROM session WHERE archived = 0').all()
+  const mine = all.filter((s) => s.runtime === herdr.name && deskOf(s) === desk && s.provider_session && s.status !== 'shell')
+  const others = all.filter((s) => !mine.includes(s))
+  const r = await rt.startSession(desk, undefined, { raise })
+  if (!resume || r.client !== 'started' || !mine.length || rt.restoresAgents?.()) return r
+  const commands = []
+  const taken = new Set()
+  for (const s of mine) {
+    const t = resumeFor(others, s, cmd)
+    if (t?.from !== 'pane' || taken.has(t.sid) || heldByOther(t.sid, s.id)) continue
+    taken.add(t.sid); holdSid(t.sid, s.id)
+    commands.push({ id: s.id, pane: s.runtime_ref.slice(s.runtime_ref.indexOf('/') + 1), command: `${cmd} --resume ${t.sid}`, sid: t.sid })
+  }
+  let out = { ran: [], failed: commands.map((c) => c.id) }
+  try { out = await rt.runInShells(desk, commands) } finally { for (const c of commands) (out.ran.includes(c.id) ? releaseLater : dropSid)(c.sid) }
+  return { ...r, resumed: out.ran.length, failed: out.failed }
 }
 // 한 데스크를 끄거나 켜는 요청은 그 뒤의 수집까지 끝나야 다음 것을 받는다: 끄자마자 켜면 판(DB)이 아직 꺼진 줄을 모르고,
 // 이어 열 대화를 하나도 찾지 못한 채 빈 공간만 만든다.
@@ -489,14 +529,17 @@ export function createBoardServer(db, /** @type {BoardServerOpts} */ { heartbeat
             const session = String(body.session || '')
             const rt = runtimeForDesk(session)
             if (!rt.validSessionName(session)) return send(400, JSON.stringify({ ok: false, code: 'bad_request' }))
+            // resume(이번 켜기에 대화를 잇는가)은 true·false만 받는다 — "false" 같은 글자를 설정값으로 조용히 바꾸지 않는다.
+            if ('resume' in body && typeof body.resume !== 'boolean') return send(400, JSON.stringify({ ok: false, code: 'bad_request', message: 'resume must be true or false' }))
             if (!deskAllowed(session)) return send(409, JSON.stringify(NOT_SUPPORTED))
             if (deskBusy.has(session)) return send(409, JSON.stringify({ ok: false, code: 'busy', message: 'that desk is already being switched' }))
             deskBusy.add(session)
             try {
               if (body.on === false) { try { await rt.stopSession(session) } finally { noteChange() } await collectNow(db); return send(200, JSON.stringify({ ok: true, code: 'desk_stopped' })) }
+              const resume = deskResumeFor(db, body.resume)
               let r
-              try { r = rt === core ? await startCoreDesk(db, session, { raise }) : await rt.startSession(session, undefined, { raise }) } finally { noteChange() }
-              await collectNow(db); return send(200, JSON.stringify(withRaiseWarning({ ok: true, code: 'desk_started', window: r.window, ...(r.failed?.length ? { not_resumed: r.failed.length } : {}) })))
+              try { r = rt === core ? await startCoreDesk(db, session, { raise, resume }) : await startHerdrDesk(db, session, { raise, resume }) } finally { noteChange() }
+              await collectNow(db); return send(200, JSON.stringify(withRaiseWarning({ ok: true, code: 'desk_started', window: r.window, ...(r.resumed ? { resumed: r.resumed } : {}), ...(r.failed?.length ? { not_resumed: r.failed.length } : {}) })))
             } finally { deskBusy.delete(session) }
           }
           // 터미널 앱은 저장하는 즉시 다음 클릭부터 쓴다(재시작 없음).

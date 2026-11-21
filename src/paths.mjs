@@ -4,7 +4,7 @@
 import { createHash } from 'node:crypto'
 import { existsSync, realpathSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { isAbsolute, join, resolve } from 'node:path'
+import { isAbsolute, join, posix, resolve, win32 } from 'node:path'
 
 export const ownDir = (home = homedir()) => join(home, '.config', 'whosup')
 export const configDirOf = (env = process.env, home = homedir()) => env.HERDR_PLUGIN_CONFIG_DIR || ownDir(home)
@@ -20,6 +20,26 @@ export const stateDirOf = (env = process.env, home = homedir()) => env.HERDR_PLU
 // 무시한다. 그때는 없는 것으로 보고 기본값을 쓴다(install.sh의 abs_dir과 같은 판정).
 // abs = 절대 경로 판정: 기본은 이 기계의 것. 다른 플랫폼의 경로를 계산하는 쪽(src/setup.mjs herdrPluginDirs)이 그 플랫폼의 것을 넘긴다.
 export const xdgDir = (v, abs = isAbsolute) => (typeof v === 'string' && abs(v) && !/[\u0000-\u001f\u007f]/.test(v) ? v : '')
+
+// ── herdr 자신의 폴더(규칙으로 계산): herdr 소스 src/config/io.rs·src/plugin_paths.rs(0.9.5) ──
+// <config> = XDG_CONFIG_HOME/herdr | 윈도우 %APPDATA%\herdr (없으면 %USERPROFILE%\AppData\Roaming\herdr) | ~/.config/herdr
+// <state>  = XDG_STATE_HOME/herdr  | 윈도우 %LOCALAPPDATA%\herdr (없으면 %USERPROFILE%\AppData\Local\herdr) | ~/.local/state/herdr
+// config.toml은 <config> 바로 아래, 플러그인 폴더는 그 아래 plugins/ (src/setup.mjs herdrPluginDirs).
+export function herdrDirs(env = process.env, platform = process.platform, home = homedir()) {
+  const win = platform === 'win32'
+  const P = win ? win32 : posix
+  const h = env.HOME || home
+  const xdgConfig = xdgDir(env.XDG_CONFIG_HOME, P.isAbsolute), xdgState = xdgDir(env.XDG_STATE_HOME, P.isAbsolute)
+  const config = xdgConfig ? P.join(xdgConfig, 'herdr')
+    : win && env.APPDATA ? P.join(env.APPDATA, 'herdr')
+    : win && env.USERPROFILE ? P.join(env.USERPROFILE, 'AppData', 'Roaming', 'herdr')
+    : P.join(h, '.config', 'herdr')
+  const state = xdgState ? P.join(xdgState, 'herdr')
+    : win && env.LOCALAPPDATA ? P.join(env.LOCALAPPDATA, 'herdr')
+    : win && env.USERPROFILE ? P.join(env.USERPROFILE, 'AppData', 'Local', 'herdr')
+    : P.join(h, '.local', 'state', 'herdr')
+  return { config, state }
+}
 // 설치 기록(<데이터 폴더>/install.json)에 적힌 폴더: scripts/standalone.mjs가 앱 폴더 옆의 기록을 읽어 이 세 이름으로 환경에 채운다
 // (사람이 정하는 값이 아니다). 채워져 있으면 XDG 값보다 먼저다 — 설치한 뒤 다른 환경에서 불러도(로그인 항목·다른 셸) 같은 폴더를 쓴다.
 export const PIN_KEYS = { data: 'WHOSUP_PIN_DATA', conf: 'WHOSUP_PIN_CONF', state: 'WHOSUP_PIN_STATE' }
